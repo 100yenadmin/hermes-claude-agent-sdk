@@ -33,7 +33,7 @@ remains a separate transport and is not routed to this plugin.
 
 The first release candidate targets the provider-neutral host branch
 `codex/agent-runtime-plugin-api-v1` at exact host SHA
-`ed25603753b6bbc5b3efcf62c169b0873f64d127`.
+`54b76cc61d32449a4653b61e974ab78deefe64ac`.
 
 Run `hermes_claude_agent_sdk.doctor()` (or `doctor_json()`) from an environment
 with the public host API to inspect API and capability compatibility. The
