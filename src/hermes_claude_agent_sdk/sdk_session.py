@@ -530,11 +530,6 @@ class SDKSession:
             inbox = self._active_inbox
             if inbox is not None:
                 inbox.put_nowait(_CANCELLED)
-            reader = self._reader_task
-            self._reader_task = None
-            if reader is not None:
-                reader.cancel()
-                await asyncio.gather(reader, return_exceptions=True)
             client = self._client
             self._client = None
             if client is not None:
@@ -544,6 +539,13 @@ class SDKSession:
                     )
                 except Exception:
                     pass
+            reader = self._reader_task
+            self._reader_task = None
+            if reader is not None:
+                reader.cancel()
+                await asyncio.wait(
+                    {reader}, timeout=self._configuration.close_timeout_seconds
+                )
 
 
 __all__ = [
