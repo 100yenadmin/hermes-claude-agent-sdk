@@ -11,6 +11,14 @@ or issuing a model query. `doctor()` reports the same API/capability handshake
 without credentials or SDK client construction. Compatibility with future
 Hermes main or future SDK versions is not implied.
 
+The pinned SDK exposes a public `PreCompact` hook but no typed post-compaction
+hook. Completion mapping therefore also binds this candidate to the pinned
+Claude CLI's observed `SystemMessage(subtype="compact_boundary")` behavior.
+The plugin keeps a bounded terminal-result fallback and 600-second watchdog,
+projects only provider-neutral lifecycle events, and does not turn lifecycle
+messages into conversation content. This is exact-candidate compatibility,
+not a guarantee for later SDK or CLI versions.
+
 The required capability set includes `background_delivery_v1`. A host that
 lacks it is incompatible before SDK import, credential inspection, client
 construction, or query. On a compatible session-scoped host, one plugin

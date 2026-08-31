@@ -24,6 +24,11 @@ from .billing import (
     extract_sdk_billing_evidence,
 )
 from .configuration import SDKSessionConfiguration
+from .compaction import (
+    DEFAULT_COMPACTION_WATCHDOG_SECONDS,
+    NativeCompactionLifecycle,
+    SessionCompactionEvent,
+)
 from .content_events import ClaudeSdkEventProjector, ProjectionResult
 
 
@@ -74,7 +79,13 @@ class _PendingBackgroundResult:
     requires_foreground_trust: bool
 
 
+@dataclass(frozen=True, slots=True)
+class _CompactionWatchdogExpired:
+    pass
+
+
 _CANCELLED = object()
+_COMPACTION_WATCHDOG_EXPIRED = _CompactionWatchdogExpired()
 _IMMEDIATE_BILLING_BLOCKS = {
     BillingBlockReason.API_KEY_SOURCE,
     BillingBlockReason.EXTRA_USAGE,
@@ -148,6 +159,7 @@ class SDKSession:
         on_projection: Callable[[ProjectionResult], Any] | None = None,
         on_billing_decision: Callable[[BillingDecision], Any] | None = None,
         on_background_result: Callable[[BackgroundSessionResult], Any] | None = None,
+        compaction_watchdog_seconds: float = DEFAULT_COMPACTION_WATCHDOG_SECONDS,
     ) -> None:
         self._configuration = configuration
         self._sdk = sdk_module
@@ -158,6 +170,9 @@ class SDKSession:
         self._on_projection = on_projection
         self._on_billing_decision = on_billing_decision
         self._on_background_result = on_background_result
+        self._compaction = NativeCompactionLifecycle(
+            watchdog_seconds=compaction_watchdog_seconds
+        )
         self._client: Any | None = None
         self._reader_task: asyncio.Task[None] | None = None
         self._active_inbox: asyncio.Queue[Any] | None = None
@@ -192,6 +207,7 @@ class SDKSession:
                 return
             sdk = self._sdk_module()
             fields = self._configuration.option_fields()
+            fields["hooks"] = self._compaction.build_hooks(sdk)
             if self._client_factory is not None:
                 client = self._client_factory(options=fields)
             else:
@@ -339,6 +355,7 @@ class SDKSession:
         projector: ClaudeSdkEventProjector | None = None,
         on_projection: Callable[[ProjectionResult], Any] | None = None,
         on_billing_decision: Callable[[BillingDecision], Any] | None = None,
+        on_compaction_event: Callable[[SessionCompactionEvent], Any] | None = None,
     ) -> SessionTurnResult:
         if not isinstance(prompt, str) or not prompt.strip():
             return SessionTurnResult(
@@ -359,6 +376,10 @@ class SDKSession:
             await self._pause_background_delivery()
             inbox: asyncio.Queue[Any] = asyncio.Queue()
             self._active_inbox = inbox
+            self._compaction.bind(
+                on_event=on_compaction_event,
+                on_watchdog=lambda: inbox.put_nowait(_COMPACTION_WATCHDOG_EXPIRED),
+            )
             turn_projector = projector or self._projector
             turn_projection_callback = (
                 on_projection if on_projection is not None else self._on_projection
@@ -371,6 +392,7 @@ class SDKSession:
             evidence: SDKBillingEvidence | None = None
             final_text: str | None = None
             state = SessionStateUpdate()
+            turn_completed = False
             try:
                 loop = asyncio.get_running_loop()
                 deadline = loop.time() + self._configuration.turn_timeout_seconds
@@ -382,20 +404,43 @@ class SDKSession:
                 except asyncio.TimeoutError:
                     await self._interrupt_then_close()
                     return SessionTurnResult(
-                        SessionOutcome.TIMED_OUT, error_code="sdk_turn_timeout"
+                        SessionOutcome.TIMED_OUT,
+                        error_code="sdk_turn_timeout",
                     )
                 while True:
                     try:
-                        message = await asyncio.wait_for(
-                            inbox.get(), max(0.0, deadline - loop.time())
-                        )
+                        try:
+                            message = inbox.get_nowait()
+                        except asyncio.QueueEmpty:
+                            if self._compaction.active:
+                                # Native compaction suspends the ordinary turn
+                                # deadline.  Its own bounded watchdog enqueues a
+                                # sentinel, so cancellation and stream failure
+                                # remain observable while the deadline is paused.
+                                message = await inbox.get()
+                            else:
+                                message = await asyncio.wait_for(
+                                    inbox.get(), max(0.0, deadline - loop.time())
+                                )
                     except asyncio.TimeoutError:
+                        # A PreCompact hook may race the ordinary deadline.
+                        # Once active, only the compaction watchdog may label
+                        # the turn as a compaction watchdog failure.
+                        if self._compaction.active:
+                            continue
                         await self._interrupt_then_close()
                         return SessionTurnResult(
-                            SessionOutcome.TIMED_OUT, error_code="sdk_turn_timeout"
+                            SessionOutcome.TIMED_OUT,
+                            error_code="sdk_turn_timeout",
                         )
                     if message is _CANCELLED or self._cancel_requested:
                         return SessionTurnResult(SessionOutcome.CANCELLED)
+                    if message is _COMPACTION_WATCHDOG_EXPIRED:
+                        await self._interrupt_then_close()
+                        return SessionTurnResult(
+                            SessionOutcome.FAILED,
+                            error_code="sdk_compaction_watchdog",
+                        )
                     if isinstance(message, _StreamEnded):
                         return SessionTurnResult(
                             SessionOutcome.FAILED,
@@ -404,6 +449,15 @@ class SDKSession:
                             error_code=(
                                 "sdk_stream_failed" if message.failed else "sdk_stream_ended"
                             ),
+                        )
+
+                    compaction_completed = await self._compaction.handle_message(message)
+                    if compaction_completed:
+                        # Compaction is a supported budget suspension, not
+                        # ordinary stream activity.  Resume with one fresh
+                        # bounded turn interval after the native boundary.
+                        deadline = (
+                            loop.time() + self._configuration.turn_timeout_seconds
                         )
 
                     billing_update = extract_sdk_billing_evidence(message)
@@ -473,6 +527,7 @@ class SDKSession:
                             billing_decision=decision,
                             error_code="sdk_result_failed",
                         )
+                    turn_completed = True
                     return SessionTurnResult(
                         SessionOutcome.COMPLETE,
                         final_text=final_text,
@@ -499,6 +554,7 @@ class SDKSession:
             finally:
                 if self._active_inbox is inbox:
                     self._active_inbox = None
+                await self._compaction.end_turn(completed=turn_completed)
 
     async def cancel(self) -> SessionOutcome:
         if self._closed:
@@ -524,6 +580,7 @@ class SDKSession:
             if self._closed:
                 return
             self._closed = True
+            await self._compaction.end_turn(completed=False)
             async with self._background_delivery_lock:
                 self._background_delivery_enabled = False
                 self._pending_background_results.clear()

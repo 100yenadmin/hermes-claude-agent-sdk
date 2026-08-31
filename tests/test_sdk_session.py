@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from types import ModuleType
 
 from hermes_claude_agent_sdk.configuration import SDKSessionConfiguration
+from hermes_claude_agent_sdk.compaction import SessionCompactionPhase
 import hermes_claude_agent_sdk.sdk_session as sdk_session_module
 from hermes_claude_agent_sdk.sdk_session import (
     BackgroundSessionOutcome,
@@ -51,6 +52,11 @@ class ResultMessage:
 class _Options:
     def __init__(self, **fields: object) -> None:
         self.fields = fields
+
+
+class _HookMatcher:
+    def __init__(self, *, hooks) -> None:
+        self.hooks = hooks
 
 
 class _FakeClient:
@@ -102,6 +108,7 @@ _END = object()
 def _sdk(client_box: list[_FakeClient], scripts: list[list[object]]) -> ModuleType:
     sdk = ModuleType("claude_agent_sdk")
     sdk.ClaudeAgentOptions = _Options
+    sdk.HookMatcher = _HookMatcher
 
     def make_client(*, options: object) -> _FakeClient:
         client = _FakeClient(options=options, scripts=scripts)
@@ -145,6 +152,33 @@ def test_bounded_turn_timeout_interrupts_and_retires_client() -> None:
         assert result.error_code == "sdk_turn_timeout"
         assert clients[0].interrupted == 1
         assert clients[0].disconnected == 1
+
+    asyncio.run(scenario())
+
+
+def test_missing_public_compaction_hook_fails_before_client_creation() -> None:
+    async def scenario() -> None:
+        constructed = 0
+
+        def client_factory(*, options):
+            nonlocal constructed
+            constructed += 1
+            raise AssertionError("client must not be constructed")
+
+        sdk = ModuleType("claude_agent_sdk")
+        sdk.ClaudeAgentOptions = _Options
+        session = SDKSession(
+            _configuration(),
+            sdk_module=sdk,
+            client_factory=client_factory,
+        )
+
+        result = await session.run_turn("missing hook support")
+        await session.close()
+
+        assert result.outcome is SessionOutcome.FAILED
+        assert result.error_code == "sdk_start_failed"
+        assert constructed == 0
 
     asyncio.run(scenario())
 
@@ -254,6 +288,7 @@ def test_text_turn_uses_public_options_one_reader_projection_and_exact_close() -
         assert fields["env"] == {"ANTHROPIC_API_KEY": ""}
         assert fields["setting_sources"] == []
         assert fields["tools"] == []
+        assert set(fields["hooks"]) == {"PreCompact"}
         assert client.queries == ["synthetic prompt"]
         assert client.receive_calls == 1
         assert client.disconnected == 1
@@ -263,6 +298,136 @@ def test_text_turn_uses_public_options_one_reader_projection_and_exact_close() -
         assert len(projections) == 3
         assert billing[0].allowed is True
         assert timeline[-2:] == [("billing", True), ("projection", True)]
+
+    asyncio.run(scenario())
+
+
+def test_compaction_hook_boundary_and_turn_projection_are_ordered() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        events = []
+        projections = []
+        session = SDKSession(
+            _configuration(turn_timeout_seconds=1),
+            sdk_module=_sdk(clients, [[]]),
+        )
+
+        turn = asyncio.create_task(
+            session.run_turn(
+                "native compaction",
+                on_projection=projections.append,
+                on_compaction_event=events.append,
+            )
+        )
+        while not clients or not clients[0].queries:
+            await asyncio.sleep(0)
+
+        hook = clients[0].options.fields["hooks"]["PreCompact"][0].hooks[0]
+        assert await hook({"trigger": "auto"}, None, None) == {}
+        await clients[0]._messages.put(
+            SystemMessage(
+                "compact_boundary",
+                {"compact_metadata": {"trigger": "auto"}},
+            )
+        )
+        await clients[0]._messages.put(
+            SystemMessage("init", {"apiKeySource": "none"})
+        )
+        await clients[0]._messages.put(ResultMessage())
+
+        result = await turn
+        await session.close()
+
+        assert result.outcome is SessionOutcome.COMPLETE
+        assert [event.phase for event in events] == [
+            SessionCompactionPhase.STARTED,
+            SessionCompactionPhase.COMPLETED,
+        ]
+        # The boundary is lifecycle-only.  It is the first SDK message in
+        # this script and therefore produces an empty public content projection.
+        assert projections[0].events == ()
+
+    asyncio.run(scenario())
+
+
+def test_missing_compact_boundary_trips_bounded_watchdog_and_retires_client() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        events = []
+        session = SDKSession(
+            _configuration(turn_timeout_seconds=1),
+            sdk_module=_sdk(clients, [[]]),
+            compaction_watchdog_seconds=0.01,
+        )
+
+        turn = asyncio.create_task(
+            session.run_turn(
+                "bounded compaction",
+                on_compaction_event=events.append,
+            )
+        )
+        while not clients or not clients[0].queries:
+            await asyncio.sleep(0)
+
+        hook = clients[0].options.fields["hooks"]["PreCompact"][0].hooks[0]
+        await hook({"trigger": "auto"}, None, None)
+        result = await asyncio.wait_for(turn, 0.1)
+        await session.close()
+
+        assert result.outcome is SessionOutcome.FAILED
+        assert result.error_code == "sdk_compaction_watchdog"
+        assert [event.phase for event in events] == [
+            SessionCompactionPhase.STARTED,
+            SessionCompactionPhase.WATCHDOG,
+        ]
+        assert clients[0].interrupted == 1
+        assert clients[0].disconnected == 1
+
+    asyncio.run(scenario())
+
+
+def test_native_compaction_suspends_then_restamps_the_turn_deadline() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        events = []
+        session = SDKSession(
+            _configuration(turn_timeout_seconds=0.02),
+            sdk_module=_sdk(clients, [[]]),
+            compaction_watchdog_seconds=0.2,
+        )
+
+        turn = asyncio.create_task(
+            session.run_turn(
+                "native compaction deadline",
+                on_compaction_event=events.append,
+            )
+        )
+        while not clients or not clients[0].queries:
+            await asyncio.sleep(0)
+
+        hook = clients[0].options.fields["hooks"]["PreCompact"][0].hooks[0]
+        await hook({"trigger": "auto"}, None, None)
+        await asyncio.sleep(0.03)
+        await clients[0]._messages.put(
+            SystemMessage(
+                "compact_boundary",
+                {"compact_metadata": {"trigger": "auto"}},
+            )
+        )
+        await clients[0]._messages.put(
+            SystemMessage("init", {"apiKeySource": "none"})
+        )
+        await clients[0]._messages.put(ResultMessage())
+
+        result = await turn
+        await session.close()
+
+        assert result.outcome is SessionOutcome.COMPLETE
+        assert [event.phase for event in events] == [
+            SessionCompactionPhase.STARTED,
+            SessionCompactionPhase.COMPLETED,
+        ]
+        assert clients[0].interrupted == 0
 
     asyncio.run(scenario())
 

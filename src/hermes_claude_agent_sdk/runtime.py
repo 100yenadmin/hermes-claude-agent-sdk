@@ -96,12 +96,14 @@ class ClaudeAgentSDKRuntime:
         client_factory: Callable[..., Any] | None = None,
         cwd: str = ".",
         parent_env: Mapping[str, object] | None = None,
+        compaction_watchdog_seconds: float = 600.0,
     ) -> None:
         self._auth_probe = auth_probe
         self._sdk = sdk_module
         self._client_factory = client_factory
         self._cwd = cwd
         self._parent_env = parent_env
+        self._compaction_watchdog_seconds = compaction_watchdog_seconds
         self._auth_allowed: bool | None = None
         self._session: Any | None = None
         self._bridge: HostToolBridge | None = None
@@ -185,6 +187,8 @@ class ClaudeAgentSDKRuntime:
     async def run_turn(self, request: Any, host: Any):
         from agent.runtime_api import (
             RuntimeCancelledEvent,
+            RuntimeCompactionEvent,
+            RuntimeCompactionPhase,
             RuntimeCompletedEvent,
             RuntimeFailedEvent,
             RuntimeFailurePhase,
@@ -194,6 +198,7 @@ class ClaudeAgentSDKRuntime:
             RuntimeUsageReceipt,
         )
         from .content_events import ClaudeSdkEventProjector, ProjectionResult
+        from .compaction import SessionCompactionPhase
         from .sdk_session import SDKSession, SessionOutcome
 
         preflight_failure = self.preflight(request)
@@ -301,6 +306,7 @@ class ClaudeAgentSDKRuntime:
                     sdk_module=self._sdk,
                     client_factory=self._client_factory,
                     on_background_result=self._emit_background_result,
+                    compaction_watchdog_seconds=self._compaction_watchdog_seconds,
                 )
             elif session_contract != self._session_contract:
                 yield RuntimeFailedEvent(
@@ -328,11 +334,36 @@ class ClaudeAgentSDKRuntime:
             async def on_projection(projection: ProjectionResult) -> None:
                 await queue.put(projection)
 
+            async def on_compaction_event(event: Any) -> None:
+                phases = {
+                    SessionCompactionPhase.STARTED: RuntimeCompactionPhase.STARTED,
+                    SessionCompactionPhase.COMPLETED: RuntimeCompactionPhase.COMPLETED,
+                    SessionCompactionPhase.FAILED: RuntimeCompactionPhase.FAILED,
+                    SessionCompactionPhase.WATCHDOG: RuntimeCompactionPhase.WATCHDOG,
+                }
+                details = (
+                    {"watchdog_seconds": event.watchdog_seconds}
+                    if event.phase is SessionCompactionPhase.WATCHDOG
+                    and event.watchdog_seconds is not None
+                    else {}
+                )
+                await queue.put(
+                    ProjectionResult(
+                        events=(
+                            RuntimeCompactionEvent(
+                                phase=phases[event.phase],
+                                details=details,
+                            ),
+                        )
+                    )
+                )
+
             task = asyncio.create_task(
                 session.run_turn(
                     prompt,
                     projector=projector,
                     on_projection=on_projection,
+                    on_compaction_event=on_compaction_event,
                 )
             )
             cancel_sent = False

@@ -6,10 +6,10 @@ import asyncio
 from dataclasses import dataclass
 from types import ModuleType, SimpleNamespace
 
-from agent.runtime_api import RuntimeStateEnvelope
-from agent.runtime_dispatch import build_runtime_turn_request
+from agent.runtime_api import RuntimeCompactionPhase, RuntimeStateEnvelope
+from agent.runtime_dispatch import _collect_runtime_turn, build_runtime_turn_request
 
-from hermes_claude_agent_sdk.compatibility import RUNTIME_ID
+from hermes_claude_agent_sdk.compatibility import RUNTIME_ID, build_runtime_descriptor
 from hermes_claude_agent_sdk.runtime import ClaudeAgentSDKRuntime
 
 
@@ -59,6 +59,11 @@ class _Options:
         self.fields = fields
 
 
+class _HookMatcher:
+    def __init__(self, *, hooks) -> None:
+        self.hooks = hooks
+
+
 class _Client:
     def __init__(self, *, options: _Options, mode: str) -> None:
         self.options = options
@@ -75,6 +80,9 @@ class _Client:
 
     async def query(self, prompt: str) -> None:
         self.queries.append(prompt)
+        if self.mode in {"compaction", "compaction_failure", "compaction_watchdog"}:
+            callback = self.options.fields["hooks"]["PreCompact"][0].hooks[0]
+            await callback({"trigger": "auto"}, None, None)
         if self.mode in {"tool_success", "tool_failure"}:
             server = self.options.fields["mcp_servers"]["hermes-tools"]
             handler = server["tools"][0]["handler"]
@@ -82,15 +90,23 @@ class _Client:
             await self._messages.put(
                 AssistantMessage([ToolUseBlock("tool-1", "pwd", {"path": "."})])
             )
-        if self.mode == "cancel":
+        if self.mode in {"cancel", "compaction_watchdog"}:
             return
         if self.mode not in {"unknown", "tool_failure"}:
             await self._messages.put(SystemMessage("init", {"apiKeySource": "none"}))
             await self._messages.put(AssistantMessage([TextBlock("hello")]))
+        if self.mode == "compaction":
+            await self._messages.put(
+                SystemMessage(
+                    "compact_boundary",
+                    {"compact_metadata": {"trigger": "auto"}},
+                )
+            )
         await self._messages.put(
             ResultMessage(
                 result="hello",
                 usage={"input_tokens": 2, "output_tokens": 3},
+                is_error=self.mode == "compaction_failure",
             )
         )
         if self.mode == "success_with_background":
@@ -121,6 +137,7 @@ class _Client:
 def _sdk(mode: str, clients: list[_Client]) -> ModuleType:
     sdk = ModuleType("claude_agent_sdk")
     sdk.ClaudeAgentOptions = _Options
+    sdk.HookMatcher = _HookMatcher
 
     def make_client(*, options: _Options) -> _Client:
         client = _Client(options=options, mode=mode)
@@ -155,6 +172,7 @@ class _Host:
         self.background = []
         self.observed_events: list[str] = []
         self.background_after_terminal: list[bool] = []
+        self.compaction = []
 
     async def execute_tool(self, name, arguments):
         self.calls.append((name, dict(arguments)))
@@ -173,7 +191,7 @@ class _Host:
         return None
 
     async def emit_compaction(self, event):
-        return None
+        self.compaction.append(event)
 
     async def emit_background_result(self, result):
         self.background.append(result)
@@ -222,12 +240,18 @@ def _request(
     )
 
 
-def _runtime(mode: str, clients: list[_Client]) -> ClaudeAgentSDKRuntime:
+def _runtime(
+    mode: str,
+    clients: list[_Client],
+    *,
+    compaction_watchdog_seconds: float = 600.0,
+) -> ClaudeAgentSDKRuntime:
     return ClaudeAgentSDKRuntime(
         auth_probe=lambda: SimpleNamespace(allowed=True, category="subscription_oauth"),
         sdk_module=_sdk(mode, clients),
         cwd="/synthetic/workspace",
         parent_env={},
+        compaction_watchdog_seconds=compaction_watchdog_seconds,
     )
 
 
@@ -286,6 +310,83 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
         assert clients[0].disconnected == 1
 
     asyncio.run(scenario())
+
+
+def test_native_compaction_is_a_typed_runtime_event_without_role_injection() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("compaction", clients)
+        events = await _collect(runtime, _request(), _Host())
+        await runtime.close()
+
+        compaction = [event for event in events if event.kind.value == "compaction"]
+        assert [event.phase for event in compaction] == [
+            RuntimeCompactionPhase.STARTED,
+            RuntimeCompactionPhase.COMPLETED,
+        ]
+        assert sum(event.kind.value == "completed" for event in events) == 1
+        terminal = events[-1]
+        assert [message["role"] for message in terminal.result["messages"]] == [
+            "user",
+            "assistant",
+        ]
+
+    asyncio.run(scenario())
+
+
+def test_native_compaction_is_projected_through_the_host_dispatcher() -> None:
+    async def scenario() -> None:
+        clients: list[_Client] = []
+        runtime = _runtime("compaction", clients)
+        host = _Host()
+
+        result = await _collect_runtime_turn(
+            runtime,
+            _request(),
+            host,
+            descriptor=build_runtime_descriptor(),
+        )
+        await runtime.close()
+
+        assert [event.phase for event in host.compaction] == [
+            RuntimeCompactionPhase.STARTED,
+            RuntimeCompactionPhase.COMPLETED,
+        ]
+        assert result.terminal.kind.value == "completed"
+
+    asyncio.run(scenario())
+
+
+def test_native_compaction_failure_and_watchdog_are_typed_before_turn_failure() -> None:
+    async def scenario(mode: str, *, watchdog_seconds: float = 600.0):
+        clients: list[_Client] = []
+        runtime = _runtime(
+            mode,
+            clients,
+            compaction_watchdog_seconds=watchdog_seconds,
+        )
+        events = await _collect(runtime, _request(), _Host())
+        await runtime.close()
+        return events
+
+    failed = asyncio.run(scenario("compaction_failure"))
+    watchdog = asyncio.run(
+        scenario("compaction_watchdog", watchdog_seconds=0.01)
+    )
+
+    assert [
+        event.phase
+        for event in failed
+        if event.kind.value == "compaction"
+    ] == [RuntimeCompactionPhase.STARTED, RuntimeCompactionPhase.FAILED]
+    assert failed[-1].kind.value == "failed"
+    assert [
+        event.phase
+        for event in watchdog
+        if event.kind.value == "compaction"
+    ] == [RuntimeCompactionPhase.STARTED, RuntimeCompactionPhase.WATCHDOG]
+    assert watchdog[-1].kind.value == "failed"
+    assert watchdog[-1].failure.code == "sdk_compaction_watchdog"
 
 
 def test_allowed_bit_with_non_subscription_category_still_rejects_preflight() -> None:

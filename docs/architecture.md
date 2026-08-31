@@ -20,3 +20,25 @@ content conversion, subscription classification, Claude resume state, native
 compaction mapping, context adapters, diagnostics, and packaging. It retains
 one public SDK reader per runtime instance and classifies idle result bursts,
 but it never sees host routing identifiers and never duplicates host delivery.
+
+## Native compaction boundary
+
+The plugin registers the public `PreCompact` hook provided by
+`claude-agent-sdk==0.2.144` and converts it to the provider-neutral runtime
+`started` phase. The pinned Claude CLI currently reports the other edge as a
+`SystemMessage` with subtype `compact_boundary`; that message is treated only
+as lifecycle metadata and never projected into user or assistant content.
+
+SDK 0.2.144 does not expose a typed post-compaction hook. Consequently,
+`compact_boundary` is an empirical compatibility adapter, not a claim about a
+stable future SDK guarantee. A successful terminal SDK result is the bounded
+compatibility fallback when a boundary is omitted. A non-success terminal
+result emits `failed`, and a local 600-second watchdog emits `watchdog` and
+interrupts the turn if neither boundary nor terminal result arrives. The
+watchdog proves only that completion evidence was missing before the bound; it
+does not diagnose a provider failure.
+
+Hermes receives only `RuntimeCompactionEvent` values through its public host
+facade. Provider payloads remain inside the plugin, the host compressor is not
+invoked for runtime-native ownership, and no compaction message is inserted
+into the conversation role stream.
