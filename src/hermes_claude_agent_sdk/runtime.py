@@ -304,6 +304,7 @@ class ClaudeAgentSDKRuntime:
 
             result = await task
             if result.outcome is SessionOutcome.COMPLETE:
+                final_text = result.final_text or ""
                 if result.state_update.external_session_id is not None:
                     yield RuntimeStateEvent(
                         state=RuntimeStateEnvelope(
@@ -315,7 +316,25 @@ class ClaudeAgentSDKRuntime:
                         )
                     )
                 terminal = True
-                yield RuntimeCompletedEvent(result={"text": result.final_text or ""})
+                # ``text`` is the provider-neutral completion payload.  The
+                # remaining fields are the current Hermes v1 conversation
+                # adapter shape; retain them until the host normalizes generic
+                # completion/content events itself.
+                response_messages = [dict(message) for message in request.messages]
+                response_messages.append({"role": "assistant", "content": final_text})
+                yield RuntimeCompletedEvent(
+                    result={
+                        "text": final_text,
+                        "final_response": final_text,
+                        "messages": response_messages,
+                        "completed": True,
+                        "partial": False,
+                        "error": None,
+                        "api_calls": 1,
+                        "provider": request.selection.provider,
+                        "model": request.selection.model,
+                    }
+                )
                 return
             if result.outcome is SessionOutcome.CANCELLED:
                 terminal = True

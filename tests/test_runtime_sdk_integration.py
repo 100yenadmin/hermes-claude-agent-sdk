@@ -240,6 +240,19 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
         assert dict(events[3].state.state) == {
             "external_session_id": "synthetic-next-session"
         }
+        terminal_result = events[4].result
+        assert terminal_result["text"] == "hello"
+        assert terminal_result["final_response"] == "hello"
+        assert terminal_result["completed"] is True
+        assert terminal_result["partial"] is False
+        assert terminal_result["error"] is None
+        assert terminal_result["api_calls"] == 1
+        assert terminal_result["provider"] == "claude-agent-sdk"
+        assert terminal_result["model"] == "claude-fable-5"
+        assert terminal_result["messages"][-1] == {
+            "role": "assistant",
+            "content": "hello",
+        }
         fields = clients[0].options.fields
         assert fields["permission_mode"] == "bypassPermissions"
         assert fields["system_prompt"]["append"].startswith("stable system prompt")
