@@ -1,0 +1,299 @@
+from __future__ import annotations
+
+import asyncio
+import sys
+from dataclasses import dataclass
+from types import ModuleType
+
+from hermes_claude_agent_sdk.configuration import SDKSessionConfiguration
+import hermes_claude_agent_sdk.sdk_session as sdk_session_module
+from hermes_claude_agent_sdk.sdk_session import SDKSession, SessionOutcome
+
+
+SDK_IMPORTED_DURING_SESSION_IMPORT = "claude_agent_sdk" in sys.modules
+
+
+@dataclass
+class SystemMessage:
+    subtype: str
+    data: dict[str, object]
+
+
+@dataclass
+class TextBlock:
+    text: str
+
+
+@dataclass
+class AssistantMessage:
+    content: list[object]
+    model: str = "claude-fable-synthetic"
+
+
+@dataclass
+class ResultMessage:
+    subtype: str = "success"
+    duration_ms: int = 1
+    duration_api_ms: int = 1
+    is_error: bool = False
+    num_turns: int = 1
+    session_id: str = "synthetic-session-next"
+    result: str | None = "hello"
+    usage: dict[str, int] | None = None
+    total_cost_usd: float | None = None
+    terminal_reason: str | None = "completed"
+
+
+class _Options:
+    def __init__(self, **fields: object) -> None:
+        self.fields = fields
+
+
+class _FakeClient:
+    def __init__(self, *, options: object, scripts: list[list[object]]) -> None:
+        self.options = options
+        self.scripts = scripts
+        self.connected = 0
+        self.disconnected = 0
+        self.interrupted = 0
+        self.receive_calls = 0
+        self.queries: list[str] = []
+        self.active_queries = 0
+        self.max_active_queries = 0
+        self._messages: asyncio.Queue[object] = asyncio.Queue()
+        self._closed = False
+
+    async def connect(self) -> None:
+        self.connected += 1
+
+    async def query(self, prompt: str) -> None:
+        self.queries.append(prompt)
+        self.active_queries += 1
+        self.max_active_queries = max(self.max_active_queries, self.active_queries)
+        script = self.scripts.pop(0)
+        for message in script:
+            await self._messages.put(message)
+        self.active_queries -= 1
+
+    async def receive_messages(self):
+        self.receive_calls += 1
+        while not self._closed:
+            message = await self._messages.get()
+            if message is _END:
+                return
+            yield message
+
+    async def interrupt(self) -> None:
+        self.interrupted += 1
+
+    async def disconnect(self) -> None:
+        self.disconnected += 1
+        self._closed = True
+        await self._messages.put(_END)
+
+
+_END = object()
+
+
+def _sdk(client_box: list[_FakeClient], scripts: list[list[object]]) -> ModuleType:
+    sdk = ModuleType("claude_agent_sdk")
+    sdk.ClaudeAgentOptions = _Options
+
+    def make_client(*, options: object) -> _FakeClient:
+        client = _FakeClient(options=options, scripts=scripts)
+        client_box.append(client)
+        return client
+
+    sdk.ClaudeSDKClient = make_client
+    return sdk
+
+
+def _configuration(**updates: object) -> SDKSessionConfiguration:
+    values = {
+        "cwd": "/synthetic/workspace",
+        "model": "claude-fable-synthetic",
+        "parent_env": {"ANTHROPIC_API_KEY": "synthetic-secret-not-real"},
+    }
+    values.update(updates)
+    return SDKSessionConfiguration.create(**values)
+
+
+def test_import_and_configuration_do_not_import_sdk_or_retain_parent_secret() -> None:
+    configuration = _configuration()
+
+    assert SDK_IMPORTED_DURING_SESSION_IMPORT is False
+    assert configuration.env_overrides == (("ANTHROPIC_API_KEY", ""),)
+    assert "synthetic-secret-not-real" not in repr(configuration)
+
+
+def test_bounded_turn_timeout_interrupts_and_retires_client() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        session = SDKSession(
+            _configuration(turn_timeout_seconds=0.01),
+            sdk_module=_sdk(clients, [[]]),
+        )
+
+        result = await session.run_turn("bounded wait")
+        await session.close()
+
+        assert result.outcome is SessionOutcome.TIMED_OUT
+        assert result.error_code == "sdk_turn_timeout"
+        assert clients[0].interrupted == 1
+        assert clients[0].disconnected == 1
+
+    asyncio.run(scenario())
+
+
+def test_text_turn_uses_public_options_one_reader_projection_and_exact_close() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        sdk = _sdk(
+            clients,
+            [[
+                SystemMessage("init", {"apiKeySource": "none"}),
+                AssistantMessage([TextBlock("hello")]),
+                ResultMessage(usage={"input_tokens": 2, "output_tokens": 3}),
+            ]],
+        )
+        projections = []
+        billing = []
+        timeline = []
+
+        def record_projection(projection) -> None:
+            projections.append(projection)
+            timeline.append(("projection", projection.is_result))
+
+        def record_billing(decision) -> None:
+            billing.append(decision)
+            timeline.append(("billing", decision.allowed))
+
+        session = SDKSession(
+            _configuration(),
+            sdk_module=sdk,
+            on_projection=record_projection,
+            on_billing_decision=record_billing,
+        )
+
+        result = await session.run_turn("synthetic prompt")
+        await session.close()
+        await session.close()
+
+        client = clients[0]
+        fields = client.options.fields
+        assert fields["model"] == "claude-fable-synthetic"
+        assert fields["cwd"] == "/synthetic/workspace"
+        assert fields["env"] == {"ANTHROPIC_API_KEY": ""}
+        assert fields["setting_sources"] == []
+        assert fields["tools"] == []
+        assert client.queries == ["synthetic prompt"]
+        assert client.receive_calls == 1
+        assert client.disconnected == 1
+        assert result.outcome is SessionOutcome.COMPLETE
+        assert result.final_text == "hello"
+        assert result.state_update.external_session_id == "synthetic-session-next"
+        assert len(projections) == 3
+        assert billing[0].allowed is True
+        assert timeline[-2:] == [("billing", True), ("projection", True)]
+
+    asyncio.run(scenario())
+
+
+def test_resume_is_only_passed_through_public_option_field() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        sdk = _sdk(
+            clients,
+            [[SystemMessage("init", {"apiKeySource": "none"}), ResultMessage()]],
+        )
+        session = SDKSession(
+            _configuration(resume_external_session_id="synthetic-resume-id"),
+            sdk_module=sdk,
+        )
+
+        result = await session.run_turn("continue conversation")
+        await session.close()
+
+        assert clients[0].options.fields["resume"] == "synthetic-resume-id"
+        assert result.state_update.external_session_id == "synthetic-session-next"
+        assert clients[0].queries == ["continue conversation"]
+
+    asyncio.run(scenario())
+
+
+def test_unknown_or_metered_billing_blocks_terminal_success() -> None:
+    async def run(script: list[object]):
+        clients: list[_FakeClient] = []
+        decisions = []
+        projections = []
+        session = SDKSession(
+            _configuration(),
+            sdk_module=_sdk(clients, [script]),
+            on_projection=projections.append,
+            on_billing_decision=decisions.append,
+        )
+        result = await session.run_turn("billing")
+        await session.close()
+        return result, decisions, projections, clients[0]
+
+    unknown, unknown_decisions, unknown_projections, unknown_client = asyncio.run(
+        run([ResultMessage()])
+    )
+    metered, metered_decisions, _, metered_client = asyncio.run(
+        run([
+            SystemMessage("init", {"apiKeySource": "api_key"}),
+            ResultMessage(),
+        ])
+    )
+
+    assert unknown.outcome is SessionOutcome.BILLING_BLOCKED
+    assert unknown_decisions[0].block_reason.value == "unknown_evidence"
+    assert unknown_projections == []
+    assert unknown_client.disconnected == 1
+    assert metered.outcome is SessionOutcome.BILLING_BLOCKED
+    assert metered_decisions[0].block_reason.value == "api_key_source"
+    assert metered_client.interrupted == 1
+
+
+def test_cancel_interrupts_retires_client_and_classifies_once() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        session = SDKSession(
+            _configuration(turn_timeout_seconds=5),
+            sdk_module=_sdk(clients, [[]]),
+        )
+
+        turn = asyncio.create_task(session.run_turn("wait"))
+        while not clients or not clients[0].queries:
+            await asyncio.sleep(0)
+        cancel_result = await session.cancel()
+        result = await turn
+        await session.close()
+
+        assert cancel_result is SessionOutcome.CANCELLED
+        assert result.outcome is SessionOutcome.CANCELLED
+        assert clients[0].interrupted == 1
+        assert clients[0].disconnected == 1
+
+    asyncio.run(scenario())
+
+
+def test_concurrent_turns_are_serialized_on_one_reader() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        scripts = [
+            [SystemMessage("init", {"apiKeySource": "none"}), ResultMessage(result="one")],
+            [SystemMessage("init", {"apiKeySource": "none"}), ResultMessage(result="two")],
+        ]
+        session = SDKSession(_configuration(), sdk_module=_sdk(clients, scripts))
+
+        first, second = await asyncio.gather(
+            session.run_turn("one"), session.run_turn("two")
+        )
+        await session.close()
+
+        assert [first.final_text, second.final_text] == ["one", "two"]
+        assert clients[0].max_active_queries == 1
+        assert clients[0].receive_calls == 1
+
+    asyncio.run(scenario())
