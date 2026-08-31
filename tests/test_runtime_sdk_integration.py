@@ -168,15 +168,9 @@ def _sdk(mode: str, clients: list[_Client]) -> ModuleType:
 
 
 class _Host:
-    def __init__(
-        self,
-        *,
-        cancel_after: int | None = None,
-        cancellation_error_after: int | None = None,
-    ) -> None:
+    def __init__(self, *, cancel_after: int | None = None) -> None:
         self.calls: list[tuple[str, dict[str, object]]] = []
         self.cancel_after = cancel_after
-        self.cancellation_error_after = cancellation_error_after
         self.cancel_checks = 0
         self.background = []
         self.observed_events: list[str] = []
@@ -211,11 +205,6 @@ class _Host:
 
     def cancellation_requested(self) -> bool:
         self.cancel_checks += 1
-        if (
-            self.cancellation_error_after is not None
-            and self.cancel_checks >= self.cancellation_error_after
-        ):
-            raise RuntimeError("synthetic cancellation probe failure")
         return self.cancel_after is not None and self.cancel_checks >= self.cancel_after
 
 
@@ -535,11 +524,24 @@ def test_cancellation_interrupts_and_closes_once_with_one_terminal() -> None:
 
 
 def test_in_loop_cancellation_probe_failure_drains_projection_then_fails_closed() -> None:
+    class _FailAfterContentHost(_Host):
+        content_observed = False
+
+        def cancellation_requested(self) -> bool:
+            self.cancel_checks += 1
+            if self.content_observed:
+                raise RuntimeError("synthetic cancellation probe failure")
+            return False
+
     async def scenario():
         clients: list[_Client] = []
         runtime = _runtime("cancellation_probe_failure", clients)
-        host = _Host(cancellation_error_after=2)
-        events = await _collect(runtime, _request(), host)
+        host = _FailAfterContentHost()
+        events = []
+        async for event in runtime.run_turn(_request(), host):
+            events.append(event)
+            if event.kind.value == "content":
+                host.content_observed = True
         await runtime.close()
         return events, clients[0]
 
