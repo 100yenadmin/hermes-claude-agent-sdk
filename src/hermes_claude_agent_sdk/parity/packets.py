@@ -29,16 +29,14 @@ def _obj(value: Any, keys: set[str] | frozenset[str], label: str) -> dict[str, A
     return dict(value)
 
 def _map(value: Any, label: str) -> Mapping[str, Any]:
-    if not isinstance(value, Mapping): _fail(f"{label} must be an object")
-    return value
+    return value if isinstance(value, Mapping) else _fail(f"{label} must be an object")
 
 def _enum(value: Any, allowed: Sequence[str] | set[str] | frozenset[str], label: str) -> str:
     if not isinstance(value, str) or value not in allowed: _fail(f"{label} is outside its closed enum")
     return value
 
 def _bool(value: Any, label: str) -> bool:
-    if not isinstance(value, bool): _fail(f"{label} must be boolean")
-    return value
+    return value if isinstance(value, bool) else _fail(f"{label} must be boolean")
 
 def _int(value: Any, label: str, low: int = 0, high: int = 4096) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high: _fail(f"{label} is outside its integer bound")
@@ -51,8 +49,7 @@ def _sha(value: Any, label: str, nullable: bool = False) -> str | None:
     except CanonicalizationError as exc: raise PacketValidationError(str(exc)) from exc
 
 def _sha1(value: Any, label: str) -> str:
-    if not isinstance(value, str) or len(value) != 40 or any(char not in "0123456789abcdef" for char in value): _fail(f"{label} must be lowercase SHA-1")
-    return value
+    return value if isinstance(value, str) and len(value) == 40 and not any(char not in "0123456789abcdef" for char in value) else _fail(f"{label} must be lowercase SHA-1")
 
 def _version(value: Any, label: str) -> str:
     value = _id(value, label); _fail(f"{label} must be semver") if len(value.split(".")) != 3 or any(not part.isdigit() for part in value.split(".")) else None; return value
@@ -62,20 +59,26 @@ def _id(value: Any, label: str) -> str:
         return validate_identifier(value, field=label, max_length=128)
     except CanonicalizationError as exc: raise PacketValidationError(str(exc)) from exc
 
+def _proof_ref(value: Any, label: str) -> str:
+    chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.:@/-"
+    if not isinstance(value, str) or not value or len(value.encode("utf-8")) > 256 or value.startswith("/") or "\\" in value or "//" in value or any(ord(char) < 32 or ord(char) == 127 for char in value) or any(marker in value.casefold() for marker in ("raw", "content", "prompt", "transcript", "session", "auth", "secret", "provider", "customer", "exception", "cookie", "header", "token", "credential", "private_key")): _fail(f"{label} is unsafe")
+    if any(char not in chars for char in value): _fail(f"{label} contains unsafe characters")
+    parts = value.split(":"); path = parts[-1]
+    if value.startswith("src:") and (len(parts) != 3 or not parts[1] or any(char not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.@-" for char in parts[1])): _fail(f"{label} has an invalid source identity")
+    if any(not segment or segment in (".", "..") or any(char not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-" for char in segment) for segment in path.split("/")): _fail(f"{label} is not repository-relative")
+    return value
+
 def _pref(value: Any, prefix: str, label: str) -> str:
     value = _id(value, label)
-    if not value.startswith(prefix): _fail(f"{label} has an invalid prefix")
-    return value
+    return value if value.startswith(prefix) else _fail(f"{label} has an invalid prefix")
 
 def _arr(value: Any, label: str, maximum: int = 4096) -> list[Any]:
-    if not isinstance(value, list) or len(value) > maximum: _fail(f"{label} must be a bounded array")
-    return value
+    return value if isinstance(value, list) and len(value) <= maximum else _fail(f"{label} must be a bounded array")
 
-def _omit(value: Mapping[str, Any], *keys: str) -> dict[str, Any]:
-    return {key: item for key, item in value.items() if key not in keys}
+def _omit(value: Mapping[str, Any], *keys: str) -> dict[str, Any]: return {key: item for key, item in value.items() if key not in keys}
 
 def _sorted(values: list[str], label: str) -> None:
-    if values != sorted(values) or len(values) != len(set(values)): _fail(f"{label} must be sorted and unique")
+    _fail(f"{label} must be sorted and unique") if values != sorted(values) or len(values) != len(set(values)) else None
 
 def _derived(value: Any, label: str) -> Mapping[str, Any]:
     result = _map(value, label)
@@ -93,8 +96,7 @@ def _derived(value: Any, label: str) -> Mapping[str, Any]:
 
 def _terminal(value: Any, label: str) -> dict[str, Any]:
     result = _obj(value, {"kind", "count"}, label)
-    _enum(result["kind"], TERMINAL, f"{label}.kind"); _int(result["count"], f"{label}.count", 0, 1)
-    return result
+    _enum(result["kind"], TERMINAL, f"{label}.kind"); _int(result["count"], f"{label}.count", 0, 1); return result
 
 def derive_path_qualification(expected: str, status: str) -> str:
     _enum(expected, EXPECTED, "expected_outcome"); _enum(status, OBSERVED, "path status")
@@ -311,7 +313,7 @@ def validate_sdk_ledger(value: Any, source_keys: Sequence[tuple[str, str]] | Non
         if key in seen: _fail("SDK ledger row keys are duplicated")
         seen.append(key); _bool(item["executable"], "sdk executable"); _enum(item["classification"], {"covered_current", "equivalent_host", "requires_0_3_239", "not_runtime_applicable"}, "sdk classification")
         if item["executable"] and item["classification"] == "not_runtime_applicable": _fail("executable SDK row is N/A")
-        proof = _obj(item["proof"], {"ref", "sha256"}, "sdk proof"); _id(proof["ref"], "sdk proof ref"); _sha(proof["sha256"], "sdk proof hash")
+        proof = _obj(item["proof"], {"ref", "sha256"}, "sdk proof"); _proof_ref(proof["ref"], "sdk proof ref"); _sha(proof["sha256"], "sdk proof hash")
     if len(rows) != 23 or source_keys is not None and sorted(seen) != sorted(source_keys): _fail("SDK ledger is not the exact 23-row source set")
     if result["rows_sha256"] != hash_projection("rows_sha256", result) or result["ledger_sha256"] != hash_projection("ledger_sha256", result): _fail("SDK ledger hash mismatch")
     return result

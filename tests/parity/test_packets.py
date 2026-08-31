@@ -248,6 +248,22 @@ def test_sdk_ledger_requires_unique_exact_source_set() -> None:
         validate_sdk_ledger(duplicate, source_keys)
 
 
+def test_sdk_proof_ref_accepts_repository_relative_source_path() -> None:
+    ledger = _ledger()
+    ledger["rows"][0]["proof"]["ref"] = "src:openclaw@" + "e" * 40 + ":extensions/anthropic/agent-sdk.runtime.test.ts"
+    ledger["rows_sha256"] = hash_projection("rows_sha256", ledger)
+    ledger["ledger_sha256"] = hash_projection("ledger_sha256", ledger)
+    assert validate_sdk_ledger(ledger)["rows"][0]["proof"]["ref"].count("/") == 2
+
+
+@pytest.mark.parametrize("ref", ("src:repo:../secret", "/absolute/path", "src:repo:/absolute/path", "src:repo:path//file", r"src:repo:path\file", "src:repo:path\nfile", "src:repo:prompt.txt"))
+def test_sdk_proof_ref_rejects_unsafe_paths(ref: str) -> None:
+    from hermes_claude_agent_sdk.parity import packets as packet_impl
+
+    with pytest.raises(PacketValidationError):
+        packet_impl._proof_ref(ref, "sdk proof ref")
+
+
 def test_aggregate_embeds_and_recomputes_packets() -> None:
     freeze = _freeze()
     result = _result()
