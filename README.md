@@ -46,6 +46,39 @@ doctor never reads credentials or constructs an SDK client.
 - [Subscription-only security model](docs/subscription-only-security.md)
 - [Removal and rollback](docs/removal-and-rollback.md)
 
+## Feature-first parity v3
+
+The release-candidate quality gate is the repo-owned
+[`qa/parity-contract-v3.yaml`](qa/parity-contract-v3.yaml), not an idle
+48/49-hour wait. It pins and completely maps the frozen v2 non-soak set
+(`53/53`), OpenClaw's active behavior pack (`12/12`), the adapted Agent SDK
+boundary set (`23/23`), and the ClawProBench native slice (`36/36`). The
+separate runtime lane contains the active 100-turn same-session campaign.
+
+The installed console entry point exposes three fail-closed commands:
+
+```sh
+hermes-claude-agent-sdk-parity inventory --catalog qa/parity-contract-v3.yaml \
+  --lane rc --profile fable-v3-isolated --tool-inventory ./tool-inventory.yaml
+
+hermes-claude-agent-sdk-parity run --catalog qa/parity-contract-v3.yaml \
+  --lane rc --profile fable-v3-isolated --plugin-sha "$PLUGIN_SHA" \
+  --host-sha "$HOST_SHA" --tool-inventory ./tool-inventory.yaml \
+  --output ./parity-results
+
+hermes-claude-agent-sdk-parity grade --catalog qa/parity-contract-v3.yaml \
+  --lane rc --profile fable-v3-isolated --plugin-sha "$PLUGIN_SHA" \
+  --host-sha "$HOST_SHA" --tool-inventory ./tool-inventory.yaml \
+  --output ./parity-results --resume
+```
+
+Exit `0` means the requested gate passed, `1` is a verified scenario failure,
+`2` is a contract or safety violation, and `75` is pending or environment
+blocked. Unknown tools, changed schemas, missing executors, missing terminal
+events, unsafe billing evidence, proofless passes, and candidate drift never
+degrade to a pass. See [`qa/README.md`](qa/README.md) for the packet and runner
+contract.
+
 ## Installation and activation
 
 Download the wheel attached to the compatible GitHub prerelease, verify its
@@ -81,5 +114,7 @@ Disabling or uninstalling this plugin does not remove built-in Hermes behavior.
 
 No package-index release is authorized. The first distributable candidate will
 be a checksummed GitHub prerelease tagged `v0.1.0-rc.1` only after the named host
-candidate, thin install/runtime/uninstall gate, frozen parity contract, package
-lifecycle, CI, and independent semantic review all pass.
+candidate, approval-followthrough thin gate, all feature-first parity-v3 RC
+packs, exact tool/schema inventory, package lifecycle, exact-head CI, and
+independent semantic review all pass. The active 100-turn campaign is a
+separate isolated-runtime qualification and does not block package RC closure.

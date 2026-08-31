@@ -48,3 +48,14 @@ advice; operators and counsel must make those determinations for their use.
 No Claude SDK source, bundled CLI, credentials, authentication files, or raw
 user data are intended to be included by the packaging shell. This notice does
 not replace a release-time artifact and dependency audit.
+
+## Behavioral evaluation references
+
+The parity-v3 catalog references OpenClaw `v2026.8.1` at commit
+`ea806575e6450e4d1efdfc72c19f04be982a1b9b` and ClawProBench at commit
+`c4b8395854fe0752eef435b44f140366efd44d8e`. ClawProBench declares the
+Apache License 2.0. The current catalog records source identifiers, behavior
+contracts, and provenance only; it does not vendor either project's runtime
+adapter, source code, or fixtures. If later work copies Apache-2.0 code or
+fixtures, the release candidate must add the applicable license and retained
+notices before distribution.

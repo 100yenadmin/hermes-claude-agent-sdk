@@ -1,0 +1,407 @@
+from __future__ import annotations
+
+import copy
+import json
+
+import pytest
+import yaml
+
+from hermes_claude_agent_sdk.parity.cli import main
+from hermes_claude_agent_sdk.parity.results import (
+    ExecutionClassification,
+    ResultViolation,
+)
+from hermes_claude_agent_sdk.parity.runner import (
+    ExecutionBundle,
+    ExecutionOutcome,
+    ExecutorRegistry,
+    run_catalog,
+)
+
+from .conftest import CATALOG_PATH
+
+
+def _outcome(context):
+    denial = context.path == "denial"
+    terminal = "denied" if denial else "completed"
+    return ExecutionOutcome(
+        classification=(
+            ExecutionClassification.EXPECTED_NEGATIVE
+            if denial
+            else ExecutionClassification.COMPLETE
+        ),
+        billing_classification="subscription_included",
+        normalized_events=(
+            {"sequence": 1, "kind": "start", "status": "started"},
+            {
+                "sequence": 2,
+                "kind": "terminal",
+                "status": terminal,
+                "terminal_outcome": terminal,
+            },
+        ),
+        primary_proof_hash="a" * 64,
+        secondary_proof_hash="b" * 64,
+    )
+
+
+def _run_fields(tmp_path, candidate_fields):
+    return {
+        "lane": "rc",
+        "profile_id": candidate_fields["profile_id"],
+        "profile_hash": candidate_fields["profile_hash"],
+        "plugin_sha": candidate_fields["plugin_sha"],
+        "host_sha": candidate_fields["host_sha"],
+        "sdk_version": candidate_fields["sdk_version"],
+        "runner_version": candidate_fields["runner_version"],
+        "inventory_hash": candidate_fields["inventory_hash"],
+        "output": tmp_path,
+    }
+
+
+def test_missing_executor_writes_pending_packets_and_exit_75(
+    catalog, candidate_fields, tmp_path
+) -> None:
+    packets, report = run_catalog(
+        catalog,
+        registry=ExecutorRegistry(),
+        resume=False,
+        capability_ids=("v2:parent-01",),
+        **_run_fields(tmp_path, candidate_fields),
+    )
+    assert len(packets) == 3
+    assert all(packet.classification is ExecutionClassification.PENDING for packet in packets)
+    assert all(packet.reason_code == "executor_not_registered" for packet in packets)
+    assert report.exit_code == 75
+    assert len(list(tmp_path.glob("*__*__trial-*.json"))) == 3
+
+
+def test_registered_executor_produces_sanitized_path_evidence_and_resume_is_read_only(
+    catalog, candidate_fields, tmp_path
+) -> None:
+    capability = catalog.by_id["v2:parent-01"]
+    registry = ExecutorRegistry()
+    registry.register(capability.execution_id, _outcome)
+    packets, _ = run_catalog(
+        catalog,
+        registry=registry,
+        resume=False,
+        capability_ids=(capability.capability_id,),
+        **_run_fields(tmp_path, candidate_fields),
+    )
+    assert [packet.classification for packet in packets] == [
+        ExecutionClassification.COMPLETE,
+        ExecutionClassification.EXPECTED_NEGATIVE,
+        ExecutionClassification.COMPLETE,
+    ]
+
+    def must_not_run(_context):
+        raise AssertionError("resume invoked executor")
+
+    resume_registry = ExecutorRegistry()
+    resume_registry.register(capability.execution_id, must_not_run)
+    resumed, report = run_catalog(
+        catalog,
+        registry=resume_registry,
+        resume=True,
+        capability_ids=(capability.capability_id,),
+        **_run_fields(tmp_path, candidate_fields),
+    )
+    assert [packet.packet_hash for packet in resumed] == [packet.packet_hash for packet in packets]
+    assert report.exit_code == 75  # A thin run never passes the whole RC lane.
+
+
+def test_runner_refuses_overwrite_without_resume(catalog, candidate_fields, tmp_path) -> None:
+    capability = catalog.by_id["v2:parent-01"]
+    registry = ExecutorRegistry()
+    registry.register(capability.execution_id, _outcome)
+    kwargs = {
+        "catalog": catalog,
+        "registry": registry,
+        "resume": False,
+        "capability_ids": (capability.capability_id,),
+        **_run_fields(tmp_path, candidate_fields),
+    }
+    run_catalog(**kwargs)
+    with pytest.raises(ResultViolation, match="refuses an existing"):
+        run_catalog(**kwargs)
+
+
+def test_consequential_capability_runs_strict_three_trials_per_path(
+    catalog, candidate_fields, tmp_path
+) -> None:
+    capability = catalog.by_id["active:approval-turn-tool-followthrough"]
+    registry = ExecutorRegistry()
+    registry.register(capability.execution_id, _outcome)
+    packets, _ = run_catalog(
+        catalog,
+        registry=registry,
+        resume=False,
+        capability_ids=(capability.capability_id,),
+        **_run_fields(tmp_path, candidate_fields),
+    )
+    assert len(packets) == 9
+    assert {packet.trial_index for packet in packets} == {1, 2, 3}
+
+
+def test_combined_executor_runs_once_for_positive_denial_and_recovery(
+    catalog, candidate_fields, tmp_path
+) -> None:
+    capability = catalog.by_id["v2:parent-01"]
+    calls = []
+
+    def combined(context):
+        calls.append(context)
+        return ExecutionBundle(
+            outcomes={
+                "positive": ExecutionOutcome(
+                    classification=ExecutionClassification.COMPLETE,
+                    billing_classification="subscription_included",
+                    normalized_events=(
+                        {"sequence": 1, "kind": "terminal", "terminal_outcome": "completed"},
+                    ),
+                    primary_proof_hash="a" * 64,
+                    secondary_proof_hash="b" * 64,
+                    turn_count=1,
+                ),
+                "denial": ExecutionOutcome(
+                    classification=ExecutionClassification.EXPECTED_NEGATIVE,
+                    billing_classification="subscription_included",
+                    normalized_events=(
+                        {"sequence": 1, "kind": "terminal", "terminal_outcome": "denied"},
+                    ),
+                    primary_proof_hash="c" * 64,
+                    secondary_proof_hash="d" * 64,
+                    turn_count=0,
+                ),
+                "recovery": ExecutionOutcome(
+                    classification=ExecutionClassification.COMPLETE,
+                    billing_classification="subscription_included",
+                    normalized_events=(
+                        {"sequence": 1, "kind": "terminal", "terminal_outcome": "completed"},
+                    ),
+                    primary_proof_hash="e" * 64,
+                    secondary_proof_hash="f" * 64,
+                    turn_count=0,
+                ),
+            },
+            turn_count=1,
+        )
+
+    registry = ExecutorRegistry()
+    registry.register(capability.execution_id, combined)
+    packets, _ = run_catalog(
+        catalog,
+        registry=registry,
+        resume=False,
+        capability_ids=(capability.capability_id,),
+        **_run_fields(tmp_path, candidate_fields),
+    )
+    assert len(calls) == 1
+    assert len(packets) == 3
+    assert sum(packet.turn_count for packet in packets) == 1
+    manifest = json.loads((tmp_path / "run-manifest.json").read_text(encoding="utf-8"))
+    assert manifest["turn_budget"] == 180
+    assert sum(item["turn_count"] for item in manifest["executions"]) == 1
+    assert manifest["executions"][0]["scope"] == "bundle"
+
+
+def test_runtime_bundle_enforces_one_100_turn_campaign(
+    catalog, candidate_fields, tmp_path
+) -> None:
+    capability = catalog.by_id["runtime:active-100-turn"]
+
+    def campaign(_context):
+        outcomes = {
+            "positive": ExecutionOutcome(
+                classification=ExecutionClassification.COMPLETE,
+                billing_classification="subscription_included",
+                normalized_events=(
+                    {"sequence": 1, "kind": "terminal", "terminal_outcome": "completed"},
+                ),
+                primary_proof_hash="a" * 64,
+                secondary_proof_hash="b" * 64,
+                turn_count=98,
+            ),
+            "denial": ExecutionOutcome(
+                classification=ExecutionClassification.EXPECTED_NEGATIVE,
+                billing_classification="subscription_included",
+                normalized_events=(
+                    {"sequence": 1, "kind": "terminal", "terminal_outcome": "denied"},
+                ),
+                primary_proof_hash="c" * 64,
+                secondary_proof_hash="d" * 64,
+                turn_count=1,
+            ),
+            "recovery": ExecutionOutcome(
+                classification=ExecutionClassification.COMPLETE,
+                billing_classification="subscription_included",
+                normalized_events=(
+                    {"sequence": 1, "kind": "terminal", "terminal_outcome": "completed"},
+                ),
+                primary_proof_hash="e" * 64,
+                secondary_proof_hash="f" * 64,
+                turn_count=1,
+            ),
+        }
+        return ExecutionBundle(outcomes=outcomes, turn_count=100)
+
+    registry = ExecutorRegistry()
+    registry.register(capability.execution_id, campaign)
+    fields = _run_fields(tmp_path, candidate_fields)
+    fields["lane"] = "runtime"
+    packets, report = run_catalog(
+        catalog,
+        registry=registry,
+        resume=False,
+        capability_ids=(capability.capability_id,),
+        **fields,
+    )
+    assert report.exit_code == 0
+    assert sum(packet.turn_count for packet in packets) == 100
+    manifest = json.loads((tmp_path / "run-manifest.json").read_text(encoding="utf-8"))
+    assert manifest["turn_budget"] == 100
+    assert sum(item["turn_count"] for item in manifest["executions"]) == 100
+
+
+def test_executor_cannot_report_turns_beyond_lane_budget(
+    catalog, candidate_fields, tmp_path
+) -> None:
+    capability = catalog.by_id["v2:parent-01"]
+
+    def over_budget(_context):
+        return ExecutionOutcome(
+            classification=ExecutionClassification.PENDING,
+            billing_classification="none",
+            turn_count=181,
+            reason_code="budget_violation",
+        )
+
+    registry = ExecutorRegistry()
+    registry.register(capability.execution_id, over_budget)
+    with pytest.raises(ResultViolation, match="turn budget"):
+        run_catalog(
+            catalog,
+            registry=registry,
+            resume=False,
+            capability_ids=(capability.capability_id,),
+            **_run_fields(tmp_path, candidate_fields),
+        )
+
+
+def test_resume_rejects_tampered_manifest(catalog, candidate_fields, tmp_path) -> None:
+    run_catalog(
+        catalog,
+        registry=ExecutorRegistry(),
+        resume=False,
+        capability_ids=("v2:parent-01",),
+        **_run_fields(tmp_path, candidate_fields),
+    )
+    manifest_path = tmp_path / "run-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["turn_budget"] = 181
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ResultViolation, match="exact candidate and lane|manifest hash"):
+        run_catalog(
+            catalog,
+            registry=ExecutorRegistry(),
+            resume=True,
+            capability_ids=("v2:parent-01",),
+            **_run_fields(tmp_path, candidate_fields),
+        )
+
+
+def _inventory_document() -> dict:
+    tools = [
+        {
+            "name": "repo_read",
+            "input_schema": {
+                "type": "object",
+                "properties": {"path": {"type": "string"}},
+                "required": ["path"],
+            },
+        }
+    ]
+    return {
+        "schema_version": 1,
+        "profile_id": "fable-v3-isolated",
+        "profile_hash": "3" * 64,
+        "declared_tools": tools,
+        "observed_tools": copy.deepcopy(tools),
+    }
+
+
+def test_cli_inventory_passes_only_with_exact_dynamic_tool_schema(tmp_path) -> None:
+    inventory = tmp_path / "tools.yaml"
+    inventory.write_text(yaml.safe_dump(_inventory_document()), encoding="utf-8")
+    output = tmp_path / "inventory.json"
+    exit_code = main(
+        [
+            "inventory",
+            "--catalog",
+            str(CATALOG_PATH),
+            "--profile",
+            "fable-v3-isolated",
+            "--tool-inventory",
+            str(inventory),
+            "--output",
+            str(output),
+        ]
+    )
+    assert exit_code == 0
+    assert output.is_file()
+
+
+def test_cli_run_without_registered_executor_is_pending_not_false_green(tmp_path) -> None:
+    inventory = tmp_path / "tools.yaml"
+    inventory.write_text(yaml.safe_dump(_inventory_document()), encoding="utf-8")
+    output = tmp_path / "results"
+    exit_code = main(
+        [
+            "run",
+            "--catalog",
+            str(CATALOG_PATH),
+            "--lane",
+            "rc",
+            "--profile",
+            "fable-v3-isolated",
+            "--plugin-sha",
+            "1" * 40,
+            "--host-sha",
+            "2" * 40,
+            "--tool-inventory",
+            str(inventory),
+            "--output",
+            str(output),
+            "--capability-id",
+            "v2:parent-01",
+        ]
+    )
+    assert exit_code == 75
+    assert (output / "grade-rc.json").is_file()
+
+
+def test_cli_rejects_shared_profile_before_execution(tmp_path) -> None:
+    document = _inventory_document()
+    document["profile_id"] = "shared-eva"
+    inventory = tmp_path / "tools.yaml"
+    inventory.write_text(yaml.safe_dump(document), encoding="utf-8")
+    exit_code = main(
+        [
+            "run",
+            "--catalog",
+            str(CATALOG_PATH),
+            "--profile",
+            "shared-eva",
+            "--plugin-sha",
+            "1" * 40,
+            "--host-sha",
+            "2" * 40,
+            "--tool-inventory",
+            str(inventory),
+            "--output",
+            str(tmp_path / "results"),
+        ]
+    )
+    assert exit_code == 2
+    assert not (tmp_path / "results").exists()
