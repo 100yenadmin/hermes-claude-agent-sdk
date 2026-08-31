@@ -82,8 +82,8 @@ def _assert_path(path: dict[str, Any], expected_outcome: str, terminal_kind: str
 
 
 def test_openclaw_pack_has_exact_pinned_source_accounting(pack: dict[str, Any]) -> None:
-    assert pack["schema_version"] == "4.0.0"
-    assert pack["pack_schema_version"] == "4.0.0"
+    assert pack["schema_version"] == 1
+    assert "pack_schema_version" not in pack
     assert pack["fragment_kind"] == "openclaw_active_source_pack"
     assert pack["pack_id"] == "openclaw_active"
     assert pack["status"] == "PENDING"
@@ -118,7 +118,7 @@ def test_openclaw_rows_are_bijective_and_v4_closed(pack: dict[str, Any]) -> None
         assert row["source_rows"] == [{"pack_id": "openclaw_active", "row_id": row["source_rows"][0]["row_id"]}]
         assert row["lane"] == "openclaw"
         assert row["owner"] == row["owner_issue"]["owner"] == "exact_pair"
-        assert row["owner_issue"]["issue_ref"] is None
+        assert row["owner_issue"]["issue_ref"] == "issue:12"
         assert row["owner_issue"]["status"] == "PENDING"
         assert row["consumers"] == ["inventory", "run", "grade"]
         assert row["sdk_classification"] == "not_runtime_applicable"

@@ -1,6 +1,5 @@
 {
-  "schema_version": "4.0.0",
-  "pack_schema_version": "4.0.0",
+  "schema_version": 1,
   "fragment_kind": "openclaw_active_source_pack",
   "pack_id": "openclaw_active",
   "status": "PENDING",
@@ -193,7 +192,7 @@
       "owner": "exact_pair",
       "owner_issue": {
         "owner": "exact_pair",
-        "issue_ref": null,
+        "issue_ref": "issue:12",
         "status": "PENDING"
       },
       "consumers": [
@@ -397,7 +396,7 @@
       "owner": "exact_pair",
       "owner_issue": {
         "owner": "exact_pair",
-        "issue_ref": null,
+        "issue_ref": "issue:12",
         "status": "PENDING"
       },
       "consumers": [
@@ -599,7 +598,7 @@
       "owner": "exact_pair",
       "owner_issue": {
         "owner": "exact_pair",
-        "issue_ref": null,
+        "issue_ref": "issue:12",
         "status": "PENDING"
       },
       "consumers": [
@@ -796,7 +795,7 @@
       "owner": "exact_pair",
       "owner_issue": {
         "owner": "exact_pair",
-        "issue_ref": null,
+        "issue_ref": "issue:12",
         "status": "PENDING"
       },
       "consumers": [
@@ -995,7 +994,7 @@
       "owner": "exact_pair",
       "owner_issue": {
         "owner": "exact_pair",
-        "issue_ref": null,
+        "issue_ref": "issue:12",
         "status": "PENDING"
       },
       "consumers": [
@@ -1200,7 +1199,7 @@
       "owner": "exact_pair",
       "owner_issue": {
         "owner": "exact_pair",
-        "issue_ref": null,
+        "issue_ref": "issue:12",
         "status": "PENDING"
       },
       "consumers": [
@@ -1399,7 +1398,7 @@
       "owner": "exact_pair",
       "owner_issue": {
         "owner": "exact_pair",
-        "issue_ref": null,
+        "issue_ref": "issue:12",
         "status": "PENDING"
       },
       "consumers": [
@@ -1600,7 +1599,7 @@
       "owner": "exact_pair",
       "owner_issue": {
         "owner": "exact_pair",
-        "issue_ref": null,
+        "issue_ref": "issue:12",
         "status": "PENDING"
       },
       "consumers": [
@@ -1797,7 +1796,7 @@
       "owner": "exact_pair",
       "owner_issue": {
         "owner": "exact_pair",
-        "issue_ref": null,
+        "issue_ref": "issue:12",
         "status": "PENDING"
       },
       "consumers": [
@@ -1998,7 +1997,7 @@
       "owner": "exact_pair",
       "owner_issue": {
         "owner": "exact_pair",
-        "issue_ref": null,
+        "issue_ref": "issue:12",
         "status": "PENDING"
       },
       "consumers": [
@@ -2197,7 +2196,7 @@
       "owner": "exact_pair",
       "owner_issue": {
         "owner": "exact_pair",
-        "issue_ref": null,
+        "issue_ref": "issue:12",
         "status": "PENDING"
       },
       "consumers": [
@@ -2404,7 +2403,7 @@
       "owner": "exact_pair",
       "owner_issue": {
         "owner": "exact_pair",
-        "issue_ref": null,
+        "issue_ref": "issue:12",
         "status": "PENDING"
       },
       "consumers": [
