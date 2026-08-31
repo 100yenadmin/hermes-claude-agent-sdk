@@ -9,7 +9,7 @@ description = "Standalone Claude Agent SDK whole-turn runtime plugin for Hermes 
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = "MIT"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "NOTICE", "AUTHORS"]
 authors = [{ name = "hermes-claude-agent-sdk contributors" }]
 dependencies = [
   "claude-agent-sdk==0.2.144",

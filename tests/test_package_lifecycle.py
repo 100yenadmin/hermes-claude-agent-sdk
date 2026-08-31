@@ -12,6 +12,8 @@ import hashlib
 import os
 import subprocess
 import sys
+import tarfile
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -71,6 +73,14 @@ def test_built_package_lifecycle(tmp_path: Path) -> None:
     assert all(len(digest) == 64 for digest in artifact_hashes.values())
     for artifact, digest in artifact_hashes.items():
         print(f"artifact sha256 {digest}  {artifact.name}")
+
+    required_notices = {"LICENSE", "NOTICE", "AUTHORS"}
+    with zipfile.ZipFile(wheel) as archive:
+        wheel_notices = {Path(name).name for name in archive.namelist()}
+    with tarfile.open(sdist, mode="r:gz") as archive:
+        sdist_notices = {Path(name).name for name in archive.getnames()}
+    assert required_notices <= wheel_notices
+    assert required_notices <= sdist_notices
 
     home = tmp_path / "home"
     hermes_home = tmp_path / "hermes-home"
