@@ -149,6 +149,13 @@ def _sort_entries(values: Sequence[Any], field: str) -> tuple[Any, ...]:
     return tuple(sorted(entries, key=lambda item: item.name))
 
 
+def _read_sorted(values: Any, field: str, parser: Any) -> tuple[Any, ...]:
+    entries = tuple(parser(item) for item in _array(values, field))
+    if tuple(item.name for item in entries) != tuple(sorted(item.name for item in entries)):
+        raise InventoryValidationError(f"{field} must be sorted")
+    return entries
+
+
 def _declared_projection(schema_version: int, tools: Sequence[ToolInventoryEntry],
                          servers: Sequence[MCPServerInventoryEntry]) -> dict[str, object]:
     return {"schema_version": schema_version,
@@ -190,8 +197,8 @@ class DeclaredInventory:
     def from_mapping(cls, value: Mapping[str, Any]) -> "DeclaredInventory":
         raw = _object(value, "declared inventory", _DECLARED)
         return cls(raw["schema_version"],
-                   tuple(_tool(item) for item in _array(raw["tools"], "tools")),
-                   tuple(_server(item) for item in _array(raw["mcp_servers"], "mcp_servers")),
+                   _read_sorted(raw["tools"], "tools", _tool),
+                   _read_sorted(raw["mcp_servers"], "mcp_servers", _server),
                    raw["declared_inventory_sha256"])
 
     def to_dict(self) -> dict[str, object]:
@@ -245,8 +252,8 @@ class ObservedInventory:
                      declared: DeclaredInventory | Mapping[str, Any] | None = None) -> "ObservedInventory":
         raw = _object(value, "observed inventory", _OBSERVED)
         result = cls(raw["candidate_sha256"],
-                     tuple(_observed(item) for item in _array(raw["tools"], "tools")),
-                     tuple(_observed(item) for item in _array(raw["mcp_servers"], "mcp_servers")),
+                     _read_sorted(raw["tools"], "tools", _observed),
+                     _read_sorted(raw["mcp_servers"], "mcp_servers", _observed),
                      raw["observed_inventory_sha256"],
                      _sorted_names(raw["unknown_names"], "unknown_names"),
                      _sorted_names(raw["missing_names"], "missing_names"),

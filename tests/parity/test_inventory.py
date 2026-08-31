@@ -61,15 +61,35 @@ def test_declared_inventory_is_sorted_and_hashes_only_declared_projection() -> N
     assert validate_declared_inventory(inventory).to_dict() == inventory.to_dict()
 
 
-def test_declared_mapping_accepts_unsorted_entries_but_emits_canonical_order() -> None:
-    inventory = _declared()
-    raw = inventory.to_dict()
-    raw["tools"] = list(reversed(raw["tools"]))
+def test_declared_builder_sorts_but_mapping_rejects_unsorted_entries() -> None:
+    inventory = build_declared_inventory(
+        [ToolInventoryEntry("zeta", _B, "plugin", True), ToolInventoryEntry("alpha", _A, "host", True)],
+        [MCPServerInventoryEntry("zulu", _D, True), MCPServerInventoryEntry("hermes", _C, True)],
+    )
+    assert [item.name for item in inventory.tools] == ["alpha", "zeta"]
+    assert [item.name for item in inventory.mcp_servers] == ["hermes", "zulu"]
+    for field in ("tools", "mcp_servers"):
+        raw = inventory.to_dict()
+        raw[field] = list(reversed(raw[field]))
+        with pytest.raises(InventoryValidationError, match=field):
+            validate_declared_inventory(raw)
 
-    restored = validate_declared_inventory(raw)
 
-    assert [item.name for item in restored.tools] == ["alpha", "zeta"]
-    assert restored.declared_inventory_sha256 == inventory.declared_inventory_sha256
+def test_observed_builder_sorts_but_mapping_rejects_unsorted_entries() -> None:
+    inventory = build_observed_inventory(
+        _CANDIDATE,
+        [{"name": "zeta", "schema_sha256": _B, "enabled": True},
+         {"name": "alpha", "schema_sha256": _A, "enabled": True}],
+        [{"name": "zulu", "schema_sha256": _D, "enabled": True},
+         {"name": "hermes", "schema_sha256": _C, "enabled": True}],
+    )
+    assert [item.name for item in inventory.tools] == ["alpha", "zeta"]
+    assert [item.name for item in inventory.mcp_servers] == ["hermes", "zulu"]
+    for field in ("tools", "mcp_servers"):
+        raw = inventory.to_dict()
+        raw[field] = list(reversed(raw[field]))
+        with pytest.raises(InventoryValidationError, match=field):
+            validate_observed_inventory(raw)
 
 
 @pytest.mark.parametrize(
