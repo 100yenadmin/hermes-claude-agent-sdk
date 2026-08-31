@@ -147,11 +147,11 @@ assert len(parity_scripts) == 1
 assert next(iter(parity_scripts)).value == "hermes_claude_agent_sdk.parity.cli:main"
 parity_executors = importlib.metadata.entry_points(
     group="hermes_claude_agent_sdk.parity_executors",
-    name="active-approval-turn-tool-followthrough",
+    name="v3",
 )
 assert len(parity_executors) == 1
 assert next(iter(parity_executors)).value == (
-    "hermes_claude_agent_sdk.parity.executors:approval_followthrough"
+    "hermes_claude_agent_sdk.parity.executors:EXECUTORS"
 )
 assert "claude_agent_sdk" not in sys.modules
 print("installed import passed")
