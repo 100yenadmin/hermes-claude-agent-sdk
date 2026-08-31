@@ -369,15 +369,11 @@ class ClaudeAgentSDKRuntime:
             cancel_sent = False
             cancellation_unavailable = False
             cancellation_poll_interval = 0.05
-            next_cancellation_poll = asyncio.get_running_loop().time()
+            loop = asyncio.get_running_loop()
+            next_cancellation_poll = loop.time() + cancellation_poll_interval
             while not task.done() or not queue.empty():
-                try:
-                    projection = await asyncio.wait_for(queue.get(), 0.05)
-                except asyncio.TimeoutError:
-                    projection = None
-
-                now = asyncio.get_running_loop().time()
-                if now >= next_cancellation_poll:
+                now = loop.time()
+                if not cancel_sent and now >= next_cancellation_poll:
                     next_cancellation_poll = now + cancellation_poll_interval
                     try:
                         cancellation_state = host.cancellation_requested()
@@ -391,7 +387,14 @@ class ClaudeAgentSDKRuntime:
                         cancel_sent = True
                         await session.cancel()
 
-                if projection is None:
+                wait_timeout = (
+                    0.05
+                    if cancel_sent
+                    else max(0.001, min(0.05, next_cancellation_poll - loop.time()))
+                )
+                try:
+                    projection = await asyncio.wait_for(queue.get(), wait_timeout)
+                except asyncio.TimeoutError:
                     continue
                 for event in projection.events:
                     if isinstance(event, RuntimeCompletedEvent):

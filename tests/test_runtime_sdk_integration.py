@@ -132,7 +132,7 @@ class _Client:
                 await self._messages.put(
                     AssistantMessage([TextBlock("sustained projection")])
                 )
-                await asyncio.sleep(0.001)
+                await asyncio.sleep(0.005)
         except asyncio.CancelledError:
             raise
 
@@ -573,7 +573,6 @@ def test_cancellation_is_polled_during_sustained_projection_stream() -> None:
                     events.append(event)
                     if event.kind.value == "content":
                         host.projection_count += 1
-                        await asyncio.sleep(0.005)
 
             await asyncio.wait_for(collect(), timeout=0.5)
         finally:
