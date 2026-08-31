@@ -1,0 +1,260 @@
+{
+  "schema_version": 1,
+  "rows": [
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-01",
+      "ordinal": 1,
+      "executable": true,
+      "classification": "requires_0_3_239",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-02",
+      "ordinal": 2,
+      "executable": false,
+      "classification": "not_runtime_applicable",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-03",
+      "ordinal": 3,
+      "executable": false,
+      "classification": "not_runtime_applicable",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-04",
+      "ordinal": 4,
+      "executable": true,
+      "classification": "equivalent_host",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-05",
+      "ordinal": 5,
+      "executable": true,
+      "classification": "covered_current",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-06",
+      "ordinal": 6,
+      "executable": false,
+      "classification": "not_runtime_applicable",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-07",
+      "ordinal": 7,
+      "executable": true,
+      "classification": "covered_current",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-08",
+      "ordinal": 8,
+      "executable": true,
+      "classification": "covered_current",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-09",
+      "ordinal": 9,
+      "executable": true,
+      "classification": "requires_0_3_239",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-10",
+      "ordinal": 10,
+      "executable": true,
+      "classification": "covered_current",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-11",
+      "ordinal": 11,
+      "executable": true,
+      "classification": "covered_current",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-12",
+      "ordinal": 12,
+      "executable": true,
+      "classification": "equivalent_host",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-13",
+      "ordinal": 13,
+      "executable": true,
+      "classification": "equivalent_host",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-14",
+      "ordinal": 14,
+      "executable": true,
+      "classification": "covered_current",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-15",
+      "ordinal": 15,
+      "executable": true,
+      "classification": "equivalent_host",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-16",
+      "ordinal": 16,
+      "executable": true,
+      "classification": "equivalent_host",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-17",
+      "ordinal": 17,
+      "executable": true,
+      "classification": "covered_current",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-18",
+      "ordinal": 18,
+      "executable": true,
+      "classification": "covered_current",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-19",
+      "ordinal": 19,
+      "executable": false,
+      "classification": "not_runtime_applicable",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-20",
+      "ordinal": 20,
+      "executable": true,
+      "classification": "covered_current",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-21",
+      "ordinal": 21,
+      "executable": true,
+      "classification": "covered_current",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-22",
+      "ordinal": 22,
+      "executable": true,
+      "classification": "equivalent_host",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-23",
+      "ordinal": 23,
+      "executable": true,
+      "classification": "covered_current",
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      }
+    }
+  ],
+  "rows_sha256": "6acf50b6da64b2e86d5a003f70dbfdba23db8387903570420e498e9bbed4e5c4",
+  "ledger_sha256": "f3d5b27bf2ed873c82981b4c07943fdf41d7bab4c3ac782dcca11192c326469f"
+}

@@ -1,0 +1,3010 @@
+{
+  "schema_version": 1,
+  "pack_id": "sdk_boundary",
+  "source_accounting_only": true,
+  "expected_path_status": "PENDING_SOURCE_BINDING",
+  "observed_evidence_present": false,
+  "design_reference": {
+    "v3_sha256": "d364eaa396ef18b1978ab33f2b85b1e16115c5766f707dbd8a29de6c4b136ade",
+    "v4_overlay_sha256": "63e2f7981549c5cbfd2aa0c2e49141a76af35743d80d9a13e4a35e832af43874"
+  },
+  "source": {
+    "kind": "git_commit",
+    "repo_id": "openclaw",
+    "commit_sha": "ea806575e6450e4d1efdfc72c19f04be982a1b9b9",
+    "source_ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+    "artifact_sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+  },
+  "provenance": {
+    "origin_id": "openclaw-v2026-8-1",
+    "license_id": "MIT",
+    "attribution_ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:LICENSE",
+    "evidence_ref": "evidence:hermes-agent-sdk-parity-v3/drafts/source-pack-provenance.json",
+    "evidence_sha256": "0cecf675e9c96cbc29d26794e235fe690b6e62cc8a91030ba009f3d60bd6638a",
+    "corrected_source_map_projection_sha256": "88e846f92b33c6824df3e4a5ac63062bb53c8b6a0bf3f7b2c5089ac9182dfe69"
+  },
+  "source_fragment": {
+    "ref": "evidence:hermes-agent-sdk-parity-v3/drafts/sdk-boundary23-catalog-rows.json",
+    "sha256": "5ceeb81dfd51d947f5c669c61abdcc788687abed8225c5c9ba04ce1057c4fb6c"
+  },
+  "expected_count": 23,
+  "row_ids": [
+    "SDK-BOUNDARY-01",
+    "SDK-BOUNDARY-02",
+    "SDK-BOUNDARY-03",
+    "SDK-BOUNDARY-04",
+    "SDK-BOUNDARY-05",
+    "SDK-BOUNDARY-06",
+    "SDK-BOUNDARY-07",
+    "SDK-BOUNDARY-08",
+    "SDK-BOUNDARY-09",
+    "SDK-BOUNDARY-10",
+    "SDK-BOUNDARY-11",
+    "SDK-BOUNDARY-12",
+    "SDK-BOUNDARY-13",
+    "SDK-BOUNDARY-14",
+    "SDK-BOUNDARY-15",
+    "SDK-BOUNDARY-16",
+    "SDK-BOUNDARY-17",
+    "SDK-BOUNDARY-18",
+    "SDK-BOUNDARY-19",
+    "SDK-BOUNDARY-20",
+    "SDK-BOUNDARY-21",
+    "SDK-BOUNDARY-22",
+    "SDK-BOUNDARY-23"
+  ],
+  "row_ids_sha256": "efdfed8b9b2b03d2b84c9e8d3b259d11a987bf48d99d0b62436da90a1a885817",
+  "rows": [
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-01",
+      "ordinal": 1,
+      "capability_id": "CAP-SDK-BOUNDARY-01",
+      "scenario_id": "SCN-SDK-BOUNDARY-01",
+      "surface": "registration",
+      "owner": "exact_pair",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": true,
+      "classification": "requires_0_3_239",
+      "upgrade_issue_ref": "issue:16",
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "registration.accepted",
+            "sdk.query",
+            "sdk.result",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [
+            {
+              "event": "ClaudeSDKClient.query",
+              "trace_code": "sdk.query"
+            },
+            {
+              "event": "ResultMessage",
+              "trace_code": "sdk.result"
+            }
+          ],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "denial": {
+          "required": true,
+          "expected_outcome": "EXPECTED_NEGATIVE",
+          "trace_codes": [
+            "preflight.fail",
+            "terminal.failed"
+          ],
+          "terminal": {
+            "kind": "failed",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "recovery": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.completed",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-02",
+      "ordinal": 2,
+      "capability_id": "CAP-SDK-BOUNDARY-02",
+      "scenario_id": "SCN-SDK-BOUNDARY-02",
+      "surface": "packaging",
+      "owner": "exact_pair",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": false,
+      "classification": "not_runtime_applicable",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": false,
+          "expected_outcome": "NOT_APPLICABLE",
+          "trace_codes": [],
+          "terminal": {
+            "kind": "not_applicable",
+            "count": 0
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {},
+          "state_after": {}
+        },
+        "denial": {
+          "required": false,
+          "expected_outcome": "NOT_APPLICABLE",
+          "trace_codes": [],
+          "terminal": {
+            "kind": "not_applicable",
+            "count": 0
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {},
+          "state_after": {}
+        },
+        "recovery": {
+          "required": false,
+          "expected_outcome": "NOT_APPLICABLE",
+          "trace_codes": [],
+          "terminal": {
+            "kind": "not_applicable",
+            "count": 0
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {},
+          "state_after": {}
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-03",
+      "ordinal": 3,
+      "capability_id": "CAP-SDK-BOUNDARY-03",
+      "scenario_id": "SCN-SDK-BOUNDARY-03",
+      "surface": "approval",
+      "owner": "exact_pair",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": false,
+      "classification": "not_runtime_applicable",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": false,
+          "expected_outcome": "NOT_APPLICABLE",
+          "trace_codes": [],
+          "terminal": {
+            "kind": "not_applicable",
+            "count": 0
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {},
+          "state_after": {}
+        },
+        "denial": {
+          "required": false,
+          "expected_outcome": "NOT_APPLICABLE",
+          "trace_codes": [],
+          "terminal": {
+            "kind": "not_applicable",
+            "count": 0
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {},
+          "state_after": {}
+        },
+        "recovery": {
+          "required": false,
+          "expected_outcome": "NOT_APPLICABLE",
+          "trace_codes": [],
+          "terminal": {
+            "kind": "not_applicable",
+            "count": 0
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {},
+          "state_after": {}
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-04",
+      "ordinal": 4,
+      "capability_id": "CAP-SDK-BOUNDARY-04",
+      "scenario_id": "SCN-SDK-BOUNDARY-04",
+      "surface": "selection",
+      "owner": "host",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": true,
+      "classification": "equivalent_host",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "selection.accepted",
+            "sdk.query",
+            "sdk.result",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [
+            {
+              "event": "ClaudeSDKClient.query",
+              "trace_code": "sdk.query"
+            },
+            {
+              "event": "ResultMessage",
+              "trace_code": "sdk.result"
+            }
+          ],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "denial": {
+          "required": true,
+          "expected_outcome": "EXPECTED_NEGATIVE",
+          "trace_codes": [
+            "preflight.fail",
+            "terminal.failed"
+          ],
+          "terminal": {
+            "kind": "failed",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "recovery": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.completed",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-05",
+      "ordinal": 5,
+      "capability_id": "CAP-SDK-BOUNDARY-05",
+      "scenario_id": "SCN-SDK-BOUNDARY-05",
+      "surface": "denial",
+      "owner": "plugin",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": true,
+      "classification": "covered_current",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "preflight.pass",
+            "sdk.query",
+            "sdk.result",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [
+            {
+              "event": "ClaudeSDKClient.query",
+              "trace_code": "sdk.query"
+            },
+            {
+              "event": "ResultMessage",
+              "trace_code": "sdk.result"
+            }
+          ],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "denial": {
+          "required": true,
+          "expected_outcome": "EXPECTED_NEGATIVE",
+          "trace_codes": [
+            "preflight.fail",
+            "terminal.failed"
+          ],
+          "terminal": {
+            "kind": "failed",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "recovery": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.completed",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-06",
+      "ordinal": 6,
+      "capability_id": "CAP-SDK-BOUNDARY-06",
+      "scenario_id": "SCN-SDK-BOUNDARY-06",
+      "surface": "denial",
+      "owner": "exact_pair",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": false,
+      "classification": "not_runtime_applicable",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": false,
+          "expected_outcome": "NOT_APPLICABLE",
+          "trace_codes": [],
+          "terminal": {
+            "kind": "not_applicable",
+            "count": 0
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {},
+          "state_after": {}
+        },
+        "denial": {
+          "required": false,
+          "expected_outcome": "NOT_APPLICABLE",
+          "trace_codes": [],
+          "terminal": {
+            "kind": "not_applicable",
+            "count": 0
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {},
+          "state_after": {}
+        },
+        "recovery": {
+          "required": false,
+          "expected_outcome": "NOT_APPLICABLE",
+          "trace_codes": [],
+          "terminal": {
+            "kind": "not_applicable",
+            "count": 0
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {},
+          "state_after": {}
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-07",
+      "ordinal": 7,
+      "capability_id": "CAP-SDK-BOUNDARY-07",
+      "scenario_id": "SCN-SDK-BOUNDARY-07",
+      "surface": "resume",
+      "owner": "plugin",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": true,
+      "classification": "covered_current",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "resume.supplied",
+            "resume.accepted",
+            "sdk.query",
+            "sdk.result",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [
+            {
+              "event": "ClaudeSDKClient.query",
+              "trace_code": "sdk.query"
+            },
+            {
+              "event": "ResultMessage",
+              "trace_code": "sdk.result"
+            }
+          ],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "accepted",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "accepted",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "denial": {
+          "required": true,
+          "expected_outcome": "EXPECTED_NEGATIVE",
+          "trace_codes": [
+            "resume.supplied",
+            "resume.rejected",
+            "terminal.failed"
+          ],
+          "terminal": {
+            "kind": "failed",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "rejected",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "rejected",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "recovery": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "session.restarted",
+            "resume.accepted",
+            "recovery.completed",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "accepted",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "accepted",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-08",
+      "ordinal": 8,
+      "capability_id": "CAP-SDK-BOUNDARY-08",
+      "scenario_id": "SCN-SDK-BOUNDARY-08",
+      "surface": "resume",
+      "owner": "plugin",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": true,
+      "classification": "covered_current",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "resume.supplied",
+            "resume.accepted",
+            "sdk.query",
+            "sdk.result",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [
+            {
+              "event": "ClaudeSDKClient.query",
+              "trace_code": "sdk.query"
+            },
+            {
+              "event": "ResultMessage",
+              "trace_code": "sdk.result"
+            }
+          ],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "accepted",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "accepted",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "denial": {
+          "required": true,
+          "expected_outcome": "EXPECTED_NEGATIVE",
+          "trace_codes": [
+            "resume.supplied",
+            "resume.rejected",
+            "terminal.failed"
+          ],
+          "terminal": {
+            "kind": "failed",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "rejected",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "rejected",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "recovery": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "session.restarted",
+            "resume.accepted",
+            "recovery.completed",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "accepted",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "accepted",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-09",
+      "ordinal": 9,
+      "capability_id": "CAP-SDK-BOUNDARY-09",
+      "scenario_id": "SCN-SDK-BOUNDARY-09",
+      "surface": "selection",
+      "owner": "exact_pair",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": true,
+      "classification": "requires_0_3_239",
+      "upgrade_issue_ref": "issue:16",
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "selection.accepted",
+            "sdk.query",
+            "sdk.result",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [
+            {
+              "event": "ClaudeSDKClient.query",
+              "trace_code": "sdk.query"
+            },
+            {
+              "event": "ResultMessage",
+              "trace_code": "sdk.result"
+            }
+          ],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "denial": {
+          "required": true,
+          "expected_outcome": "EXPECTED_NEGATIVE",
+          "trace_codes": [
+            "preflight.fail",
+            "terminal.failed"
+          ],
+          "terminal": {
+            "kind": "failed",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "recovery": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.completed",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-10",
+      "ordinal": 10,
+      "capability_id": "CAP-SDK-BOUNDARY-10",
+      "scenario_id": "SCN-SDK-BOUNDARY-10",
+      "surface": "resume",
+      "owner": "plugin",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": true,
+      "classification": "covered_current",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "resume.supplied",
+            "resume.accepted",
+            "sdk.query",
+            "sdk.result",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [
+            {
+              "event": "ClaudeSDKClient.query",
+              "trace_code": "sdk.query"
+            },
+            {
+              "event": "ResultMessage",
+              "trace_code": "sdk.result"
+            }
+          ],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "accepted",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "accepted",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "denial": {
+          "required": true,
+          "expected_outcome": "EXPECTED_NEGATIVE",
+          "trace_codes": [
+            "resume.supplied",
+            "resume.rejected",
+            "terminal.failed"
+          ],
+          "terminal": {
+            "kind": "failed",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "rejected",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "rejected",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "recovery": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "session.restarted",
+            "resume.accepted",
+            "recovery.completed",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "accepted",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "accepted",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-11",
+      "ordinal": 11,
+      "capability_id": "CAP-SDK-BOUNDARY-11",
+      "scenario_id": "SCN-SDK-BOUNDARY-11",
+      "surface": "recovery",
+      "owner": "plugin",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": true,
+      "classification": "covered_current",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.completed",
+            "sdk.query",
+            "sdk.result",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [
+            {
+              "event": "ClaudeSDKClient.query",
+              "trace_code": "sdk.query"
+            },
+            {
+              "event": "ResultMessage",
+              "trace_code": "sdk.result"
+            }
+          ],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "denial": {
+          "required": true,
+          "expected_outcome": "EXPECTED_NEGATIVE",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.failed",
+            "terminal.failed"
+          ],
+          "terminal": {
+            "kind": "failed",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "recovery": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.completed",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-12",
+      "ordinal": 12,
+      "capability_id": "CAP-SDK-BOUNDARY-12",
+      "scenario_id": "SCN-SDK-BOUNDARY-12",
+      "surface": "recovery",
+      "owner": "host",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": true,
+      "classification": "equivalent_host",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.completed",
+            "sdk.query",
+            "sdk.result",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [
+            {
+              "event": "ClaudeSDKClient.query",
+              "trace_code": "sdk.query"
+            },
+            {
+              "event": "ResultMessage",
+              "trace_code": "sdk.result"
+            }
+          ],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "denial": {
+          "required": true,
+          "expected_outcome": "EXPECTED_NEGATIVE",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.failed",
+            "terminal.failed"
+          ],
+          "terminal": {
+            "kind": "failed",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "recovery": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.completed",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-13",
+      "ordinal": 13,
+      "capability_id": "CAP-SDK-BOUNDARY-13",
+      "scenario_id": "SCN-SDK-BOUNDARY-13",
+      "surface": "registration",
+      "owner": "host",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": true,
+      "classification": "equivalent_host",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "registration.accepted",
+            "sdk.query",
+            "sdk.result",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [
+            {
+              "event": "ClaudeSDKClient.query",
+              "trace_code": "sdk.query"
+            },
+            {
+              "event": "ResultMessage",
+              "trace_code": "sdk.result"
+            }
+          ],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "denial": {
+          "required": true,
+          "expected_outcome": "EXPECTED_NEGATIVE",
+          "trace_codes": [
+            "preflight.fail",
+            "terminal.failed"
+          ],
+          "terminal": {
+            "kind": "failed",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "recovery": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.completed",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-14",
+      "ordinal": 14,
+      "capability_id": "CAP-SDK-BOUNDARY-14",
+      "scenario_id": "SCN-SDK-BOUNDARY-14",
+      "surface": "denial",
+      "owner": "plugin",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": true,
+      "classification": "covered_current",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "preflight.pass",
+            "sdk.query",
+            "sdk.result",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [
+            {
+              "event": "ClaudeSDKClient.query",
+              "trace_code": "sdk.query"
+            },
+            {
+              "event": "ResultMessage",
+              "trace_code": "sdk.result"
+            }
+          ],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "denial": {
+          "required": true,
+          "expected_outcome": "EXPECTED_NEGATIVE",
+          "trace_codes": [
+            "preflight.fail",
+            "terminal.failed"
+          ],
+          "terminal": {
+            "kind": "failed",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "recovery": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.completed",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-15",
+      "ordinal": 15,
+      "capability_id": "CAP-SDK-BOUNDARY-15",
+      "scenario_id": "SCN-SDK-BOUNDARY-15",
+      "surface": "approval",
+      "owner": "host",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": true,
+      "classification": "equivalent_host",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "approval.requested",
+            "approval.granted",
+            "sdk.query",
+            "sdk.result",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [
+            {
+              "event": "ClaudeSDKClient.query",
+              "trace_code": "sdk.query"
+            },
+            {
+              "event": "ResultMessage",
+              "trace_code": "sdk.result"
+            }
+          ],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "granted",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "granted",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "denial": {
+          "required": true,
+          "expected_outcome": "EXPECTED_NEGATIVE",
+          "trace_codes": [
+            "approval.requested",
+            "approval.denied",
+            "terminal.failed"
+          ],
+          "terminal": {
+            "kind": "failed",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "denied",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "failed",
+            "approval": "denied",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "recovery": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.completed",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-16",
+      "ordinal": 16,
+      "capability_id": "CAP-SDK-BOUNDARY-16",
+      "scenario_id": "SCN-SDK-BOUNDARY-16",
+      "surface": "approval",
+      "owner": "host",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": true,
+      "classification": "equivalent_host",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "approval.requested",
+            "approval.granted",
+            "sdk.query",
+            "sdk.result",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [
+            {
+              "event": "ClaudeSDKClient.query",
+              "trace_code": "sdk.query"
+            },
+            {
+              "event": "ResultMessage",
+              "trace_code": "sdk.result"
+            }
+          ],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "granted",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "granted",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "denial": {
+          "required": true,
+          "expected_outcome": "EXPECTED_NEGATIVE",
+          "trace_codes": [
+            "approval.requested",
+            "approval.denied",
+            "terminal.failed"
+          ],
+          "terminal": {
+            "kind": "failed",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "denied",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "failed",
+            "approval": "denied",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "recovery": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.completed",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-17",
+      "ordinal": 17,
+      "capability_id": "CAP-SDK-BOUNDARY-17",
+      "scenario_id": "SCN-SDK-BOUNDARY-17",
+      "surface": "recovery",
+      "owner": "plugin",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": true,
+      "classification": "covered_current",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.completed",
+            "sdk.query",
+            "sdk.result",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [
+            {
+              "event": "ClaudeSDKClient.query",
+              "trace_code": "sdk.query"
+            },
+            {
+              "event": "ResultMessage",
+              "trace_code": "sdk.result"
+            }
+          ],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "denial": {
+          "required": true,
+          "expected_outcome": "EXPECTED_NEGATIVE",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.failed",
+            "terminal.failed"
+          ],
+          "terminal": {
+            "kind": "failed",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "recovery": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.completed",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-18",
+      "ordinal": 18,
+      "capability_id": "CAP-SDK-BOUNDARY-18",
+      "scenario_id": "SCN-SDK-BOUNDARY-18",
+      "surface": "tool",
+      "owner": "plugin",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": true,
+      "classification": "covered_current",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "tool.requested",
+            "tool.executed",
+            "sdk.query",
+            "sdk.result",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [
+            {
+              "event": "ClaudeSDKClient.query",
+              "trace_code": "sdk.query"
+            },
+            {
+              "event": "ResultMessage",
+              "trace_code": "sdk.result"
+            }
+          ],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "executed",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "executed",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "denial": {
+          "required": true,
+          "expected_outcome": "EXPECTED_NEGATIVE",
+          "trace_codes": [
+            "tool.requested",
+            "tool.denied",
+            "terminal.failed"
+          ],
+          "terminal": {
+            "kind": "failed",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "denied",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "denied",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "recovery": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "tool.recovered",
+            "recovery.completed",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "recovered",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "recovered",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-19",
+      "ordinal": 19,
+      "capability_id": "CAP-SDK-BOUNDARY-19",
+      "scenario_id": "SCN-SDK-BOUNDARY-19",
+      "surface": "packaging",
+      "owner": "exact_pair",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": false,
+      "classification": "not_runtime_applicable",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": false,
+          "expected_outcome": "NOT_APPLICABLE",
+          "trace_codes": [],
+          "terminal": {
+            "kind": "not_applicable",
+            "count": 0
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {},
+          "state_after": {}
+        },
+        "denial": {
+          "required": false,
+          "expected_outcome": "NOT_APPLICABLE",
+          "trace_codes": [],
+          "terminal": {
+            "kind": "not_applicable",
+            "count": 0
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {},
+          "state_after": {}
+        },
+        "recovery": {
+          "required": false,
+          "expected_outcome": "NOT_APPLICABLE",
+          "trace_codes": [],
+          "terminal": {
+            "kind": "not_applicable",
+            "count": 0
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {},
+          "state_after": {}
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-20",
+      "ordinal": 20,
+      "capability_id": "CAP-SDK-BOUNDARY-20",
+      "scenario_id": "SCN-SDK-BOUNDARY-20",
+      "surface": "denial",
+      "owner": "plugin",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": true,
+      "classification": "covered_current",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "preflight.pass",
+            "sdk.query",
+            "sdk.result",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [
+            {
+              "event": "ClaudeSDKClient.query",
+              "trace_code": "sdk.query"
+            },
+            {
+              "event": "ResultMessage",
+              "trace_code": "sdk.result"
+            }
+          ],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "denial": {
+          "required": true,
+          "expected_outcome": "EXPECTED_NEGATIVE",
+          "trace_codes": [
+            "preflight.fail",
+            "terminal.failed"
+          ],
+          "terminal": {
+            "kind": "failed",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "recovery": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.completed",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-21",
+      "ordinal": 21,
+      "capability_id": "CAP-SDK-BOUNDARY-21",
+      "scenario_id": "SCN-SDK-BOUNDARY-21",
+      "surface": "tool",
+      "owner": "plugin",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": true,
+      "classification": "covered_current",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "tool.requested",
+            "tool.executed",
+            "sdk.query",
+            "sdk.result",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [
+            {
+              "event": "ClaudeSDKClient.query",
+              "trace_code": "sdk.query"
+            },
+            {
+              "event": "ResultMessage",
+              "trace_code": "sdk.result"
+            }
+          ],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "executed",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "executed",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "denial": {
+          "required": true,
+          "expected_outcome": "EXPECTED_NEGATIVE",
+          "trace_codes": [
+            "tool.requested",
+            "tool.denied",
+            "terminal.failed"
+          ],
+          "terminal": {
+            "kind": "failed",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "denied",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "denied",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "recovery": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "tool.recovered",
+            "recovery.completed",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "recovered",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "recovered",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-22",
+      "ordinal": 22,
+      "capability_id": "CAP-SDK-BOUNDARY-22",
+      "scenario_id": "SCN-SDK-BOUNDARY-22",
+      "surface": "recovery",
+      "owner": "host",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": true,
+      "classification": "equivalent_host",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.completed",
+            "sdk.query",
+            "sdk.result",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [
+            {
+              "event": "ClaudeSDKClient.query",
+              "trace_code": "sdk.query"
+            },
+            {
+              "event": "ResultMessage",
+              "trace_code": "sdk.result"
+            }
+          ],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "denial": {
+          "required": true,
+          "expected_outcome": "EXPECTED_NEGATIVE",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.failed",
+            "terminal.failed"
+          ],
+          "terminal": {
+            "kind": "failed",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "recovery": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.completed",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        }
+      }
+    },
+    {
+      "pack_id": "sdk_boundary",
+      "row_id": "SDK-BOUNDARY-23",
+      "ordinal": 23,
+      "capability_id": "CAP-SDK-BOUNDARY-23",
+      "scenario_id": "SCN-SDK-BOUNDARY-23",
+      "surface": "denial",
+      "owner": "plugin",
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "required": true,
+      "executable": true,
+      "classification": "covered_current",
+      "upgrade_issue_ref": null,
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "proof": {
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
+      },
+      "expected_paths": {
+        "positive": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "preflight.pass",
+            "sdk.query",
+            "sdk.result",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [
+            {
+              "event": "ClaudeSDKClient.query",
+              "trace_code": "sdk.query"
+            },
+            {
+              "event": "ResultMessage",
+              "trace_code": "sdk.result"
+            }
+          ],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "denial": {
+          "required": true,
+          "expected_outcome": "EXPECTED_NEGATIVE",
+          "trace_codes": [
+            "preflight.fail",
+            "terminal.failed"
+          ],
+          "terminal": {
+            "kind": "failed",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "bound",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        },
+        "recovery": {
+          "required": true,
+          "expected_outcome": "PASS",
+          "trace_codes": [
+            "recovery.started",
+            "recovery.completed",
+            "terminal.complete"
+          ],
+          "terminal": {
+            "kind": "complete",
+            "count": 1
+          },
+          "tool_calls": [],
+          "side_effect_count": 0,
+          "sdk_events": [],
+          "state_before": {
+            "lifecycle": "failed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          },
+          "state_after": {
+            "lifecycle": "completed",
+            "approval": "not_required",
+            "tool": "none",
+            "resume": "absent",
+            "billing": "not_applicable",
+            "side_effect_count": 0,
+            "boundary_sha256": null
+          }
+        }
+      }
+    }
+  ],
+  "pack_sha256": "faa4b04a46c1c5fc759ecb773fa583d0cc52a3fbda603e3cae23e5ca67e5d021",
+  "sdk_distribution": "claude-agent-sdk",
+  "sdk_version": "0.2.144"
+}
