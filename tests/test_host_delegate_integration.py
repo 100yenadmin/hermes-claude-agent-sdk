@@ -16,16 +16,19 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 
 # The standalone plugin's existing host-integration tests use this same
-# explicit host-root override.  Keeping the host checkout out of the plugin's
-# package makes the cross-repository dependency visible at test time.
-HOST_ROOT = Path(
-    os.environ.get(
-        "HERMES_AGENT_HOST_ROOT",
-        "/Users/m1/repos/hermes-agent-runtime-plugin-api",
-    )
-)
+# explicit host-root override. Keeping the host checkout out of the plugin's
+# package makes the cross-repository dependency visible at test time without
+# binding the suite to one developer-machine path.
+_HOST_ROOT_VALUE = os.environ.get("HERMES_AGENT_HOST_ROOT")
+if not _HOST_ROOT_VALUE:
+    pytest.skip("HERMES_AGENT_HOST_ROOT is not configured", allow_module_level=True)
+HOST_ROOT = Path(_HOST_ROOT_VALUE)
+if not HOST_ROOT.is_dir():
+    pytest.skip("configured Hermes host checkout is absent", allow_module_level=True)
 if str(HOST_ROOT) not in sys.path:
     sys.path.insert(0, str(HOST_ROOT))
 
