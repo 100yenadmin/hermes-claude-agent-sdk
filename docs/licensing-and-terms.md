@@ -1,0 +1,81 @@
+# Licensing and service terms
+
+This document explains the boundaries that operators and release owners must
+keep separate. It is operational provenance documentation, not legal advice or
+a determination that a particular distribution or use is permitted.
+
+## 1. Standalone and Hermes source
+
+The standalone repository's `LICENSE` is the MIT License and retains the Hermes
+Agent copyright notice for the source boundary. The package's own additions may
+carry a separate copyright year in that file. `NOTICE` and `AUTHORS` preserve
+the relevant public PR, commit, and contributor attribution without contributor
+email addresses.
+
+The MIT license grants permissions for the covered source and documentation
+subject to its conditions and disclaimer. It does not grant rights in software,
+assets, trademarks, accounts, or services that are not covered by that license.
+
+## 2. Dependency license metadata
+
+Package metadata pins:
+
+```text
+claude-agent-sdk==0.2.144
+```
+
+The published metadata for that dependency declares the MIT license. This is a
+statement about the dependency's declared distribution metadata. It is not a
+complete review of all transitive dependency licenses, bundled assets, CLI
+components, or redistribution notices. A release owner must inspect the exact
+wheel/sdist and resolved dependency set before publishing a release candidate,
+then add or update notices when a dependency requires them.
+
+The dependency declaration also does not make the SDK a part of the Hermes MIT
+copyright grant. Each dependency remains subject to its own license and notice
+conditions.
+
+## 3. Anthropic and other service terms
+
+When the SDK or CLI connects to Claude or another Anthropic service, the
+operator's account, product, subscription, API, acceptable-use, commercial, and
+other applicable terms govern that service use. Those terms are separate from
+the MIT license for source code.
+
+In particular:
+
+- The MIT source license does not provide an Anthropic account, subscription,
+  OAuth entitlement, API permission, or billing allowance.
+- Anthropic service terms are not equivalent to the MIT license.
+- This repository does not grant permission for customer or commercial use and
+  does not certify that a proposed use complies with current service terms.
+- Credential, account, usage, and data-handling decisions remain the
+  operator's responsibility and must not be inferred from source licensing.
+
+Any customer-facing or commercial distribution decision requires the operator's
+own terms review and, where appropriate, legal review. No sentence in this
+document should be read as a compatibility opinion or approval.
+
+## 4. Release-time checklist
+
+Before an immutable release candidate is considered, the owning release lane
+must:
+
+1. retain `LICENSE`, `NOTICE`, and `AUTHORS` in the artifact;
+2. inspect the exact dependency metadata and transitive license/notice set;
+3. update third-party notices for any shipped component that requires one;
+4. keep the pinned SDK version, source provenance SHAs, and artifact checksums
+   together in the release evidence; and
+5. record any unresolved license, terms, or redistribution question as a
+   release stop rather than assuming compatibility.
+
+This checklist is independent of runtime proof. A package can have complete
+source attribution while still lacking release, service-terms, or customer-use
+approval.
+
+## 5. Scope and proof boundary
+
+The provenance and licensing files do not prove an upstream merge, a package
+release, successful Claude/Fable execution, subscription billing behavior,
+future SDK compatibility, or customer readiness. Those claims require their
+own exact identity and evidence.
