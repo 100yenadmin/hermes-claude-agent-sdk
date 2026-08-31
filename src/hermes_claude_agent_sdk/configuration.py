@@ -5,11 +5,13 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
 
 from .billing import plan_sdk_env_overrides
 
 
 _MAX_TEXT = 4_096
+_MAX_PROMPT_APPEND = 32_000
 _PERMISSION_MODES = {
     "default",
     "acceptEdits",
@@ -20,12 +22,14 @@ _PERMISSION_MODES = {
 }
 
 
-def _optional_text(value: object, *, field: str) -> str | None:
+def _optional_text(
+    value: object, *, field: str, max_length: int = _MAX_TEXT
+) -> str | None:
     if value is None:
         return None
     if not isinstance(value, str):
         raise TypeError(f"{field} must be text")
-    if not value or len(value) > _MAX_TEXT or "\x00" in value:
+    if not value or len(value) > max_length or "\x00" in value:
         raise ValueError(f"{field} is invalid")
     return value
 
@@ -46,6 +50,8 @@ class SDKSessionConfiguration:
     resume_external_session_id: str | None = field(repr=False)
     env_overrides: tuple[tuple[str, str], ...]
     setting_sources: tuple[str, ...]
+    mcp_servers: Mapping[str, object] = field(repr=False, compare=False)
+    allowed_tools: tuple[str, ...]
     turn_timeout_seconds: float
     connect_timeout_seconds: float
     close_timeout_seconds: float
@@ -62,6 +68,8 @@ class SDKSessionConfiguration:
         parent_env: Mapping[str, object] | None = None,
         configured_env: Mapping[str, object] | None = None,
         setting_sources: tuple[str, ...] = (),
+        mcp_servers: Mapping[str, object] | None = None,
+        allowed_tools: tuple[str, ...] = (),
         turn_timeout_seconds: float = 600.0,
         connect_timeout_seconds: float = 60.0,
         close_timeout_seconds: float = 15.0,
@@ -69,7 +77,11 @@ class SDKSessionConfiguration:
         safe_cwd = _optional_text(cwd, field="cwd")
         assert safe_cwd is not None
         safe_model = _optional_text(model, field="model")
-        safe_append = _optional_text(system_prompt_append, field="system_prompt_append")
+        safe_append = _optional_text(
+            system_prompt_append,
+            field="system_prompt_append",
+            max_length=_MAX_PROMPT_APPEND,
+        )
         safe_resume = _optional_text(
             resume_external_session_id, field="resume_external_session_id"
         )
@@ -86,6 +98,19 @@ class SDKSessionConfiguration:
             raise ValueError("setting_sources is invalid")
         if len(set(setting_sources)) != len(setting_sources):
             raise ValueError("setting_sources contains duplicates")
+        if not isinstance(allowed_tools, tuple) or any(
+            not isinstance(name, str) or not name or len(name) > _MAX_TEXT
+            for name in allowed_tools
+        ):
+            raise ValueError("allowed_tools is invalid")
+        if len(set(allowed_tools)) != len(allowed_tools):
+            raise ValueError("allowed_tools contains duplicates")
+        safe_mcp_servers = dict(mcp_servers or {})
+        if any(
+            not isinstance(name, str) or not name or len(name) > 256
+            for name in safe_mcp_servers
+        ):
+            raise ValueError("mcp_servers is invalid")
 
         timeouts = (
             float(turn_timeout_seconds),
@@ -107,6 +132,8 @@ class SDKSessionConfiguration:
             resume_external_session_id=safe_resume,
             env_overrides=tuple(sorted(planned.items())),
             setting_sources=setting_sources,
+            mcp_servers=MappingProxyType(safe_mcp_servers),
+            allowed_tools=allowed_tools,
             turn_timeout_seconds=timeouts[0],
             connect_timeout_seconds=timeouts[1],
             close_timeout_seconds=timeouts[2],
@@ -128,8 +155,10 @@ class SDKSessionConfiguration:
             "system_prompt": system_prompt,
             "env": dict(self.env_overrides),
             "setting_sources": list(self.setting_sources),
-            # Host tool bridging is deliberately outside this extraction.
             "tools": [],
+            "mcp_servers": dict(self.mcp_servers),
+            "strict_mcp_config": bool(self.mcp_servers),
+            "allowed_tools": list(self.allowed_tools),
         }
         if self.resume_external_session_id is not None:
             fields["resume"] = self.resume_external_session_id

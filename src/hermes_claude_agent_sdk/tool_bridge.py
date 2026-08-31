@@ -561,6 +561,7 @@ class HostToolBridge:
             definition.name: definition for definition in self._definitions
         }
         self._sdk_call_count = 0
+        self._host_execution_count = 0
 
     @staticmethod
     def _safe_identifier(value: Any, limit: int) -> str | None:
@@ -577,6 +578,12 @@ class HostToolBridge:
     @property
     def tool_definitions(self) -> tuple[HostToolDefinition, ...]:
         return self._definitions
+
+    @property
+    def host_execution_count(self) -> int:
+        """Return only the number of calls that crossed into host execution."""
+
+        return self._host_execution_count
 
     async def handle_tool_call(
         self,
@@ -608,6 +615,7 @@ class HostToolBridge:
 
         execute = self._host.execute_tool
         try:
+            self._host_execution_count += 1
             result = execute(name, copied_arguments)
             if not inspect.isawaitable(result):
                 return ToolCallResult(
@@ -717,6 +725,7 @@ class HostToolBridge:
         server_name: str = "hermes-tools",
         *,
         version: str = "1.0.0",
+        sdk_module: Any | None = None,
     ) -> Any:
         """Build the public SDK in-process MCP adapter lazily.
 
@@ -730,7 +739,10 @@ class HostToolBridge:
             raise ToolBridgeConfigurationError("SDK MCP server identity is malformed")
 
         # Import only at adapter construction, never at plugin/module import.
-        import claude_agent_sdk as sdk
+        if sdk_module is None:
+            import claude_agent_sdk as sdk
+        else:
+            sdk = sdk_module
 
         sdk_tools: list[Any] = []
         for definition in self._definitions:

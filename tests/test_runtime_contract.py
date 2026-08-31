@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import sys
 from dataclasses import replace
-from types import ModuleType
 
 import pytest
 
@@ -135,29 +134,19 @@ def test_doctor_reports_host_compatibility_without_importing_sdk(monkeypatch):
     assert "claude_agent_sdk" not in sys.modules
 
 
-def test_factory_converts_only_explicit_fake_events_and_never_queries_sdk(monkeypatch):
-    sdk = ModuleType("claude_agent_sdk")
+def test_auth_rejection_stops_before_sdk_import_or_query(monkeypatch):
+    monkeypatch.delitem(sys.modules, "claude_agent_sdk", raising=False)
+    imports = []
 
-    def query(*args, **kwargs):
-        raise AssertionError("the thin contract shell must not call query")
+    def record_import(name, *args, **kwargs):
+        imports.append(name)
+        raise AssertionError("rejected auth must stop before SDK import")
 
-    sdk.query = query
-    sdk.iter_events = lambda request: [
-        {"type": "status", "message": "fake-start"},
-        {"type": "content", "text": "hello"},
-        {
-            "type": "usage",
-            "input_tokens": 2,
-            "output_tokens": 3,
-            "billing_mode": "synthetic",
-            "cost_status": "not_recorded",
-            "replay_safe": True,
-        },
-        {"type": "completed", "result": {"text": "hello"}},
-    ]
-    monkeypatch.setitem(sys.modules, "claude_agent_sdk", sdk)
+    class AuthResult:
+        allowed = False
 
-    runtime = plugin.create_runtime()
+    monkeypatch.setattr(runtime_module.importlib, "import_module", record_import)
+    runtime = runtime_module.ClaudeAgentSDKRuntime(auth_probe=lambda: AuthResult())
     request = _request()
 
     async def collect():
@@ -165,16 +154,11 @@ def test_factory_converts_only_explicit_fake_events_and_never_queries_sdk(monkey
 
     events = asyncio.run(collect())
 
-    assert [event.kind.value for event in events] == [
-        "status",
-        "content",
-        "usage",
-        "completed",
-    ]
-    assert events[1].text == "hello"
-    assert events[2].receipt.input_tokens == 2
-    assert events[-1].result == {"text": "hello"}
-    asyncio.run(runtime.close())
+    assert [event.kind.value for event in events] == ["failed"]
+    assert events[0].failure.phase.value == "preflight"
+    assert events[0].failure.code == "claude_subscription_auth_rejected"
+    assert imports == []
+    assert "claude_agent_sdk" not in sys.modules
 
 
 def test_incompatible_host_manifest_is_reported_before_any_sdk_access(monkeypatch):

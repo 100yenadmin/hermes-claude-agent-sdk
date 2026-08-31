@@ -1,273 +1,395 @@
-"""Small AgentRuntime v1 shell used while the SDK implementation is extracted.
-
-The real Claude Agent SDK session/process implementation belongs to the
-provenance-preserving extraction lane.  This module only proves the public
-boundary: a zero-argument factory, pure preflight, and conversion of a small
-fake SDK event stream into host-owned typed events.  It never calls the SDK's
-real query API.
-"""
+"""AgentRuntime v1 composition over the public Claude Agent SDK adapter."""
 
 from __future__ import annotations
 
+import asyncio
 import importlib
-import inspect
-from collections.abc import AsyncIterable, Iterable, Mapping
+import os
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from .compatibility import API_MODES, MODEL_PREFIXES, PROVIDER_IDS, RUNTIME_ID
+from .configuration import SDKSessionConfiguration
+from .prompt_context import build_sdk_prompt_context
+from .tool_bridge import HostToolBridge
+
+_MAX_TURN_TEXT = 32_000
+_MAX_SYSTEM_APPEND = 32_000
+_MCP_SERVER_NAME = "hermes-tools"
 
 
-def _read(event: Any, key: str, default: Any = None) -> Any:
-    if isinstance(event, Mapping):
-        return event.get(key, default)
-    return getattr(event, key, default)
+def _failure(code: str, message: str, phase: Any, *, replay_safe: bool) -> Any:
+    from agent.runtime_api import RuntimeFailure
+
+    return RuntimeFailure(code=code, message=message, phase=phase, replay_safe=replay_safe)
 
 
-def _as_int(value: Any, default: int = 0) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
+def _bounded_turn_text(request: Any) -> str | None:
+    """Extract the last bounded public user-text turn without coercing objects."""
+
+    messages = getattr(request, "messages", ())
+    if not isinstance(messages, Sequence) or isinstance(messages, (str, bytes)):
+        return None
+    for message in reversed(messages):
+        if not isinstance(message, Mapping) or message.get("role") != "user":
+            continue
+        content = message.get("content")
+        if isinstance(content, str):
+            text = content.strip()
+            return text[:_MAX_TURN_TEXT] if text else None
+        if isinstance(content, Sequence) and not isinstance(content, (str, bytes)):
+            parts: list[str] = []
+            used = 0
+            for block in content:
+                if not isinstance(block, Mapping) or block.get("type") != "text":
+                    continue
+                value = block.get("text")
+                if not isinstance(value, str):
+                    continue
+                value = value.strip()
+                if not value:
+                    continue
+                remaining = _MAX_TURN_TEXT - used
+                if remaining <= 0:
+                    break
+                parts.append(value[:remaining])
+                used += min(len(value), remaining)
+            text = "\n".join(parts).strip()
+            return text[:_MAX_TURN_TEXT] if text else None
+        return None
+    return None
+
+
+def _resume_id(request: Any) -> tuple[str | None, bool]:
+    envelope = getattr(request, "session_state", None)
+    if envelope is None:
+        return None, True
+    if (
+        getattr(envelope, "runtime_id", None) != RUNTIME_ID
+        or getattr(envelope, "schema_version", None) != 1
+    ):
+        return None, False
+    state = getattr(envelope, "state", None)
+    if not isinstance(state, Mapping) or set(state) - {"external_session_id"}:
+        return None, False
+    value = state.get("external_session_id")
+    if value is None:
+        return None, True
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value) > 512
+        or any(ord(character) < 32 or ord(character) == 127 for character in value)
+    ):
+        return None, False
+    return value, True
 
 
 class ClaudeAgentSDKRuntime:
-    """Minimal runtime shell with an intentionally fake-only SDK seam."""
+    """Small provider-local runtime with injected offline seams for tests."""
 
-    def __init__(self) -> None:
-        # The host calls the factory only after descriptor routing has found a
-        # compatible selection.  Keep the dependency import one step later as
-        # well: preflight remains pure even when a caller constructs the shell
-        # directly, and no SDK import can occur for a rejected selection.
-        self._sdk: Any | None = None
+    def __init__(
+        self,
+        *,
+        auth_probe: Callable[[], Any] | None = None,
+        sdk_module: Any | None = None,
+        client_factory: Callable[..., Any] | None = None,
+        cwd: str = ".",
+        parent_env: Mapping[str, object] | None = None,
+    ) -> None:
+        self._auth_probe = auth_probe
+        self._sdk = sdk_module
+        self._client_factory = client_factory
+        self._cwd = cwd
+        self._parent_env = parent_env
+        self._auth_allowed: bool | None = None
+        self._session: Any | None = None
         self._closed = False
 
-    def _sdk_module(self) -> Any:
-        """Import the SDK only after the provider-neutral preflight gate."""
+    def _default_auth_probe(self) -> Any:
+        module = importlib.import_module(".auth", __package__)
+        return module.probe_claude_auth()
 
-        if self._sdk is None:
-            self._sdk = importlib.import_module("claude_agent_sdk")
-        return self._sdk
+    def _check_auth(self) -> bool:
+        if self._auth_allowed is not None:
+            return self._auth_allowed
+        try:
+            result = (self._auth_probe or self._default_auth_probe)()
+            category = getattr(result, "category", None)
+            category = getattr(category, "value", category)
+            self._auth_allowed = (
+                getattr(result, "allowed", None) is True
+                and category == "subscription_oauth"
+            )
+        except Exception:
+            self._auth_allowed = False
+        return self._auth_allowed
 
     def preflight(self, request: Any) -> Any:
-        """Return a pure failure for selections outside this descriptor."""
-
-        from agent.runtime_api import RuntimeFailure, RuntimeFailurePhase
+        from agent.runtime_api import RuntimeFailurePhase
 
         selection = request.selection
-        provider_ok = selection.provider in PROVIDER_IDS
-        mode_ok = selection.api_mode in API_MODES
-        model_ok = any(selection.model.startswith(prefix) for prefix in MODEL_PREFIXES)
-        if provider_ok and mode_ok and model_ok:
-            return None
-        return RuntimeFailure(
-            code="claude_runtime_selection_unsupported",
-            message="Claude runtime selection is outside its declared descriptor",
-            phase=RuntimeFailurePhase.PREFLIGHT,
-            replay_safe=True,
-        )
-
-    async def _fake_events(self, request: Any) -> AsyncIterable[Any]:
-        """Read only the explicit fake event hook; never call ``query``."""
-
-        sdk = self._sdk_module()
-        source_factory = getattr(sdk, "iter_events", None)
-        if source_factory is None:
-            source_factory = getattr(sdk, "fake_events", None)
-        if not callable(source_factory):
-            return
-
-        source = source_factory(request)
-        if inspect.isawaitable(source):
-            source = await source
-        if hasattr(source, "__aiter__"):
-            async for event in source:
-                yield event
-            return
-        if isinstance(source, Iterable):
-            for event in source:
-                yield event
-
-    def _convert_event(self, event: Any, request: Any) -> Any | None:
-        """Convert one fake event mapping to a public host event."""
-
-        from agent.runtime_api import (
-            RuntimeApprovalRequestEvent,
-            RuntimeCancelledEvent,
-            RuntimeCompletedEvent,
-            RuntimeCompactionEvent,
-            RuntimeCompactionPhase,
-            RuntimeContentEvent,
-            RuntimeEventKind,
-            RuntimeFailedEvent,
-            RuntimeFailure,
-            RuntimeFailurePhase,
-            RuntimeStateEnvelope,
-            RuntimeStateEvent,
-            RuntimeStatusEvent,
-            RuntimeToolRequestEvent,
-            RuntimeUsageEvent,
-            RuntimeUsageReceipt,
-        )
-
-        if isinstance(event, (RuntimeContentEvent, RuntimeStatusEvent,
-                              RuntimeToolRequestEvent, RuntimeApprovalRequestEvent,
-                              RuntimeCompactionEvent, RuntimeStateEvent,
-                              RuntimeUsageEvent, RuntimeCompletedEvent,
-                              RuntimeCancelledEvent, RuntimeFailedEvent)):
-            return event
-
-        kind = str(_read(event, "kind", _read(event, "type", ""))).lower()
-        kind = kind.replace("-", "_")
-        if kind == RuntimeEventKind.CONTENT.value:
-            return RuntimeContentEvent(text=str(_read(event, "text", _read(event, "delta", ""))))
-        if kind == RuntimeEventKind.STATUS.value:
-            return RuntimeStatusEvent(message=str(_read(event, "message", "")))
-        if kind == RuntimeEventKind.TOOL_REQUEST.value:
-            arguments = _read(event, "arguments", {})
-            return RuntimeToolRequestEvent(
-                request_id=str(_read(event, "request_id", "fake-tool-request")),
-                name=str(_read(event, "name", "")),
-                arguments=dict(arguments) if isinstance(arguments, Mapping) else {},
+        if not (
+            selection.provider in PROVIDER_IDS
+            and selection.api_mode in API_MODES
+            and any(selection.model.startswith(prefix) for prefix in MODEL_PREFIXES)
+        ):
+            return _failure(
+                "claude_runtime_selection_unsupported",
+                "Claude runtime selection is outside its declared descriptor",
+                RuntimeFailurePhase.PREFLIGHT,
+                replay_safe=True,
             )
-        if kind == RuntimeEventKind.APPROVAL_REQUEST.value:
-            details = _read(event, "details", {})
-            return RuntimeApprovalRequestEvent(
-                request_id=str(_read(event, "request_id", "fake-approval-request")),
-                action=str(_read(event, "action", "")),
-                details=dict(details) if isinstance(details, Mapping) else {},
+        _, state_ok = _resume_id(request)
+        if not state_ok:
+            return _failure(
+                "claude_runtime_state_invalid",
+                "Claude runtime state is incompatible",
+                RuntimeFailurePhase.PREFLIGHT,
+                replay_safe=False,
             )
-        if kind == RuntimeEventKind.COMPACTION.value:
-            phase_value = str(_read(event, "phase", RuntimeCompactionPhase.STARTED.value))
-            try:
-                phase = RuntimeCompactionPhase(phase_value)
-            except ValueError:
-                phase = RuntimeCompactionPhase.FAILED
-            details = _read(event, "details", {})
-            return RuntimeCompactionEvent(
-                phase=phase,
-                details=dict(details) if isinstance(details, Mapping) else {},
-            )
-        if kind == RuntimeEventKind.SESSION_STATE.value:
-            state = _read(event, "state", {})
-            if not isinstance(state, Mapping):
-                state = {}
-            return RuntimeStateEvent(
-                state=RuntimeStateEnvelope(
-                    runtime_id=RUNTIME_ID,
-                    schema_version=_as_int(_read(event, "schema_version", 1), 1),
-                    state=dict(state),
-                )
-            )
-        if kind == RuntimeEventKind.USAGE.value:
-            receipt = _read(event, "receipt", event)
-            return RuntimeUsageEvent(
-                receipt=RuntimeUsageReceipt(
-                    runtime_id=RUNTIME_ID,
-                    provider=str(_read(receipt, "provider", request.selection.provider)),
-                    model=str(_read(receipt, "model", request.selection.model)),
-                    billing_mode=str(_read(receipt, "billing_mode", "unknown")),
-                    cost_status=str(_read(receipt, "cost_status", "unknown")),
-                    input_tokens=_as_int(_read(receipt, "input_tokens", 0)),
-                    output_tokens=_as_int(_read(receipt, "output_tokens", 0)),
-                    cache_read_tokens=_as_int(_read(receipt, "cache_read_tokens", 0)),
-                    cache_write_tokens=_as_int(_read(receipt, "cache_write_tokens", 0)),
-                    reasoning_tokens=_as_int(_read(receipt, "reasoning_tokens", 0)),
-                    replay_safe=bool(_read(receipt, "replay_safe", False)),
-                    correlation_id=_read(receipt, "correlation_id", request.correlation_id),
-                )
-            )
-        if kind == RuntimeEventKind.COMPLETED.value:
-            result = _read(event, "result", {})
-            return RuntimeCompletedEvent(
-                result=dict(result) if isinstance(result, Mapping) else {"text": str(result)}
-            )
-        if kind == RuntimeEventKind.CANCELLED.value:
-            return RuntimeCancelledEvent(reason=str(_read(event, "reason", "cancelled")))
-        if kind == RuntimeEventKind.FAILED.value:
-            failure = _read(event, "failure", event)
-            phase_value = str(_read(failure, "phase", RuntimeFailurePhase.BEFORE_VISIBLE_OUTPUT.value))
-            try:
-                phase = RuntimeFailurePhase(phase_value)
-            except ValueError:
-                phase = RuntimeFailurePhase.BEFORE_VISIBLE_OUTPUT
-            return RuntimeFailedEvent(
-                failure=RuntimeFailure(
-                    code=str(_read(failure, "code", "sdk_runtime_failure")),
-                    message=str(_read(failure, "message", "Claude runtime failed")),
-                    phase=phase,
-                    replay_safe=bool(_read(failure, "replay_safe", False)),
-                    retryable=bool(_read(failure, "retryable", False)),
-                )
+        if not self._check_auth():
+            return _failure(
+                "claude_subscription_auth_rejected",
+                "Claude subscription authentication is unavailable",
+                RuntimeFailurePhase.PREFLIGHT,
+                replay_safe=False,
             )
         return None
 
     async def run_turn(self, request: Any, host: Any):
-        """Yield converted fake events and exactly one terminal event."""
-
         from agent.runtime_api import (
             RuntimeCancelledEvent,
             RuntimeCompletedEvent,
             RuntimeFailedEvent,
-            RuntimeFailure,
             RuntimeFailurePhase,
+            RuntimeStateEnvelope,
+            RuntimeStateEvent,
+            RuntimeUsageEvent,
+            RuntimeUsageReceipt,
         )
+        from .content_events import ClaudeSdkEventProjector, ProjectionResult
+        from .sdk_session import SDKSession, SessionOutcome
 
         preflight_failure = self.preflight(request)
         if preflight_failure is not None:
             yield RuntimeFailedEvent(failure=preflight_failure)
             return
-
-        if host.cancellation_requested():
+        if self._closed:
+            yield RuntimeFailedEvent(
+                failure=_failure(
+                    "claude_runtime_closed",
+                    "Claude runtime is closed",
+                    RuntimeFailurePhase.BEFORE_VISIBLE_OUTPUT,
+                    replay_safe=False,
+                )
+            )
+            return
+        try:
+            cancelled_before_start = host.cancellation_requested()
+        except Exception:
+            cancelled_before_start = None
+        if cancelled_before_start is True:
             yield RuntimeCancelledEvent(reason="cancelled before runtime start")
             return
-
-        content: list[str] = []
-        terminal = False
-        try:
-            async for raw_event in self._fake_events(request):
-                event = self._convert_event(raw_event, request)
-                if event is None:
-                    continue
-                if getattr(event, "text", None) is not None:
-                    content.append(str(event.text))
-                yield event
-                if isinstance(event, (RuntimeCompletedEvent, RuntimeCancelledEvent, RuntimeFailedEvent)):
-                    terminal = True
-                    return
-        except Exception:
-            # Do not surface raw SDK exception text: real SDK errors can carry
-            # request data or credentials.  The extraction lane will add the
-            # provider-owned diagnostic mapping behind the same event shape.
-            from agent.runtime_api import RuntimeFailurePhase
-
+        if cancelled_before_start is not False:
             yield RuntimeFailedEvent(
-                failure=RuntimeFailure(
-                    code="sdk_event_source_failed",
-                    message="Claude runtime event source failed",
-                    phase=(
-                        RuntimeFailurePhase.AFTER_VISIBLE_OUTPUT
-                        if content
-                        else RuntimeFailurePhase.BEFORE_VISIBLE_OUTPUT
-                    ),
-                    replay_safe=not content,
+                failure=_failure(
+                    "claude_runtime_cancellation_unavailable",
+                    "Claude runtime cancellation state is unavailable",
+                    RuntimeFailurePhase.BEFORE_VISIBLE_OUTPUT,
+                    replay_safe=False,
                 )
             )
             return
 
-        if not terminal:
-            yield RuntimeCompletedEvent(result={"text": "".join(content)})
+        prompt = _bounded_turn_text(request)
+        if prompt is None:
+            yield RuntimeFailedEvent(
+                failure=_failure(
+                    "claude_runtime_prompt_invalid",
+                    "Claude runtime requires a bounded text turn",
+                    RuntimeFailurePhase.BEFORE_VISIBLE_OUTPUT,
+                    replay_safe=False,
+                )
+            )
+            return
+
+        resume_id, _ = _resume_id(request)
+        queue: asyncio.Queue[ProjectionResult] = asyncio.Queue()
+        visible = False
+        terminal = False
+        bridge: HostToolBridge | None = None
+        try:
+            prompt_context = build_sdk_prompt_context(request)
+            system_parts = [prompt_context.base_prompt]
+            if prompt_context.system_prompt_append:
+                system_parts.append(prompt_context.system_prompt_append)
+            system_prompt_append = "\n\n".join(
+                part for part in system_parts if part
+            )[:_MAX_SYSTEM_APPEND] or None
+            bridge = HostToolBridge(
+                host, request.tool_schemas, correlation_id=request.correlation_id
+            )
+            server = bridge.build_sdk_mcp_server(
+                _MCP_SERVER_NAME, sdk_module=self._sdk
+            )
+            allowed_tools = tuple(
+                f"mcp__{_MCP_SERVER_NAME}__{name}" for name in bridge.tool_names
+            )
+            configuration = SDKSessionConfiguration.create(
+                cwd=self._cwd,
+                model=request.selection.model,
+                permission_mode="bypassPermissions",
+                system_prompt_append=system_prompt_append,
+                resume_external_session_id=resume_id,
+                parent_env=self._parent_env if self._parent_env is not None else os.environ,
+                mcp_servers={_MCP_SERVER_NAME: server},
+                allowed_tools=allowed_tools,
+            )
+            projector = ClaudeSdkEventProjector(
+                runtime_id=RUNTIME_ID,
+                provider=request.selection.provider,
+                model=request.selection.model,
+                billing_mode="subscription_included",
+                correlation_id=request.correlation_id,
+            )
+
+            async def on_projection(projection: ProjectionResult) -> None:
+                await queue.put(projection)
+
+            session = SDKSession(
+                configuration,
+                sdk_module=self._sdk,
+                client_factory=self._client_factory,
+                projector=projector,
+                on_projection=on_projection,
+            )
+            self._session = session
+            task = asyncio.create_task(session.run_turn(prompt))
+            cancel_sent = False
+            while not task.done() or not queue.empty():
+                try:
+                    projection = await asyncio.wait_for(queue.get(), 0.05)
+                except asyncio.TimeoutError:
+                    if host.cancellation_requested() and not cancel_sent:
+                        cancel_sent = True
+                        await session.cancel()
+                    continue
+                for event in projection.events:
+                    if isinstance(event, RuntimeCompletedEvent):
+                        continue
+                    if isinstance(event, RuntimeUsageEvent):
+                        receipt = event.receipt
+                        event = RuntimeUsageEvent(
+                            receipt=RuntimeUsageReceipt(
+                                runtime_id=RUNTIME_ID,
+                                provider=request.selection.provider,
+                                model=request.selection.model,
+                                billing_mode="subscription_included",
+                                cost_status="included",
+                                input_tokens=receipt.input_tokens,
+                                output_tokens=receipt.output_tokens,
+                                cache_read_tokens=receipt.cache_read_tokens,
+                                cache_write_tokens=receipt.cache_write_tokens,
+                                reasoning_tokens=receipt.reasoning_tokens,
+                                replay_safe=False,
+                                correlation_id=request.correlation_id,
+                            )
+                        )
+                    else:
+                        kind = getattr(event, "kind", None)
+                        visible = visible or getattr(kind, "value", None) == "content"
+                    yield event
+
+            result = await task
+            if result.outcome is SessionOutcome.COMPLETE:
+                if result.state_update.external_session_id is not None:
+                    yield RuntimeStateEvent(
+                        state=RuntimeStateEnvelope(
+                            runtime_id=RUNTIME_ID,
+                            schema_version=1,
+                            state={
+                                "external_session_id": result.state_update.external_session_id
+                            },
+                        )
+                    )
+                terminal = True
+                yield RuntimeCompletedEvent(result={"text": result.final_text or ""})
+                return
+            if result.outcome is SessionOutcome.CANCELLED:
+                terminal = True
+                yield RuntimeCancelledEvent(reason="cancelled")
+                return
+
+            phase = (
+                RuntimeFailurePhase.AFTER_SIDE_EFFECTS
+                if bridge.host_execution_count
+                else RuntimeFailurePhase.AFTER_VISIBLE_OUTPUT
+                if visible
+                else RuntimeFailurePhase.BEFORE_VISIBLE_OUTPUT
+            )
+            code = (
+                "claude_subscription_billing_blocked"
+                if result.outcome is SessionOutcome.BILLING_BLOCKED
+                else result.error_code or "claude_runtime_failed"
+            )
+            terminal = True
+            yield RuntimeFailedEvent(
+                failure=_failure(
+                    code,
+                    "Claude runtime turn failed",
+                    phase,
+                    replay_safe=False,
+                )
+            )
+        except asyncio.CancelledError:
+            if self._session is not None:
+                await self._session.cancel()
+            raise
+        except Exception:
+            if self._session is not None:
+                await self._session.cancel()
+            if not terminal:
+                side_effects = bridge.host_execution_count if bridge is not None else 0
+                phase = (
+                    RuntimeFailurePhase.AFTER_SIDE_EFFECTS
+                    if side_effects
+                    else RuntimeFailurePhase.AFTER_VISIBLE_OUTPUT
+                    if visible
+                    else RuntimeFailurePhase.BEFORE_VISIBLE_OUTPUT
+                )
+                yield RuntimeFailedEvent(
+                    failure=_failure(
+                        (
+                            "claude_runtime_configuration_failed"
+                            if self._session is None
+                            else "claude_runtime_failed"
+                        ),
+                        (
+                            "Claude runtime configuration failed"
+                            if self._session is None
+                            else "Claude runtime turn failed"
+                        ),
+                        phase,
+                        replay_safe=False,
+                    )
+                )
 
     async def close(self) -> None:
+        if self._closed:
+            return
         self._closed = True
+        if self._session is not None:
+            await self._session.close()
 
 
 def create_runtime() -> ClaudeAgentSDKRuntime:
-    """Zero-argument factory retained only after host compatibility passes."""
+    """Return a lazy runtime without importing the optional SDK."""
 
     return ClaudeAgentSDKRuntime()
 
 
 runtime_factory = create_runtime
-
 
 __all__ = ["ClaudeAgentSDKRuntime", "create_runtime", "runtime_factory"]

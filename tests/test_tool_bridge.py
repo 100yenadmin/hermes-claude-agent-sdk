@@ -74,6 +74,7 @@ def test_direct_call_delegates_once_and_preserves_correlation_and_name() -> None
     )
 
     assert host.calls == [("mcp__hermes__pwd", {"path": "."})]
+    assert bridge.host_execution_count == 1
     assert result.request_id == "sdk-call-42"
     assert result.correlation_id == "turn-synthetic"
     assert result.tool_name == "mcp__hermes__pwd"
