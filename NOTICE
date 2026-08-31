@@ -1,0 +1,13 @@
+Hermes Claude Agent SDK Runtime
+
+This project includes or derives portions of work proposed in
+NousResearch/hermes-agent PR #65982. Hermes Agent is distributed under the MIT
+License. See LICENSE and the preserved extraction history for attribution.
+
+The package depends on claude-agent-sdk 0.2.144, which declares an MIT license.
+Use of the Claude Agent SDK and its bundled components is also subject to the
+applicable Anthropic terms. These notices do not claim the licenses and service
+terms are equivalent, and they are not legal advice.
+
+No Claude SDK source, bundled CLI, credentials, authentication files, or user
+data is copied into this repository by the packaging shell.

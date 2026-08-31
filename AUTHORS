@@ -1,0 +1,14 @@
+This repository extracts work originally developed for NousResearch/hermes-agent
+PR #65982. Verified source-history contributors include:
+
+- fcavalcantirj
+- CryptoKylan
+- PyroFilmsFX
+- romain-bury (Romain)
+
+The in-process Hermes tool bridge also adapts work credited to Akshay CM in
+source commit 8380da12. Original commit trailers, including tool-assisted
+co-author trailers, will be retained in the history-preserving extraction.
+
+This list records verified source provenance. It does not imply endorsement,
+ownership of every line, or equivalence between human and tool attribution.
