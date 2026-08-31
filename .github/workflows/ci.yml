@@ -12,12 +12,22 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      HERMES_AGENT_HOST_ROOT: ${{ github.workspace }}/_host
+      PYTHONPATH: ${{ github.workspace }}/_host
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Check out exact AgentRuntime v1 host contract
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: 100yenadmin/hermes-agent-for-upstream-PR-only
+          ref: 0b702c0f34d064ac8e1db45096b179085b1fbb92
+          path: _host
+          persist-credentials: false
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: ${{ matrix.python-version }}

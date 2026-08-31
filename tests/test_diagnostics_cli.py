@@ -11,15 +11,23 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
-HOST_ROOT = Path("/Users/m1/repos/hermes-agent-runtime-plugin-api")
+HOST_ROOT = Path(
+    os.environ.get(
+        "HERMES_AGENT_HOST_ROOT",
+        "/Users/m1/repos/hermes-agent-runtime-plugin-api",
+    )
+)
 
 
 def _run_doctor(*args: str, host: bool = False) -> subprocess.CompletedProcess[str]:
     pythonpath = [str(SRC)]
     if host:
         pythonpath.append(str(HOST_ROOT))
-    env = os.environ.copy()
-    env["PYTHONPATH"] = os.pathsep.join(pythonpath)
+    env = {
+        "PATH": os.environ.get("PATH", os.defpath),
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPATH": os.pathsep.join(pythonpath),
+    }
     return subprocess.run(
         [sys.executable, "-m", "hermes_claude_agent_sdk", *args],
         cwd=ROOT,

@@ -10,7 +10,12 @@ import pytest
 
 
 SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
-HOST_ROOT = Path("/Users/m1/repos/hermes-agent-runtime-plugin-api")
+HOST_ROOT = Path(
+    os.environ.get(
+        "HERMES_AGENT_HOST_ROOT",
+        "/Users/m1/repos/hermes-agent-runtime-plugin-api",
+    )
+)
 
 
 def test_provider_profile_declares_only_the_supported_subscription_route() -> None:
