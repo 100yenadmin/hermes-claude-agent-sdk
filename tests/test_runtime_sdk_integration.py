@@ -145,6 +145,11 @@ class _Client:
 
     async def interrupt(self) -> None:
         self.interrupted += 1
+        self._closed = True
+        if self._producer_task is not None:
+            self._producer_task.cancel()
+            await asyncio.gather(self._producer_task, return_exceptions=True)
+        await self._messages.put(_END)
 
     async def disconnect(self) -> None:
         self.disconnected += 1

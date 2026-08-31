@@ -369,9 +369,7 @@ class ClaudeAgentSDKRuntime:
             cancel_sent = False
             cancellation_unavailable = False
             cancellation_poll_interval = 0.05
-            next_cancellation_poll = (
-                asyncio.get_running_loop().time() + cancellation_poll_interval
-            )
+            next_cancellation_poll = asyncio.get_running_loop().time()
             while not task.done() or not queue.empty():
                 try:
                     projection = await asyncio.wait_for(queue.get(), 0.05)
