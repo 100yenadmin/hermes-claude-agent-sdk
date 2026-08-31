@@ -49,10 +49,11 @@ doctor never reads credentials or constructs an SDK client.
 
 ## Installation and activation
 
-Install the package into the Hermes environment:
+Download the wheel attached to the compatible GitHub prerelease, verify its
+published checksum, and install that exact artifact into the Hermes environment:
 
 ```sh
-python -m pip install hermes-claude-agent-sdk
+python -m pip install ./hermes_claude_agent_sdk-0.1.0rc1-py3-none-any.whl
 ```
 
 Installation exposes the `hermes_agent.plugins` entry point but does not enable

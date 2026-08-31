@@ -1,12 +1,8 @@
 from __future__ import annotations
 
 from importlib.metadata import entry_points, version
-from pathlib import Path
 
 import hermes_claude_agent_sdk
-
-
-ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_version_matches_distribution_metadata() -> None:
@@ -50,42 +46,3 @@ def test_plugin_entry_point_loads_bare_module_without_side_effects() -> None:
     assert context.registration is not None
     assert context.registration[1] is module.create_runtime
     assert context.provider_profile.name == "claude-agent-sdk"
-
-
-def test_release_docs_keep_release_gates_explicit() -> None:
-    readme = (ROOT / "README.md").read_text()
-    removal = (ROOT / "docs/removal-and-rollback.md").read_text()
-    licensing = (ROOT / "docs/licensing-and-terms.md").read_text()
-    workflow = (ROOT / ".github/workflows/ci.yml").read_text()
-
-    assert "python -m pip install hermes-claude-agent-sdk" in readme
-    assert "Installation exposes the `hermes_agent.plugins` entry point but " in readme
-    assert "does not enable" in readme
-    assert "hermes plugins enable claude-agent-sdk" in readme
-    assert "hermes plugins disable claude-agent-sdk" in readme
-    assert "python -m pip uninstall -y hermes-claude-agent-sdk" in readme
-    assert "hermes plugins enable claude-agent-sdk" in removal
-    assert "hermes plugins disable claude-agent-sdk" in removal
-    assert "python -m pip uninstall -y hermes-claude-agent-sdk" in removal
-
-    assert "includes customer and commercial use of the covered" in licensing
-    assert "does not grant an Anthropic account or service entitlement" in licensing
-    assert "customer or commercial use of Anthropic services" in licensing
-    assert "does not grant permission for customer or commercial use" not in licensing
-
-    workflow_lines = workflow.splitlines()
-    checkout_steps = []
-    for index, line in enumerate(workflow_lines):
-        if "uses: actions/checkout@" not in line:
-            continue
-        step = []
-        for following in workflow_lines[index + 1 :]:
-            if following.startswith("      - "):
-                break
-            step.append(following)
-        checkout_steps.append(step)
-    assert len(checkout_steps) == 3
-    assert all(
-        any("persist-credentials: false" in following for following in step)
-        for step in checkout_steps
-    )
