@@ -627,6 +627,17 @@ class HostToolBridge:
 
         return self._host_execution_count
 
+    def begin_turn(self, correlation_id: str | None) -> None:
+        """Bind subsequent SDK tool calls to the current Hermes turn."""
+
+        if correlation_id is not None:
+            correlation_id = self._safe_identifier(
+                correlation_id, _MAX_REQUEST_ID_UTF8_BYTES
+            )
+            if correlation_id is None:
+                raise ToolBridgeConfigurationError("host correlation is malformed")
+        self._correlation_id = correlation_id
+
     async def handle_tool_call(
         self,
         request_id: str,
@@ -669,13 +680,7 @@ class HostToolBridge:
                 )
             host_result = await result
         except asyncio.CancelledError:
-            return ToolCallResult(
-                safe_request_id,
-                self._correlation_id,
-                name,
-                "Tool call cancelled",
-                True,
-            )
+            raise
         except BaseException:
             # Deliberately omit exception type/message: both can carry secrets
             # or customer content, and the host remains the diagnostic owner.

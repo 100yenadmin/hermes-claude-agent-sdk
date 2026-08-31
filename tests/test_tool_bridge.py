@@ -85,6 +85,30 @@ def test_direct_call_delegates_once_and_preserves_correlation_and_name() -> None
     }
 
 
+def test_begin_turn_refreshes_tool_correlation_without_rebuilding_bridge() -> None:
+    host = RecordingHost()
+    bridge = HostToolBridge(host, [_openai("pwd")], correlation_id="turn-one")
+
+    first = _run(bridge.handle_tool_call("call-one", "pwd", {"path": "."}))
+    bridge.begin_turn("turn-two")
+    second = _run(bridge.handle_tool_call("call-two", "pwd", {"path": "."}))
+
+    assert first.correlation_id == "turn-one"
+    assert second.correlation_id == "turn-two"
+
+
+def test_task_cancellation_propagates_across_host_tool_boundary() -> None:
+    async def scenario() -> None:
+        host = RecordingHost()
+        host.raise_error = asyncio.CancelledError()
+        bridge = HostToolBridge(host, [_openai("pwd")])
+
+        with pytest.raises(asyncio.CancelledError):
+            await bridge.handle_tool_call("call-one", "pwd", {"path": "."})
+
+    asyncio.run(scenario())
+
+
 def test_anthropic_schema_maps_without_stripping_canonical_mcp_prefix() -> None:
     host = RecordingHost()
     bridge = HostToolBridge(

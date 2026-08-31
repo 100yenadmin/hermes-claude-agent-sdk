@@ -39,6 +39,7 @@ def test_subscription_token_classifier_accepts_only_recognized_shapes() -> None:
     (
         "ANTHROPIC_API_KEY",
         "ANTHROPIC_AUTH_TOKEN",
+        "ANTHROPIC_BASE_URL",
         "CLAUDE_CODE_USE_BEDROCK",
         "CLAUDE_CODE_USE_VERTEX",
         "AWS_ACCESS_KEY_ID",
@@ -80,6 +81,15 @@ def test_configured_metered_vectors_cannot_rearm_billing() -> None:
     assert overrides.get("ANTHROPIC_API_KEY") != SYNTHETIC_API_KEY
     assert overrides["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] == "300000"
     assert SYNTHETIC_API_KEY not in json.dumps(overrides, sort_keys=True)
+
+
+def test_custom_anthropic_endpoint_is_scrubbed_from_parent_and_config() -> None:
+    overrides = plan_sdk_env_overrides(
+        {"ANTHROPIC_BASE_URL": "https://synthetic.invalid"},
+        {"ANTHROPIC_BASE_URL": "https://other.invalid"},
+    )
+
+    assert overrides == {"ANTHROPIC_BASE_URL": ""}
 
 
 def test_metered_classifier_is_fail_closed_for_unknown_token_shapes() -> None:

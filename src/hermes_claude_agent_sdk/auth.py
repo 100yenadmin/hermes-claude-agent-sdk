@@ -495,7 +495,7 @@ def _run_bounded_cli(
                 )
         try:
             returncode = process.wait(timeout=max(0.01, deadline - time.monotonic()))
-        except TimeoutError:
+        except (TimeoutError, subprocess.TimeoutExpired):
             _stop_process(process)
             raise
         return _BoundedCompleted(returncode=returncode, stdout=bytes(output))

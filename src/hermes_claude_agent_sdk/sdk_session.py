@@ -83,6 +83,7 @@ _IMMEDIATE_BILLING_BLOCKS = {
 }
 _MAX_BACKGROUND_BYTES = 16_384
 _BACKGROUND_DEDUPLICATION_WINDOW = 64
+_BACKGROUND_CALLBACK_TIMEOUT_SECONDS = 5.0
 
 
 def _bounded_background_text(value: Any) -> str:
@@ -282,6 +283,7 @@ class SDKSession:
             result=BackgroundSessionResult(content=text, outcome=outcome),
             requires_foreground_trust=evidence is None,
         )
+        deliver_now: BackgroundSessionResult | None = None
         async with self._background_delivery_lock:
             if self._closed:
                 return
@@ -291,11 +293,16 @@ class SDKSession:
                 return
             if pending.requires_foreground_trust and not self._foreground_billing_allowed:
                 return
-            await self._deliver_background_result(pending.result)
+            deliver_now = pending.result
+        if deliver_now is not None:
+            await self._deliver_background_result(deliver_now)
 
     async def _deliver_background_result(self, result: BackgroundSessionResult) -> None:
         try:
-            await _call(self._on_background_result, result)
+            await asyncio.wait_for(
+                _call(self._on_background_result, result),
+                _BACKGROUND_CALLBACK_TIMEOUT_SECONDS,
+            )
         except Exception:
             # The host owns rejection, retry, and requeue.  A sealed binding
             # must not retire the SDK reader or trigger plugin-local retry.
@@ -304,6 +311,7 @@ class SDKSession:
     async def release_background_results(self) -> None:
         """Open delivery only after the host has observed the turn terminal."""
 
+        deliverable: list[BackgroundSessionResult] = []
         async with self._background_delivery_lock:
             if self._closed:
                 self._pending_background_results.clear()
@@ -316,7 +324,9 @@ class SDKSession:
                     and not self._foreground_billing_allowed
                 ):
                     continue
-                await self._deliver_background_result(pending.result)
+                deliverable.append(pending.result)
+        for result in deliverable:
+            await self._deliver_background_result(result)
 
     async def _pause_background_delivery(self) -> None:
         async with self._background_delivery_lock:
@@ -362,11 +372,16 @@ class SDKSession:
             final_text: str | None = None
             state = SessionStateUpdate()
             try:
-                await self._client.query(prompt)
+                loop = asyncio.get_running_loop()
+                deadline = loop.time() + self._configuration.turn_timeout_seconds
+                await asyncio.wait_for(
+                    self._client.query(prompt),
+                    max(0.0, deadline - loop.time()),
+                )
                 while True:
                     try:
                         message = await asyncio.wait_for(
-                            inbox.get(), self._configuration.turn_timeout_seconds
+                            inbox.get(), max(0.0, deadline - loop.time())
                         )
                     except asyncio.TimeoutError:
                         await self._interrupt_then_close()
@@ -459,7 +474,13 @@ class SDKSession:
                         billing_decision=decision,
                     )
             except asyncio.CancelledError:
-                await self.cancel()
+                cleanup = asyncio.create_task(self.cancel())
+                while not cleanup.done():
+                    try:
+                        await asyncio.shield(cleanup)
+                    except asyncio.CancelledError:
+                        continue
+                await cleanup
                 raise
             except Exception:
                 await self._interrupt_then_close()

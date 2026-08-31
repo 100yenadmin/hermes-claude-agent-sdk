@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+import hermes_claude_agent_sdk.auth as auth_module
 from hermes_claude_agent_sdk.auth import (
     AuthCategory,
     AuthPreflightResult,
@@ -203,6 +204,44 @@ def test_probe_classifies_timeout_expired_without_leaking_exception() -> None:
     assert result.allowed is False
     assert result.category is AuthCategory.TIMEOUT
     assert "redacted" not in repr(result)
+
+
+def test_default_probe_kills_child_when_final_wait_raises_timeout_expired(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Stream:
+        def fileno(self) -> int:
+            return 42
+
+        def close(self) -> None:
+            return None
+
+    class Process:
+        stdout = Stream()
+
+        def __init__(self) -> None:
+            self.killed = 0
+            self.waits = 0
+
+        def wait(self, *, timeout: float) -> int:
+            self.waits += 1
+            if self.waits == 1:
+                raise subprocess.TimeoutExpired(["claude"], timeout)
+            return -9
+
+        def kill(self) -> None:
+            self.killed += 1
+
+    process = Process()
+    monkeypatch.setattr(auth_module.subprocess, "Popen", lambda *a, **k: process)
+    monkeypatch.setattr(auth_module.select, "select", lambda *a, **k: ([process.stdout], [], []))
+    monkeypatch.setattr(auth_module.os, "read", lambda *a, **k: b"")
+
+    result = probe_claude_auth(environment={"PATH": "/synthetic"})
+
+    assert result.category is AuthCategory.TIMEOUT
+    assert process.killed == 1
+    assert process.waits == 2
 
 
 @pytest.mark.parametrize(

@@ -203,16 +203,22 @@ def _tool_schema():
     }
 
 
-def _request(*, state=None, tools=()):
+def _request(
+    *,
+    state=None,
+    tools=(),
+    correlation_id="synthetic-correlation",
+    prompt_snapshot="stable system prompt",
+):
     return build_runtime_turn_request(
         provider="claude-agent-sdk",
         model="claude-fable-5",
         api_mode="agent_runtime",
         messages=({"role": "user", "content": "hello runtime"},),
-        prompt_snapshot="stable system prompt",
+        prompt_snapshot=prompt_snapshot,
         tool_schemas=tools,
         session_state=state,
-        correlation_id="synthetic-correlation",
+        correlation_id=correlation_id,
     )
 
 
@@ -413,6 +419,27 @@ def test_runtime_reuses_one_client_reader_and_uses_host_only_for_idle_completion
         assert len(host.background) == 1
         assert host.background[0].content == "background one"
         assert set(host.background[0].__dataclass_fields__) == {"content", "outcome"}
+
+    asyncio.run(scenario())
+
+
+def test_runtime_rejects_prompt_or_tool_contract_change_before_second_query() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("success", clients)
+        host = _Host()
+
+        await _collect(runtime, _request(), host)
+        events = await _collect(
+            runtime,
+            _request(prompt_snapshot="changed system prompt"),
+            host,
+        )
+        await runtime.close()
+
+        assert [event.kind.value for event in events] == ["failed"]
+        assert events[0].failure.code == "claude_runtime_session_contract_changed"
+        assert clients[0].queries == ["hello runtime"]
 
     asyncio.run(scenario())
 

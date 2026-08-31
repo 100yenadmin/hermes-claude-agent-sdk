@@ -149,6 +149,38 @@ def test_bounded_turn_timeout_interrupts_and_retires_client() -> None:
     asyncio.run(scenario())
 
 
+def test_turn_timeout_is_one_deadline_not_reset_by_stream_activity() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        session = SDKSession(
+            _configuration(turn_timeout_seconds=0.02),
+            sdk_module=_sdk(clients, [[]]),
+        )
+
+        turn = asyncio.create_task(session.run_turn("bounded active stream"))
+        while not clients or not clients[0].queries:
+            await asyncio.sleep(0)
+
+        async def keep_stream_active() -> None:
+            for index in range(12):
+                await asyncio.sleep(0.005)
+                await clients[0]._messages.put(
+                    AssistantMessage([TextBlock(f"partial-{index}")])
+                )
+
+        producer = asyncio.create_task(keep_stream_active())
+        result = await asyncio.wait_for(turn, 0.06)
+        producer.cancel()
+        await asyncio.gather(producer, return_exceptions=True)
+        await session.close()
+
+        assert result.outcome is SessionOutcome.TIMED_OUT
+        assert clients[0].interrupted == 1
+        assert clients[0].disconnected == 1
+
+    asyncio.run(scenario())
+
+
 def test_text_turn_uses_public_options_one_reader_projection_and_exact_close() -> None:
     async def scenario() -> None:
         clients: list[_FakeClient] = []
@@ -356,6 +388,37 @@ def test_idle_result_bursts_are_ordered_deduplicated_and_do_not_expose_session_i
         assert set(delivered[0].__dataclass_fields__) == {"content", "outcome"}
         assert client.receive_calls == 1
         assert client.disconnected == 1
+
+    asyncio.run(scenario())
+
+
+def test_background_callback_never_holds_delivery_state_lock() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        callback_started = asyncio.Event()
+        release_callback = asyncio.Event()
+
+        async def blocked_callback(_result) -> None:
+            callback_started.set()
+            await release_callback.wait()
+
+        session = SDKSession(
+            _configuration(),
+            sdk_module=_sdk(
+                clients,
+                [[SystemMessage("init", {"apiKeySource": "none"}), ResultMessage()]],
+            ),
+            on_background_result=blocked_callback,
+        )
+        assert (await session.run_turn("parent turn")).outcome is SessionOutcome.COMPLETE
+        await session.release_background_results()
+        await clients[0]._messages.put(AssistantMessage([TextBlock("background")]))
+        await clients[0]._messages.put(ResultMessage(result="background"))
+        await asyncio.wait_for(callback_started.wait(), 0.1)
+
+        await asyncio.wait_for(session._pause_background_delivery(), 0.05)
+        release_callback.set()
+        await session.close()
 
     asyncio.run(scenario())
 

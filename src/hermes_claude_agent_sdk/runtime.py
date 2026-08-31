@@ -106,6 +106,7 @@ class ClaudeAgentSDKRuntime:
         self._session: Any | None = None
         self._bridge: HostToolBridge | None = None
         self._host: Any | None = None
+        self._session_contract: tuple[str, str, str, str, str | None] | None = None
         self._closed = False
 
     async def _emit_background_result(self, result: Any) -> None:
@@ -263,6 +264,13 @@ class ClaudeAgentSDKRuntime:
             system_prompt_append = "\n\n".join(
                 part for part in system_parts if part
             )[:_MAX_SYSTEM_APPEND] or None
+            session_contract = (
+                request.selection.provider,
+                request.selection.model,
+                request.selection.api_mode,
+                request.tool_schema_hash,
+                system_prompt_append,
+            )
             if self._session is None:
                 self._host = host
                 bridge = HostToolBridge(
@@ -287,14 +295,26 @@ class ClaudeAgentSDKRuntime:
                     allowed_tools=allowed_tools,
                 )
                 self._bridge = bridge
+                self._session_contract = session_contract
                 self._session = SDKSession(
                     configuration,
                     sdk_module=self._sdk,
                     client_factory=self._client_factory,
                     on_background_result=self._emit_background_result,
                 )
+            elif session_contract != self._session_contract:
+                yield RuntimeFailedEvent(
+                    failure=_failure(
+                        "claude_runtime_session_contract_changed",
+                        "Claude runtime session prompt, tools, or selection changed",
+                        RuntimeFailurePhase.BEFORE_VISIBLE_OUTPUT,
+                        replay_safe=False,
+                    )
+                )
+                return
             bridge = self._bridge
             assert bridge is not None
+            bridge.begin_turn(request.correlation_id)
             session = self._session
             bridge_execution_start = bridge.host_execution_count
             projector = ClaudeSdkEventProjector(
