@@ -7,9 +7,13 @@ behind a provider-neutral AgentRuntime v1 host contract.
 
 The current candidate registers a provider-neutral AgentRuntime v1 descriptor
 through Hermes' existing plugin entry point. Registration is lazy: it performs
-no SDK import, credential lookup, subprocess start, or model query. The runtime
-body is still a minimal fake-event shell; real Claude SDK session/process
-extraction is tracked separately.
+no SDK import, credential lookup, subprocess start, or model query. After the
+host accepts a compatible selection, the runtime performs a fail-closed local
+subscription preflight, constructs the pinned Claude Agent SDK session through
+public APIs, bridges tools back through host-owned execution, and emits generic
+state and subscription-included usage receipts. Deterministic and packaging
+tests cover that composition; the first isolated live turn remains a separate
+release gate.
 
 The descriptor owns the provider id `claude-agent-sdk` and the generic
 `agent_runtime` mode. Claude model ids are selected by the declared `claude-`
