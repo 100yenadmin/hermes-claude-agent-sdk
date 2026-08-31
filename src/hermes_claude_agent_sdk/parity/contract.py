@@ -323,7 +323,6 @@ def _capability(value: Any, source_keys: set[tuple[str, str]], inventory_names: 
     _enum(result["owner"], ("plugin", "host", "exact_pair"), "owner")
     if result["consumers"] != list(CONSUMERS): _bad("consumers")
     paths = [_path(result[name], name.removesuffix("_path"), name) for name in ("positive_path", "denial_path", "recovery_path")]
-    if not any(path["required"] for path in paths): _bad("paths")
     _state(result["state_before"], "capability state")
     _state(result["state_after"], "capability state")
     traces = _list(result["expected_trace"], "expected trace")
@@ -340,7 +339,7 @@ def _capability(value: Any, source_keys: set[tuple[str, str]], inventory_names: 
     sdk_keys = [key for key in mapped if key[0] == "sdk_boundary"]
     if len(sdk_keys) > 1: _bad("sdk classification")
     expected_class = ledger_classes.get(sdk_keys[0], "not_runtime_applicable") if sdk_keys else "not_runtime_applicable"
-    if classification != expected_class or result["required"] is not True: _bad("capability")
+    if classification != expected_class or result["required"] is not True or (classification != "not_runtime_applicable" and not any(path["required"] for path in paths)): _bad("capability")
     if any(call["name"] not in inventory_names or inventory_names[call["name"]] != call["schema_sha256"] for path in paths for call in path["tool_calls"]): _bad("tool binding")
     return result, mapped
 

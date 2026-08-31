@@ -267,6 +267,43 @@ def test_required_path_requires_one_matching_terminal_trace(trace_codes: list[st
         load_catalog(catalog)
 
 
+@pytest.mark.parametrize("ordinal", [2, 3, 6, 19])
+def test_not_runtime_applicable_sdk_rows_allow_all_non_required_paths(ordinal: int) -> None:
+    catalog = _catalog()
+    capability = next(
+        cap for cap in catalog["capabilities"]
+        if cap["source_rows"] == [{"pack_id": "sdk_boundary", "row_id": f"sdk_boundary-row-{ordinal:03d}"}]
+    )
+    for role in ("positive", "denial", "recovery"):
+        capability[f"{role}_path"] = _path(role, False)
+    capability["sdk_classification"] = "not_runtime_applicable"
+    ledger_row = catalog["sdk_ledger"]["rows"][ordinal - 1]
+    ledger_row["classification"] = "not_runtime_applicable"
+    ledger_row["executable"] = False
+    catalog["sdk_ledger"]["rows_sha256"], catalog["sdk_ledger"]["ledger_sha256"] = hash_sdk_ledger(catalog["sdk_ledger"])
+    catalog["catalog_sha256"] = hash_catalog(catalog)
+    assert load_catalog(catalog)["catalog_sha256"] == catalog["catalog_sha256"]
+
+
+@pytest.mark.parametrize("classification, executable", [("covered_current", True), ("equivalent_host", False), ("requires_0_3_239", True)])
+def test_non_na_sdk_classifications_require_an_executable_path(classification: str, executable: bool) -> None:
+    catalog = _catalog()
+    capability = next(
+        cap for cap in catalog["capabilities"]
+        if cap["source_rows"] == [{"pack_id": "sdk_boundary", "row_id": "sdk_boundary-row-002"}]
+    )
+    for role in ("positive", "denial", "recovery"):
+        capability[f"{role}_path"] = _path(role, False)
+    capability["sdk_classification"] = classification
+    ledger_row = catalog["sdk_ledger"]["rows"][1]
+    ledger_row["classification"] = classification
+    ledger_row["executable"] = executable
+    catalog["sdk_ledger"]["rows_sha256"], catalog["sdk_ledger"]["ledger_sha256"] = hash_sdk_ledger(catalog["sdk_ledger"])
+    catalog["catalog_sha256"] = hash_catalog(catalog)
+    with pytest.raises(CatalogValidationError):
+        load_catalog(catalog)
+
+
 def test_duplicate_scenario_ids_fail_closed() -> None:
     catalog = _catalog()
     catalog["capabilities"][1]["scenario_id"] = catalog["capabilities"][0]["scenario_id"]
