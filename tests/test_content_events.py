@@ -104,7 +104,10 @@ except ModuleNotFoundError as exc:
         RuntimeUsageEvent,
     )
 
-from hermes_claude_agent_sdk.content_events import ClaudeSdkEventProjector
+from hermes_claude_agent_sdk.content_events import (
+    ClaudeSdkEventProjector,
+    ToolResultMetadata,
+)
 
 
 class TextBlock:
@@ -211,7 +214,7 @@ def test_assistant_tool_use_maps_to_public_tool_request_metadata() -> None:
     assert not result.is_tool_iteration
 
 
-def test_user_tool_results_map_to_bounded_content_without_raw_objects() -> None:
+def test_user_tool_results_stay_internal_without_public_content_events() -> None:
     result = ClaudeSdkEventProjector().project(
         UserMessage(
             [
@@ -232,16 +235,24 @@ def test_user_tool_results_map_to_bounded_content_without_raw_objects() -> None:
     )
 
     assert result.is_tool_iteration
-    assert len(result.events) == 2
-    assert all(isinstance(event, RuntimeContentEvent) for event in result.events)
-    assert result.events[0].text == (
-        '[tool_result tool_use_id="toolu_test_1"] '
-        'synthetic result\n{"type": "json", "value": 3}'
+    assert result.events == ()
+    assert result.tool_results == (
+        ToolResultMetadata(
+            tool_use_id="toolu_test_1",
+            text=(
+                'synthetic result\n{"type": "json", "value": 3}'
+            ),
+            is_error=False,
+        ),
+        ToolResultMetadata(
+            tool_use_id="toolu_test_2",
+            text="[unavailable tool result]",
+            is_error=True,
+        ),
     )
-    assert result.events[1].text == (
-        '[tool_result tool_use_id="toolu_test_2" error] [unavailable tool result]'
-    )
-    assert "raw-secret-like-value" not in result.events[1].text
+    assert result.tool_result_metadata == result.tool_results
+    assert "raw-secret-like-value" not in result.tool_results[1].text
+    assert ToolResultMetadata.__dataclass_params__.frozen
 
 
 def test_result_maps_authoritative_text_usage_and_completion() -> None:
@@ -252,7 +263,6 @@ def test_result_maps_authoritative_text_usage_and_completion() -> None:
         "cache_creation_input_tokens": 2,
     }
     result = ClaudeSdkEventProjector(
-        runtime_id="claude-agent-sdk",
         provider="claude-agent-sdk",
         billing_mode="subscription_included",
         correlation_id="turn-test-1",
@@ -270,6 +280,7 @@ def test_result_maps_authoritative_text_usage_and_completion() -> None:
     assert result.events[1].receipt.cache_write_tokens == 2
     assert result.events[1].receipt.billing_mode == "subscription_included"
     assert result.events[1].receipt.cost_status == "included"
+    assert result.events[1].receipt.runtime_id == "hermes-claude-agent-sdk"
     assert result.events[1].receipt.correlation_id == "turn-test-1"
     assert result.events[2] == RuntimeCompletedEvent(
         result={"text": "authoritative final", "model": "claude-test"}

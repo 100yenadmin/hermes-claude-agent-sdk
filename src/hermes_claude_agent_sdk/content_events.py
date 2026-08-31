@@ -13,9 +13,9 @@ types are ignored, and untrusted values are bounded or replaced with a fixed
 sentinel before they reach a public event.
 
 AgentRuntime v1 currently has no dedicated tool-result or reasoning event.
-Tool results therefore become bounded content envelopes that retain only a
-safe tool-use identifier and result text.  Thinking blocks are intentionally
-not emitted: private reasoning must not be exposed as user content or status.
+Tool results therefore remain bounded plugin-internal metadata and never
+become public content or status events.  Thinking blocks are intentionally not
+emitted: private reasoning must not be exposed as user content or status.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ from agent.runtime_api import (
     RuntimeUsageReceipt,
 )
 
-__all__ = ["ClaudeSdkEventProjector", "ProjectionResult"]
+__all__ = ["ClaudeSdkEventProjector", "ProjectionResult", "ToolResultMetadata"]
 
 
 _MAX_TEXT_CHARS = 4_000
@@ -227,14 +227,29 @@ def _safe_cost_status(*, billing_mode: str, total_cost_usd: Any) -> str:
 
 
 @dataclass(frozen=True)
+class ToolResultMetadata:
+    """Bounded tool-result data retained for the plugin's turn loop only."""
+
+    tool_use_id: str
+    text: str
+    is_error: bool = False
+
+
+@dataclass(frozen=True)
 class ProjectionResult:
     """Public events and bounded turn metadata for one SDK message."""
 
     events: tuple[RuntimeEvent, ...] = field(default_factory=tuple)
+    tool_results: tuple[ToolResultMetadata, ...] = field(default_factory=tuple)
     is_tool_iteration: bool = False
     final_text: str | None = None
     is_result: bool = False
     model: str | None = None
+
+    @property
+    def tool_result_metadata(self) -> tuple[ToolResultMetadata, ...]:
+        """Explicit alias for callers that prefer the longer field name."""
+        return self.tool_results
 
 
 class ClaudeSdkEventProjector:
@@ -249,13 +264,15 @@ class ClaudeSdkEventProjector:
     def __init__(
         self,
         *,
-        runtime_id: str = "claude-agent-sdk",
+        runtime_id: str = "hermes-claude-agent-sdk",
         provider: str = "claude-agent-sdk",
         model: str | None = None,
         billing_mode: str = "unknown",
         correlation_id: str | None = None,
     ) -> None:
-        self._runtime_id = _safe_identifier(runtime_id, default="claude-agent-sdk")
+        self._runtime_id = _safe_identifier(
+            runtime_id, default="hermes-claude-agent-sdk"
+        )
         self._provider = _safe_identifier(provider, default="claude-agent-sdk")
         self._model = _safe_text(model, limit=_MAX_IDENTIFIER_CHARS) or None
         self._billing_mode = (
@@ -326,12 +343,12 @@ class ClaudeSdkEventProjector:
         )
 
     def _project_user(self, message: Any) -> ProjectionResult:
-        """Translate SDK tool results into bounded content envelopes."""
+        """Retain SDK tool results internally without public event emission."""
         content = _safe_attr(message, "content")
         if isinstance(content, str) or not isinstance(content, Sequence):
             return ProjectionResult()
 
-        events: list[RuntimeEvent] = []
+        tool_results: list[ToolResultMetadata] = []
         for block in content:
             if _sdk_type_name(block) != "ToolResultBlock":
                 continue
@@ -342,19 +359,16 @@ class ClaudeSdkEventProjector:
                 _safe_attr(block, "content")
             )
             is_error = _safe_attr(block, "is_error", False) is True
-            marker = f'[tool_result tool_use_id="{tool_use_id}"'
-            if is_error:
-                marker += " error"
-            marker += "]"
-            if not result_text:
-                result_text = _UNAVAILABLE_TOOL_RESULT
-            events.append(
-                RuntimeContentEvent(
-                    text=f"{marker} {result_text}"[:_MAX_TEXT_CHARS]
+            tool_results.append(
+                ToolResultMetadata(
+                    tool_use_id=tool_use_id,
+                    text=result_text,
+                    is_error=is_error,
                 )
             )
         return ProjectionResult(
-            events=tuple(events), is_tool_iteration=bool(events)
+            tool_results=tuple(tool_results),
+            is_tool_iteration=bool(tool_results),
         )
 
     def _project_result(self, message: Any) -> ProjectionResult:
