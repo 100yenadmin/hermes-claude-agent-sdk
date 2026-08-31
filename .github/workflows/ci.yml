@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: 100yenadmin/hermes-agent-for-upstream-PR-only
-          ref: 54b76cc61d32449a4653b61e974ab78deefe64ac
+          ref: 7d025c946e743799f26eb9abcb4c0abde2f88f85
           path: _host
           persist-credentials: false
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
