@@ -17,6 +17,13 @@ from .compatibility import (
     runtime_descriptor,
 )
 from .runtime import ClaudeAgentSDKRuntime, create_runtime, runtime_factory
+from .provider_profile import register_provider_profile
+
+# The pip entry point is intentionally module-shaped.  When the public Hermes
+# provider package is installed, importing this module registers the
+# declarative profile; otherwise ``register_provider_profile`` is a no-op and
+# the standalone runtime package remains importable.
+register_provider_profile()
 
 __version__ = PLUGIN_VERSION
 
@@ -49,5 +56,6 @@ __all__ = [
     "doctor_json",
     "register",
     "runtime_descriptor",
+    "register_provider_profile",
     "runtime_factory",
 ]

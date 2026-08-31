@@ -15,10 +15,12 @@ def test_plugin_entry_point_loads_bare_module_without_side_effects() -> None:
         entry_points(group="hermes_agent.plugins", name="claude-agent-sdk")
     )
     assert len(matches) == 1
+    assert matches[0].value == "hermes_claude_agent_sdk"
 
     module = matches[0].load()
     assert module is hermes_claude_agent_sdk
     assert callable(module.register)
+    assert callable(module.register_provider_profile)
 
     # The package remains importable without Hermes installed.  When the
     # public host contract is available, exercise the real registration call
