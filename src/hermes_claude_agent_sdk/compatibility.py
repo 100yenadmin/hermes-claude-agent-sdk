@@ -35,11 +35,12 @@ REQUIRED_HOST_CAPABILITIES = frozenset(
     }
 )
 
-# Hermes canonicalizes ``claude`` and ``claude-code`` to ``anthropic``.  The
-# alias is retained here so a direct public-contract caller can still route a
-# Claude selection without depending on a private host normalizer.
-PROVIDER_IDS = frozenset({"anthropic", "claude"})
-API_MODES = frozenset({"anthropic_messages"})
+# The provider id is owned by this independently packaged runtime.  It is
+# intentionally distinct from the host's ``anthropic`` Messages provider: the
+# SDK owns a whole-turn agent loop, so routing must use the provider-neutral
+# runtime mode rather than a transport-specific Messages mode.
+PROVIDER_IDS = frozenset({"claude-agent-sdk"})
+API_MODES = frozenset({"agent_runtime"})
 MODEL_PREFIXES = ("claude-", "anthropic/claude-")
 
 

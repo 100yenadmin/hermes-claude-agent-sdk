@@ -11,6 +11,11 @@ no SDK import, credential lookup, subprocess start, or model query. The runtime
 body is still a minimal fake-event shell; real Claude SDK session/process
 extraction is tracked separately.
 
+The descriptor owns the provider id `claude-agent-sdk` and the generic
+`agent_runtime` mode. Claude model ids are selected by the declared `claude-`
+and `anthropic/claude-` prefixes; the host's `anthropic_messages` provider
+remains a separate transport and is not routed to this plugin.
+
 ## Compatibility target
 
 The first release candidate targets the provider-neutral host branch

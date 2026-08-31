@@ -13,6 +13,7 @@ runtime_api = pytest.importorskip("agent.runtime_api")
 
 from agent.runtime_dispatch import build_runtime_turn_request  # noqa: E402
 import hermes_claude_agent_sdk as plugin  # noqa: E402
+import hermes_claude_agent_sdk.runtime as runtime_module  # noqa: E402
 
 
 class _Context:
@@ -31,9 +32,9 @@ class _Host:
 
 def _request():
     return build_runtime_turn_request(
-        provider="anthropic",
+        provider="claude-agent-sdk",
         model="claude-fable-5",
-        api_mode="anthropic_messages",
+        api_mode="agent_runtime",
         messages=({"role": "user", "content": "hello"},),
         prompt_snapshot="stable prompt",
         tool_schemas=(),
@@ -49,10 +50,48 @@ def test_register_uses_public_descriptor_and_retains_zero_argument_factory(monke
 
     descriptor, factory = context.registration
     assert descriptor.runtime_id == plugin.RUNTIME_ID
-    assert descriptor.provider_ids == frozenset({"anthropic", "claude"})
-    assert descriptor.api_modes == frozenset({"anthropic_messages"})
+    assert descriptor.provider_ids == frozenset({"claude-agent-sdk"})
+    assert descriptor.api_modes == frozenset({"agent_runtime"})
     assert "claude-fable-5".startswith(descriptor.model_prefixes[0])
     assert factory is plugin.create_runtime
+    assert "claude_agent_sdk" not in sys.modules
+
+
+def test_factory_and_preflight_reject_incompatible_selection_before_sdk_import(
+    monkeypatch,
+):
+    monkeypatch.delitem(sys.modules, "claude_agent_sdk", raising=False)
+    imports = []
+
+    def forbidden_import(name):
+        imports.append(name)
+        raise AssertionError("incompatible preflight must not import the SDK")
+
+    monkeypatch.setattr(runtime_module.importlib, "import_module", forbidden_import)
+    runtime = plugin.create_runtime()
+    request = build_runtime_turn_request(
+        provider="claude-agent-sdk",
+        model="claude-fable-5",
+        api_mode="anthropic_messages",
+        messages=(),
+        prompt_snapshot="stable prompt",
+        tool_schemas=(),
+    )
+
+    failure = runtime.preflight(request)
+
+    assert failure is not None
+    assert failure.code == "claude_runtime_selection_unsupported"
+    assert imports == []
+    assert "claude_agent_sdk" not in sys.modules
+
+    async def collect():
+        return [event async for event in runtime.run_turn(request, _Host())]
+
+    events = asyncio.run(collect())
+    assert [event.kind.value for event in events] == ["failed"]
+    assert events[0].failure.phase.value == "preflight"
+    assert imports == []
     assert "claude_agent_sdk" not in sys.modules
 
 

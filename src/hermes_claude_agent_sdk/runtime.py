@@ -34,11 +34,19 @@ class ClaudeAgentSDKRuntime:
     """Minimal runtime shell with an intentionally fake-only SDK seam."""
 
     def __init__(self) -> None:
-        # Importing the dependency is delayed until the host has selected and
-        # constructed this runtime.  No client, credential, subprocess, or
-        # query is created here.
-        self._sdk = importlib.import_module("claude_agent_sdk")
+        # The host calls the factory only after descriptor routing has found a
+        # compatible selection.  Keep the dependency import one step later as
+        # well: preflight remains pure even when a caller constructs the shell
+        # directly, and no SDK import can occur for a rejected selection.
+        self._sdk: Any | None = None
         self._closed = False
+
+    def _sdk_module(self) -> Any:
+        """Import the SDK only after the provider-neutral preflight gate."""
+
+        if self._sdk is None:
+            self._sdk = importlib.import_module("claude_agent_sdk")
+        return self._sdk
 
     def preflight(self, request: Any) -> Any:
         """Return a pure failure for selections outside this descriptor."""
@@ -61,9 +69,10 @@ class ClaudeAgentSDKRuntime:
     async def _fake_events(self, request: Any) -> AsyncIterable[Any]:
         """Read only the explicit fake event hook; never call ``query``."""
 
-        source_factory = getattr(self._sdk, "iter_events", None)
+        sdk = self._sdk_module()
+        source_factory = getattr(sdk, "iter_events", None)
         if source_factory is None:
-            source_factory = getattr(self._sdk, "fake_events", None)
+            source_factory = getattr(sdk, "fake_events", None)
         if not callable(source_factory):
             return
 
@@ -202,6 +211,11 @@ class ClaudeAgentSDKRuntime:
             RuntimeFailure,
             RuntimeFailurePhase,
         )
+
+        preflight_failure = self.preflight(request)
+        if preflight_failure is not None:
+            yield RuntimeFailedEvent(failure=preflight_failure)
+            return
 
         if host.cancellation_requested():
             yield RuntimeCancelledEvent(reason="cancelled before runtime start")
