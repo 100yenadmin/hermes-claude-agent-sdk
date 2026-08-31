@@ -41,6 +41,13 @@ observed_tools:
       required: [path]
 ```
 
+`--profile-manifest` points to a separate sanitized JSON object containing
+`schema_version`, `profile_id`, `isolation_kind` (`in_process_fixture` or
+`local_profile`), `persistent`, `shared_state: false`, `customer_data: false`,
+and a `configuration_hash`. The inventory's `profile_hash` must equal the
+canonical hash of that manifest; a caller-supplied unmatched digest fails
+closed.
+
 Names and canonical schema hashes must match exactly. A missing, unknown,
 duplicate, or changed tool is a contract violation (exit `2`). The result
 packet retains only the inventory hash, never raw prompts, sessions, auth

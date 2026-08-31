@@ -7,6 +7,7 @@ import pytest
 import yaml
 
 from hermes_claude_agent_sdk.parity.cli import main
+from hermes_claude_agent_sdk.parity.hashing import sha256_value
 from hermes_claude_agent_sdk.parity.results import (
     ExecutionClassification,
     ResultViolation,
@@ -331,9 +332,32 @@ def _inventory_document() -> dict:
     }
 
 
-def test_cli_inventory_passes_only_with_exact_dynamic_tool_schema(tmp_path) -> None:
+def _profile_document(profile_id: str = "fable-v3-isolated") -> dict:
+    return {
+        "schema_version": 1,
+        "profile_id": profile_id,
+        "isolation_kind": "in_process_fixture",
+        "persistent": False,
+        "shared_state": False,
+        "customer_data": False,
+        "configuration_hash": "9" * 64,
+    }
+
+
+def _write_cli_manifests(tmp_path, *, profile_id: str = "fable-v3-isolated"):
+    profile_document = _profile_document(profile_id)
+    profile = tmp_path / "profile.json"
+    profile.write_text(json.dumps(profile_document), encoding="utf-8")
+    inventory_document = _inventory_document()
+    inventory_document["profile_id"] = profile_id
+    inventory_document["profile_hash"] = sha256_value(profile_document)
     inventory = tmp_path / "tools.yaml"
-    inventory.write_text(yaml.safe_dump(_inventory_document()), encoding="utf-8")
+    inventory.write_text(yaml.safe_dump(inventory_document), encoding="utf-8")
+    return profile, inventory
+
+
+def test_cli_inventory_passes_only_with_exact_dynamic_tool_schema(tmp_path) -> None:
+    profile, inventory = _write_cli_manifests(tmp_path)
     output = tmp_path / "inventory.json"
     exit_code = main(
         [
@@ -344,6 +368,8 @@ def test_cli_inventory_passes_only_with_exact_dynamic_tool_schema(tmp_path) -> N
             "fable-v3-isolated",
             "--tool-inventory",
             str(inventory),
+            "--profile-manifest",
+            str(profile),
             "--output",
             str(output),
         ]
@@ -353,8 +379,7 @@ def test_cli_inventory_passes_only_with_exact_dynamic_tool_schema(tmp_path) -> N
 
 
 def test_cli_run_without_registered_executor_is_pending_not_false_green(tmp_path) -> None:
-    inventory = tmp_path / "tools.yaml"
-    inventory.write_text(yaml.safe_dump(_inventory_document()), encoding="utf-8")
+    profile, inventory = _write_cli_manifests(tmp_path)
     output = tmp_path / "results"
     exit_code = main(
         [
@@ -371,6 +396,8 @@ def test_cli_run_without_registered_executor_is_pending_not_false_green(tmp_path
             "2" * 40,
             "--tool-inventory",
             str(inventory),
+            "--profile-manifest",
+            str(profile),
             "--output",
             str(output),
             "--capability-id",
@@ -382,10 +409,7 @@ def test_cli_run_without_registered_executor_is_pending_not_false_green(tmp_path
 
 
 def test_cli_rejects_shared_profile_before_execution(tmp_path) -> None:
-    document = _inventory_document()
-    document["profile_id"] = "shared-eva"
-    inventory = tmp_path / "tools.yaml"
-    inventory.write_text(yaml.safe_dump(document), encoding="utf-8")
+    profile, inventory = _write_cli_manifests(tmp_path, profile_id="shared-eva")
     exit_code = main(
         [
             "run",
@@ -399,6 +423,8 @@ def test_cli_rejects_shared_profile_before_execution(tmp_path) -> None:
             "2" * 40,
             "--tool-inventory",
             str(inventory),
+            "--profile-manifest",
+            str(profile),
             "--output",
             str(tmp_path / "results"),
         ]

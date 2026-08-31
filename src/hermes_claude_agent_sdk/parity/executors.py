@@ -227,7 +227,7 @@ async def approval_followthrough(context: ExecutionContext) -> ExecutionBundle:
                 {
                     "candidate": context.catalog_hash,
                     "inventory": context.inventory_hash,
-                    "profile": context.profile_id,
+                    "profile": context.profile_hash,
                     "path": path,
                 }
             ),

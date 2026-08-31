@@ -11,6 +11,7 @@ from typing import Any
 from .catalog import CatalogViolation, load_catalog
 from .grader import grade_packets
 from .inventory import InventoryViolation, load_tool_inventory
+from .profile import ProfileViolation, load_profile_manifest
 from .results import ResultViolation, candidate_hash, read_result_packet
 from .runner import load_entrypoint_executors, run_catalog, validate_run_manifest
 
@@ -34,6 +35,7 @@ def _parser() -> argparse.ArgumentParser:
         command.add_argument("--output")
         command.add_argument("--resume", action="store_true")
         command.add_argument("--tool-inventory")
+        command.add_argument("--profile-manifest")
         command.add_argument("--sdk-version", default="0.2.144")
         command.add_argument("--runner-version", default=RUNNER_VERSION)
         command.add_argument("--capability-id", action="append", default=[])
@@ -53,7 +55,14 @@ def _write_json(path: Path, value: dict[str, Any]) -> None:
 def _require_run_fields(args: argparse.Namespace) -> None:
     missing = [
         name
-        for name in ("profile", "plugin_sha", "host_sha", "output", "tool_inventory")
+        for name in (
+            "profile",
+            "profile_manifest",
+            "plugin_sha",
+            "host_sha",
+            "output",
+            "tool_inventory",
+        )
         if not getattr(args, name)
     ]
     if missing:
@@ -87,10 +96,17 @@ def _inventory(args: argparse.Namespace) -> int:
     }
     exit_code = 75
     if args.tool_inventory:
-        if not args.profile:
-            raise ResultViolation("inventory with --tool-inventory also requires --profile")
+        if not args.profile or not args.profile_manifest:
+            raise ResultViolation(
+                "inventory with --tool-inventory also requires --profile and --profile-manifest"
+            )
         _validate_profile(catalog, args.profile)
-        inventory = load_tool_inventory(args.tool_inventory, expected_profile=args.profile)
+        profile = load_profile_manifest(args.profile_manifest, expected_profile=args.profile)
+        inventory = load_tool_inventory(
+            args.tool_inventory,
+            expected_profile=args.profile,
+            expected_profile_hash=profile.manifest_hash,
+        )
         report["tool_inventory_status"] = "COMPLETE"
         report["tool_inventory_hash"] = inventory.inventory_hash
         report["profile_hash"] = inventory.profile_hash
@@ -108,7 +124,12 @@ def _run(args: argparse.Namespace) -> int:
     _require_run_fields(args)
     catalog = load_catalog(args.catalog)
     _validate_profile(catalog, args.profile)
-    inventory = load_tool_inventory(args.tool_inventory, expected_profile=args.profile)
+    profile = load_profile_manifest(args.profile_manifest, expected_profile=args.profile)
+    inventory = load_tool_inventory(
+        args.tool_inventory,
+        expected_profile=args.profile,
+        expected_profile_hash=profile.manifest_hash,
+    )
     _, report = run_catalog(
         catalog,
         lane=args.lane,
@@ -150,7 +171,12 @@ def _grade(args: argparse.Namespace) -> int:
     _require_run_fields(args)
     catalog = load_catalog(args.catalog)
     _validate_profile(catalog, args.profile)
-    inventory = load_tool_inventory(args.tool_inventory, expected_profile=args.profile)
+    profile = load_profile_manifest(args.profile_manifest, expected_profile=args.profile)
+    inventory = load_tool_inventory(
+        args.tool_inventory,
+        expected_profile=args.profile,
+        expected_profile_hash=profile.manifest_hash,
+    )
     output = Path(args.output).expanduser().resolve()
     if not output.is_dir():
         raise ResultViolation("grade output must be an existing result directory")
@@ -191,7 +217,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "run":
             return _run(args)
         return _grade(args)
-    except (CatalogViolation, InventoryViolation, ResultViolation) as exc:
+    except (CatalogViolation, InventoryViolation, ProfileViolation, ResultViolation) as exc:
         print(f"contract violation: {exc}", file=sys.stderr)
         return 2
 

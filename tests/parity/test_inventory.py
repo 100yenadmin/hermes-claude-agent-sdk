@@ -73,3 +73,13 @@ def test_inventory_rejects_profile_ambiguity(tmp_path) -> None:
     document["observed_tools"] = copy.deepcopy(document["declared_tools"])
     with pytest.raises(InventoryViolation, match="requested profile"):
         load_tool_inventory(_write(tmp_path, document), expected_profile="shared-eva")
+
+
+def test_inventory_rejects_profile_manifest_hash_mismatch(tmp_path) -> None:
+    document = _document()
+    document["observed_tools"] = copy.deepcopy(document["declared_tools"])
+    with pytest.raises(InventoryViolation, match="profile manifest"):
+        load_tool_inventory(
+            _write(tmp_path, document),
+            expected_profile_hash="4" * 64,
+        )

@@ -29,6 +29,7 @@ class ExecutionContext:
     path: str
     trial_index: int
     profile_id: str
+    profile_hash: str
     plugin_sha: str
     host_sha: str
     sdk_version: str
@@ -472,6 +473,7 @@ async def run_catalog_async(
                             path=path,
                             trial_index=trial_index,
                             profile_id=profile_id,
+                            profile_hash=profile_hash,
                             plugin_sha=plugin_sha,
                             host_sha=host_sha,
                             sdk_version=sdk_version,

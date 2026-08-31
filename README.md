@@ -59,16 +59,19 @@ The installed console entry point exposes three fail-closed commands:
 
 ```sh
 hermes-claude-agent-sdk-parity inventory --catalog qa/parity-contract-v3.yaml \
-  --lane rc --profile fable-v3-isolated --tool-inventory ./tool-inventory.yaml
+  --lane rc --profile fable-v3-isolated --profile-manifest ./profile.json \
+  --tool-inventory ./tool-inventory.yaml
 
 hermes-claude-agent-sdk-parity run --catalog qa/parity-contract-v3.yaml \
   --lane rc --profile fable-v3-isolated --plugin-sha "$PLUGIN_SHA" \
-  --host-sha "$HOST_SHA" --tool-inventory ./tool-inventory.yaml \
+  --host-sha "$HOST_SHA" --profile-manifest ./profile.json \
+  --tool-inventory ./tool-inventory.yaml \
   --output ./parity-results
 
 hermes-claude-agent-sdk-parity grade --catalog qa/parity-contract-v3.yaml \
   --lane rc --profile fable-v3-isolated --plugin-sha "$PLUGIN_SHA" \
-  --host-sha "$HOST_SHA" --tool-inventory ./tool-inventory.yaml \
+  --host-sha "$HOST_SHA" --profile-manifest ./profile.json \
+  --tool-inventory ./tool-inventory.yaml \
   --output ./parity-results --resume
 ```
 

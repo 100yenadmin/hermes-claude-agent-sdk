@@ -75,7 +75,12 @@ class ToolInventory:
         return len(self.observed_tools)
 
 
-def load_tool_inventory(path: str | Path, *, expected_profile: str | None = None) -> ToolInventory:
+def load_tool_inventory(
+    path: str | Path,
+    *,
+    expected_profile: str | None = None,
+    expected_profile_hash: str | None = None,
+) -> ToolInventory:
     inventory_path = Path(path).expanduser().resolve()
     if not inventory_path.is_file():
         raise InventoryViolation(f"tool inventory is not a regular file: {inventory_path}")
@@ -104,6 +109,8 @@ def load_tool_inventory(path: str | Path, *, expected_profile: str | None = None
         or any(character not in "0123456789abcdef" for character in profile_hash)
     ):
         raise InventoryViolation("tool inventory profile_hash must be a lowercase SHA-256 digest")
+    if expected_profile_hash is not None and profile_hash != expected_profile_hash:
+        raise InventoryViolation("tool inventory profile_hash does not match the profile manifest")
     declared = _normalize_tools(root["declared_tools"], "declared_tools")
     observed = _normalize_tools(root["observed_tools"], "observed_tools")
     if declared != observed:
