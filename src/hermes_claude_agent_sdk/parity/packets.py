@@ -249,8 +249,8 @@ def _attempt(value: Any, expected_paths: Mapping[str, Any] | None, label: str, e
         item = _obj(entry, {"seq", "code", "actor", "phase", "correlation_sha256"}, f"{label}.trace"); code = item["code"]
         if item["seq"] != seq or code not in TRACE_REGISTRY or (item["actor"], item["phase"]) != TRACE_REGISTRY[code]: _fail(f"{label}.trace is invalid")
         _sha(item["correlation_sha256"], "trace.correlation_sha256", True); codes.append(code)
-    if expected_trace is not None and codes != list(expected_trace): _fail(f"{label}.trace differs from catalog")
     paths, statuses = _obj(result["paths"], set(PATHS), f"{label}.paths"), _obj(result["path_status"], set(PATHS), f"{label}.path_status")
+    if expected_trace is not None and codes != list(expected_trace) and all(isinstance(statuses[name], Mapping) and statuses[name].get("status") in {"PASS", "EXPECTED_NEGATIVE", "NOT_APPLICABLE"} for name in PATHS): _fail(f"{label}.trace differs from catalog")
     for name in PATHS:
         actual = _path(paths[name], f"{label}.paths.{name}"); expected = _path(expected_paths[name], f"{label}.expected.{name}") if expected_paths else actual
         if expected_paths and actual != expected: _fail(f"{label}.paths.{name} differs from catalog")
@@ -314,7 +314,7 @@ def validate_sdk_ledger(value: Any, source_keys: Sequence[tuple[str, str]] | Non
         seen.append(key); _bool(item["executable"], "sdk executable"); _enum(item["classification"], {"covered_current", "equivalent_host", "requires_0_3_239", "not_runtime_applicable"}, "sdk classification")
         if item["executable"] and item["classification"] == "not_runtime_applicable": _fail("executable SDK row is N/A")
         proof = _obj(item["proof"], {"ref", "sha256"}, "sdk proof"); _proof_ref(proof["ref"], "sdk proof ref"); _sha(proof["sha256"], "sdk proof hash")
-    if len(rows) != 23 or source_keys is not None and sorted(seen) != sorted(source_keys): _fail("SDK ledger is not the exact 23-row source set")
+    if len(rows) != 23 or source_keys is not None and sorted(seen) != sorted(source_keys) or any(item["ordinal"] in (1, 9) and (not item["executable"] or item["classification"] != "requires_0_3_239") for item in rows): _fail("SDK ledger is not the exact 23-row source set or pinned STOP rows")
     if result["rows_sha256"] != hash_projection("rows_sha256", result) or result["ledger_sha256"] != hash_projection("ledger_sha256", result): _fail("SDK ledger hash mismatch")
     return result
 
@@ -417,7 +417,7 @@ def hash_projection(field: str, value: Mapping[str, Any] | Sequence[Any]) -> str
     if field == "row_ids_sha256": return canonical_sha256(sorted(_map(value, "source pack")["row_ids"]))
     if field == "source_row_set_sha256": return canonical_sha256(sorted(value, key=lambda row: (row["pack_id"], row["row_id"])))
     if field == "source_map_sha256":
-        source = _map(value, "catalog"); packs = source.get("source_packs", source); return canonical_sha256([{key: item[key] for key in ("id", "expected_count", "row_ids", "source_ref", "source_identity", "provenance", "license", "attribution") if key in item} for item in sorted(packs, key=lambda item: item["id"])])
+        source = _map(value, "catalog"); packs = source.get("source_packs", source); return canonical_sha256([{key: item[key] for key in ("id", "expected_count", "row_ids", "source", "provenance")} for item in sorted(packs, key=lambda item: item["id"])])
     if field == "rows_sha256":
         ledger = _map(value, "ledger"); return canonical_sha256(sorted([{key: row[key] for key in ("pack_id", "row_id", "ordinal", "executable", "classification", "proof")} for row in ledger["rows"]], key=lambda row: (row["pack_id"], row["row_id"])))
     if field == "ledger_sha256":
@@ -431,9 +431,9 @@ def hash_projection(field: str, value: Mapping[str, Any] | Sequence[Any]) -> str
     if field == "aggregate_sha256": return canonical_sha256(_aggregate_projection(_map(value, "aggregate")))
     if field == "replacement_receipt_sha256": return canonical_sha256(_omit(_map(value, "replacement receipt"), "replacement_receipt_sha256"))
     if field == "fixture_manifest_sha256":
-        source = _map(value, "fixture manifest"); return canonical_sha256({"fixtures": [{key: item[key] for key in ("ref", "kind", "content_sha256", "byte_length")} for item in sorted(source["fixtures"], key=lambda item: item["ref"])]}) if "fixtures" in source else canonical_sha256(_omit(source, field))
+        source = _map(value, "fixture manifest"); return canonical_sha256(sorted(source["fixtures"], key=lambda item: item["ref"])) if "fixtures" in source else canonical_sha256(_omit(source, field))
     if field == "scenario_sha256":
-        source = _map(value, "scenario"); caps = sorted(source["capabilities"], key=lambda item: item.get("capability_id", "")) if isinstance(source.get("capabilities"), list) else source.get("capabilities"); return canonical_sha256({key: (caps if key == "capabilities" else source[key]) for key in ("scenario_schema_version", "catalog_sha256", "fixture_manifest_sha256", "scope_partition_id", "capabilities") if key in source})
+        source = _map(value, "scenario"); caps = sorted(source["capabilities"], key=lambda item: item["capability_id"]); return canonical_sha256({"scenario_input_schema_version": source["scenario_input_schema_version"], "catalog_sha256": source["catalog_sha256"], "fixture_manifest_sha256": source["fixture_manifest_sha256"], "scope_partition_id": source["scope_partition_id"], "capabilities": caps})
     if field in {"resume_sha256", "catalog_sha256", "freeze_sha256", "result_sha256"}: return canonical_sha256(_omit(_map(value, field), field))
     _fail(f"no packet projection is defined for {field}")
 

@@ -102,13 +102,13 @@ def _inventory(candidate_sha256: str) -> dict[str, Any]:
 
 
 def _ledger() -> dict[str, Any]:
-    rows = [{"pack_id": "sdk_boundary", "row_id": f"row{n}", "ordinal": n, "executable": True, "classification": "covered_current", "proof": {"ref": f"proof:row{n}", "sha256": D}} for n in range(1, 24)]
+    rows = [{"pack_id": "sdk_boundary", "row_id": f"row{n}", "ordinal": n, "executable": True, "classification": "requires_0_3_239" if n in (1, 9) else "covered_current", "proof": {"ref": f"proof:row{n}", "sha256": D}} for n in range(1, 24)]
     value = {"schema_version": 1, "rows": rows}
     value |= {"rows_sha256": hash_projection("rows_sha256", value), "ledger_sha256": hash_projection("ledger_sha256", value)}
     return value
 
 
-def _grade(status: str = "PASS", *, verified_failure_count: int = 0, blocked: int = 0, pending: int = 0, expected_negative_count: int = 1, sdk_ledger: dict[str, Any] | None = None, qualifications: dict[str, Any] | None = None, caret: dict[str, bool] | None = None, at: dict[str, bool] | None = None) -> dict[str, Any]:
+def _grade(status: str = "FAIL", *, verified_failure_count: int = 0, blocked: int = 0, pending: int = 0, expected_negative_count: int = 1, sdk_ledger: dict[str, Any] | None = None, qualifications: dict[str, Any] | None = None, caret: dict[str, bool] | None = None, at: dict[str, bool] | None = None) -> dict[str, Any]:
     return {
         "status": status,
         "cell_qualifications": qualifications or {"CAP-one": {"positive": "PASS", "denial": "EXPECTED_NEGATIVE", "recovery": "PASS", "qualified": True, "not_required_paths": [], "attempts": 1}},
@@ -128,7 +128,7 @@ def _grade(status: str = "PASS", *, verified_failure_count: int = 0, blocked: in
         "billing_safe": True,
         "resume_safe": True,
         "isolation_safe": True,
-        "sdk_ledger": sdk_ledger or {"ledger_sha256": _ledger()["ledger_sha256"], "row_count": 23, "requires_0_3_239_rows": [], "upgrade_issue_ref": "issue:16", "status": "CLEAR"},
+        "sdk_ledger": sdk_ledger or {"ledger_sha256": _ledger()["ledger_sha256"], "row_count": 23, "requires_0_3_239_rows": ["row1", "row9"], "upgrade_issue_ref": "issue:16", "status": "STOP"},
         "result_bijection": True,
     }
 
@@ -227,7 +227,7 @@ def test_candidate_freeze_and_result_hashes_are_deterministic() -> None:
 
 def test_result_rejects_grade_status_tamper() -> None:
     freeze = _freeze()
-    result = _result(grade=_grade("FAIL"))
+    result = _result(grade=_grade("PASS"))
     result["freeze_sha256"] = freeze["freeze_sha256"]
     result["result_sha256"] = canonical_sha256({key: value for key, value in result.items() if key != "result_sha256"})
     with pytest.raises(PacketValidationError, match="grade.status"):
@@ -235,7 +235,7 @@ def test_result_rejects_grade_status_tamper() -> None:
 
 
 def test_sdk_ledger_requires_unique_exact_source_set() -> None:
-    rows = [{"pack_id": "sdk_boundary", "row_id": f"row{n}", "ordinal": n, "executable": True, "classification": "covered_current", "proof": {"ref": f"proof:row{n}", "sha256": D}} for n in range(1, 24)]
+    rows = [{"pack_id": "sdk_boundary", "row_id": f"row{n}", "ordinal": n, "executable": True, "classification": "requires_0_3_239" if n in (1, 9) else "covered_current", "proof": {"ref": f"proof:row{n}", "sha256": D}} for n in range(1, 24)]
     ledger = {"schema_version": 1, "rows": rows}
     ledger |= {"rows_sha256": hash_projection("rows_sha256", ledger), "ledger_sha256": hash_projection("ledger_sha256", ledger)}
     source_keys = [("sdk_boundary", f"row{n}") for n in range(1, 24)]
@@ -246,6 +246,16 @@ def test_sdk_ledger_requires_unique_exact_source_set() -> None:
     duplicate["ledger_sha256"] = hash_projection("ledger_sha256", duplicate)
     with pytest.raises(PacketValidationError):
         validate_sdk_ledger(duplicate, source_keys)
+
+
+def test_sdk_ledger_pins_issue_16_rows() -> None:
+    for ordinal, field, replacement in ((1, "classification", "covered_current"), (9, "executable", False)):
+        ledger = deepcopy(_ledger())
+        ledger["rows"][ordinal - 1][field] = replacement
+        ledger["rows_sha256"] = hash_projection("rows_sha256", ledger)
+        ledger["ledger_sha256"] = hash_projection("ledger_sha256", ledger)
+        with pytest.raises(PacketValidationError, match="pinned"):
+            validate_sdk_ledger(ledger)
 
 
 def test_sdk_proof_ref_accepts_repository_relative_source_path() -> None:
@@ -274,7 +284,7 @@ def test_aggregate_embeds_and_recomputes_packets() -> None:
     aggregate["aggregate_sha256"] = hash_projection("aggregate_sha256", aggregate)
     assert validate_aggregate(aggregate, catalog=_catalog())["aggregate_sha256"] == aggregate["aggregate_sha256"]
     tampered = deepcopy(aggregate)
-    tampered["partition_packets"][0]["result_packet"]["grade"]["status"] = "FAIL"
+    tampered["partition_packets"][0]["result_packet"]["grade"]["status"] = "PASS"
     with pytest.raises(PacketValidationError):
         validate_aggregate(tampered, catalog=_catalog())
 
@@ -304,6 +314,30 @@ def test_executed_path_trace_must_be_contiguous_slice() -> None:
     result["result_sha256"] = canonical_sha256({key: value for key, value in result.items() if key != "result_sha256"})
     with pytest.raises(PacketValidationError, match="contiguous"):
         validate_result(result, freeze=freeze, catalog=_catalog())
+
+
+def test_verified_failure_trace_may_deviate_but_qualifies_fail() -> None:
+    from hermes_claude_agent_sdk.parity import packets as packet_impl
+
+    catalog = _catalog()
+    attempt = _result(statuses=("VERIFIED_FAILURE", "EXPECTED_NEGATIVE", "PASS"))["cells"][0]["attempts"][0]
+    attempt["trace"][1]["code"] = "terminal.failed"
+    expected_paths = {name: catalog["capabilities"][0][f"{name}_path"] for name in ("positive", "denial", "recovery")}
+    expected_trace = ["path.positive.begin", "terminal.complete", "path.positive.end", "path.denial.begin", "terminal.failed", "path.denial.end", "path.recovery.begin", "terminal.complete", "path.recovery.end"]
+    validated = packet_impl._attempt(attempt, expected_paths, "attempt", expected_trace)
+    assert validated["path_status"]["positive"]["qualification"] == "FAIL"
+
+
+def test_pass_trace_still_must_equal_catalog_trace() -> None:
+    from hermes_claude_agent_sdk.parity import packets as packet_impl
+
+    catalog = _catalog()
+    attempt = _result()["cells"][0]["attempts"][0]
+    attempt["trace"][1]["code"] = "terminal.failed"
+    expected_paths = {name: catalog["capabilities"][0][f"{name}_path"] for name in ("positive", "denial", "recovery")}
+    expected_trace = ["path.positive.begin", "terminal.complete", "path.positive.end", "path.denial.begin", "terminal.failed", "path.denial.end", "path.recovery.begin", "terminal.complete", "path.recovery.end"]
+    with pytest.raises(PacketValidationError, match="differs from catalog"):
+        packet_impl._attempt(attempt, expected_paths, "attempt", expected_trace)
 
 
 def test_all_grade_projections_are_recomputed() -> None:
@@ -374,6 +408,21 @@ def test_h4_named_inventory_projection_excludes_only_declared_exceptions() -> No
     assert hash_projection("observed_inventory_sha256", inventory) == canonical_sha256({"candidate_sha256": inventory["candidate_sha256"], "tools": [], "mcp_servers": []})
 
 
+def test_h4_source_fixture_scenario_projections_are_exact() -> None:
+    packs = [
+        {"id": "pack-b", "expected_count": 2, "row_ids": ["b1"], "source": {"kind": "git", "ref": "src:repo:two.py"}, "provenance": {"kind": "ledger", "ref": "evidence:two"}, "ignored": "excluded"},
+        {"id": "pack-a", "expected_count": 1, "row_ids": ["a1"], "source": {"kind": "git", "ref": "src:repo:one.py"}, "provenance": {"kind": "ledger", "ref": "evidence:one"}, "ignored": "excluded"},
+    ]
+    source_projection = [{key: pack[key] for key in ("id", "expected_count", "row_ids", "source", "provenance")} for pack in sorted(packs, key=lambda item: item["id"])]
+    assert hash_projection("source_map_sha256", {"source_packs": packs}) == canonical_sha256(source_projection)
+    fixtures = [{"ref": "fixture:z", "kind": "resume", "content_sha256": D, "byte_length": 2}, {"ref": "fixture:a", "kind": "scenario", "content_sha256": D, "byte_length": 1}]
+    assert hash_projection("fixture_manifest_sha256", {"fixtures": fixtures}) == canonical_sha256(sorted(fixtures, key=lambda item: item["ref"]))
+    capabilities = [{"capability_id": "CAP-two", "scenario_id": "SCN-two", "fixture_ref": "fixture:z", "fixture_content_sha256": D, "mode": "integration", "session_scope": "isolated_cell"}, {"capability_id": "CAP-one", "scenario_id": "SCN-one", "fixture_ref": "fixture:a", "fixture_content_sha256": D, "mode": "deterministic", "session_scope": "isolated_cell"}]
+    scenario = {"scenario_input_schema_version": 1, "catalog_sha256": D, "fixture_manifest_sha256": D, "scope_partition_id": "PART-one", "capabilities": capabilities}
+    expected = scenario | {"capabilities": sorted(capabilities, key=lambda item: item["capability_id"])}
+    assert hash_projection("scenario_sha256", scenario) == canonical_sha256(expected)
+
+
 def test_sdk_rows_one_and_nine_force_issue_16_stop() -> None:
     catalog = _catalog()
     ledger = _ledger()
@@ -390,3 +439,12 @@ def test_sdk_rows_one_and_nine_force_issue_16_stop() -> None:
     result["grade"]["status"] = "FAIL"
     result["result_sha256"] = canonical_sha256({key: value for key, value in result.items() if key != "result_sha256"})
     assert validate_result(result, freeze=freeze, catalog=catalog)["grade"]["sdk_ledger"]["status"] == "STOP"
+
+
+def test_sdk_grade_cannot_clear_pinned_stop() -> None:
+    freeze, result = _bound_result()
+    result["grade"]["sdk_ledger"] = {"ledger_sha256": _ledger()["ledger_sha256"], "row_count": 23, "requires_0_3_239_rows": [], "upgrade_issue_ref": "issue:16", "status": "CLEAR"}
+    result["grade"]["status"] = "PASS"
+    result["result_sha256"] = canonical_sha256({key: value for key, value in result.items() if key != "result_sha256"})
+    with pytest.raises(PacketValidationError, match="grade.sdk_ledger"):
+        validate_result(result, freeze=freeze, catalog=_catalog())
