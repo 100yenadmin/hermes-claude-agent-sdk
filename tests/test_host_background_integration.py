@@ -3,9 +3,26 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import sys
+from pathlib import Path
 from queue import Empty, SimpleQueue
 
 import pytest
+
+
+# The standalone plugin's existing host-integration tests use this same
+# explicit host-root override. Keeping the host checkout out of the plugin's
+# package makes the cross-repository dependency visible at test time without
+# binding the suite to one developer-machine path.
+_HOST_ROOT_VALUE = os.environ.get("HERMES_AGENT_HOST_ROOT")
+if not _HOST_ROOT_VALUE:
+    pytest.skip("HERMES_AGENT_HOST_ROOT is not configured", allow_module_level=True)
+HOST_ROOT = Path(_HOST_ROOT_VALUE)
+if not HOST_ROOT.is_dir():
+    pytest.skip("configured Hermes host checkout is absent", allow_module_level=True)
+if str(HOST_ROOT) not in sys.path:
+    sys.path.insert(0, str(HOST_ROOT))
 
 from agent.runtime_dispatch import HermesRuntimeHostServices
 from gateway import session_context
@@ -38,7 +55,6 @@ def test_success_with_background_uses_bound_host_queue(monkeypatch: pytest.Monke
         lambda name, default="": route.get(name, default),
     )
 
-    queue: SimpleQueue[dict[str, object]] = SimpleQueue()
     queue_put_after_terminal: list[bool] = []
     terminal_observed = False
 
