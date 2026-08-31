@@ -118,8 +118,9 @@ matches = importlib.metadata.entry_points(
     group="hermes_agent.plugins", name="claude-agent-sdk"
 )
 assert len(matches) == 1
-assert matches[0].value == "hermes_claude_agent_sdk"
-assert matches[0].load() is plugin
+entry_point = next(iter(matches))
+assert entry_point.value == "hermes_claude_agent_sdk"
+assert entry_point.load() is plugin
 assert "claude_agent_sdk" not in sys.modules
 print("installed import passed")
 """
