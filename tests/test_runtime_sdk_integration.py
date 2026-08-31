@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import time
 from dataclasses import dataclass
 from types import ModuleType, SimpleNamespace
@@ -72,7 +73,7 @@ class _Client:
         self.connected = 0
         self.disconnected = 0
         self.interrupted = 0
-        self.queries: list[str] = []
+        self.queries: list[object] = []
         self._messages: asyncio.Queue[object] = asyncio.Queue()
         self._closed = False
         self._producer_task: asyncio.Task[None] | None = None
@@ -471,12 +472,13 @@ def _request(
     tools=(),
     correlation_id="synthetic-correlation",
     prompt_snapshot="stable system prompt",
+    messages=({"role": "user", "content": "hello runtime"},),
 ):
     return build_runtime_turn_request(
         provider="claude-agent-sdk",
         model="claude-fable-5",
         api_mode="agent_runtime",
-        messages=({"role": "user", "content": "hello runtime"},),
+        messages=messages,
         prompt_snapshot=prompt_snapshot,
         tool_schemas=tools,
         session_state=state,
@@ -552,6 +554,86 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
         assert fields["mcp_servers"]["hermes-tools"]["tools"] == []
         assert clients[0].queries == ["hello runtime"]
         assert clients[0].disconnected == 1
+
+    asyncio.run(scenario())
+
+
+def test_native_image_turn_uses_the_public_sdk_streaming_input() -> None:
+    async def scenario():
+        payload = base64.b64encode(b"\x89PNG\r\n\x1a\nfixture").decode("ascii")
+        clients: list[_Client] = []
+        runtime = _runtime("success", clients)
+        request = _request(
+            messages=(
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "inspect the fixture"},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{payload}"
+                            },
+                        },
+                    ],
+                },
+            )
+        )
+
+        events = await _collect(runtime, request, _Host())
+        await runtime.close()
+
+        assert events[-1].kind.value == "completed"
+        prompt = clients[0].queries[0]
+        messages = [message async for message in prompt]
+        assert messages == [
+            {
+                "type": "user",
+                "message": {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "inspect the fixture"},
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": payload,
+                            },
+                        },
+                    ],
+                },
+                "parent_tool_use_id": None,
+            }
+        ]
+
+    asyncio.run(scenario())
+
+
+def test_invalid_image_fails_before_sdk_start() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("success", clients)
+        request = _request(
+            messages=(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": "file:///tmp/private.png"},
+                        }
+                    ],
+                },
+            )
+        )
+
+        events = await _collect(runtime, request, _Host())
+        await runtime.close()
+
+        assert [event.kind.value for event in events] == ["failed"]
+        assert events[0].failure.code == "claude_runtime_image_invalid"
+        assert clients == []
 
     asyncio.run(scenario())
 
