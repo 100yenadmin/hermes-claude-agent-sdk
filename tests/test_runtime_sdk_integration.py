@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass
 from types import ModuleType, SimpleNamespace
 
@@ -74,6 +75,7 @@ class _Client:
         self.queries: list[str] = []
         self._messages: asyncio.Queue[object] = asyncio.Queue()
         self._closed = False
+        self._producer_task: asyncio.Task[None] | None = None
 
     async def connect(self) -> None:
         self.connected += 1
@@ -91,6 +93,9 @@ class _Client:
                 AssistantMessage([ToolUseBlock("tool-1", "pwd", {"path": "."})])
             )
         if self.mode in {"cancel", "compaction_watchdog"}:
+            return
+        if self.mode == "sustained_stream":
+            self._producer_task = asyncio.create_task(self._emit_sustained_stream())
             return
         if self.mode == "cancellation_probe_failure":
             await self._messages.put(AssistantMessage([TextBlock("queued before probe failure")]))
@@ -121,6 +126,16 @@ class _Client:
                 )
             )
 
+    async def _emit_sustained_stream(self) -> None:
+        try:
+            while not self._closed:
+                await self._messages.put(
+                    AssistantMessage([TextBlock("sustained projection")])
+                )
+                await asyncio.sleep(0.001)
+        except asyncio.CancelledError:
+            raise
+
     async def receive_messages(self):
         while not self._closed:
             message = await self._messages.get()
@@ -134,6 +149,9 @@ class _Client:
     async def disconnect(self) -> None:
         self.disconnected += 1
         self._closed = True
+        if self._producer_task is not None:
+            self._producer_task.cancel()
+            await asyncio.gather(self._producer_task, return_exceptions=True)
         await self._messages.put(_END)
 
 
@@ -206,6 +224,21 @@ class _Host:
     def cancellation_requested(self) -> bool:
         self.cancel_checks += 1
         return self.cancel_after is not None and self.cancel_checks >= self.cancel_after
+
+
+class _WallClockCancellationHost(_Host):
+    def __init__(self, *, cancel_after_seconds: float) -> None:
+        super().__init__()
+        self._cancel_at = time.monotonic() + cancel_after_seconds
+        self.cancelled_projection_count: int | None = None
+        self.projection_count = 0
+
+    def cancellation_requested(self) -> bool:
+        self.cancel_checks += 1
+        cancelled = time.monotonic() >= self._cancel_at
+        if cancelled and self.cancelled_projection_count is None:
+            self.cancelled_projection_count = self.projection_count
+        return cancelled
 
 
 def _tool_schema():
@@ -521,6 +554,36 @@ def test_cancellation_interrupts_and_closes_once_with_one_terminal() -> None:
         assert client.disconnected == 1
 
     asyncio.run(scenario())
+
+
+def test_cancellation_is_polled_during_sustained_projection_stream() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("sustained_stream", clients)
+        host = _WallClockCancellationHost(cancel_after_seconds=0.02)
+        events = []
+        try:
+            async def collect() -> None:
+                async for event in runtime.run_turn(_request(), host):
+                    events.append(event)
+                    if event.kind.value == "content":
+                        host.projection_count += 1
+                        await asyncio.sleep(0.005)
+
+            await asyncio.wait_for(collect(), timeout=0.5)
+        finally:
+            await runtime.close()
+        return events, host, clients[0]
+
+    events, host, client = asyncio.run(scenario())
+
+    terminal_kinds = {"completed", "cancelled", "failed"}
+    assert host.cancelled_projection_count is not None
+    assert host.cancelled_projection_count >= 2
+    assert len([event for event in events if event.kind.value in terminal_kinds]) == 1
+    assert events[-1].kind.value == "cancelled"
+    assert client.interrupted == 1
+    assert client.disconnected == 1
 
 
 def test_in_loop_cancellation_probe_failure_drains_projection_then_fails_closed() -> None:
