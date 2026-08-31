@@ -389,6 +389,35 @@ def test_native_compaction_failure_and_watchdog_are_typed_before_turn_failure() 
     assert watchdog[-1].failure.code == "sdk_compaction_watchdog"
 
 
+def test_active_compaction_cancellation_projects_failed_before_turn_terminal() -> None:
+    async def scenario() -> None:
+        clients: list[_Client] = []
+        runtime = _runtime("compaction_watchdog", clients)
+        host = _Host(cancel_after=2)
+
+        result = await _collect_runtime_turn(
+            runtime,
+            _request(),
+            host,
+            descriptor=build_runtime_descriptor(),
+        )
+        await runtime.close()
+
+        assert [event.phase for event in host.compaction] == [
+            RuntimeCompactionPhase.STARTED,
+            RuntimeCompactionPhase.FAILED,
+        ]
+        assert result.terminal.kind.value == "cancelled"
+        assert sum(
+            event.kind.value in {"completed", "cancelled", "failed"}
+            for event in result.events
+        ) == 1
+        assert clients[0].interrupted == 1
+        assert clients[0].disconnected == 1
+
+    asyncio.run(scenario())
+
+
 def test_allowed_bit_with_non_subscription_category_still_rejects_preflight() -> None:
     clients: list[_Client] = []
     runtime = ClaudeAgentSDKRuntime(

@@ -78,6 +78,7 @@ class NativeCompactionLifecycle:
         self._active_depth = 0
         self._active_trigger = "auto"
         self._watchdog_task: asyncio.Task[None] | None = None
+        self._transition_lock = asyncio.Lock()
 
     @property
     def active(self) -> bool:
@@ -119,19 +120,20 @@ class NativeCompactionLifecycle:
         return {"PreCompact": [hook_matcher(hooks=[on_pre_compact])]}
 
     async def start(self, trigger: str = "auto") -> None:
-        normalized = _trigger(trigger)
-        if self._active_depth > 0:
-            self._active_depth += 1
-            return
-        self._active_depth = 1
-        self._active_trigger = normalized
-        self._watchdog_task = asyncio.create_task(self._watchdog())
-        await self._emit(
-            SessionCompactionEvent(
-                phase=SessionCompactionPhase.STARTED,
-                trigger=normalized,
+        async with self._transition_lock:
+            normalized = _trigger(trigger)
+            if self._active_depth > 0:
+                self._active_depth += 1
+                return
+            self._active_depth = 1
+            self._active_trigger = normalized
+            self._watchdog_task = asyncio.create_task(self._watchdog())
+            await self._emit(
+                SessionCompactionEvent(
+                    phase=SessionCompactionPhase.STARTED,
+                    trigger=normalized,
+                )
             )
-        )
 
     async def handle_message(self, message: Any) -> bool:
         """Consume the pinned CLI's empirical compact-boundary message."""
@@ -150,33 +152,35 @@ class NativeCompactionLifecycle:
         return await self.complete(_trigger(raw_trigger))
 
     async def complete(self, trigger: str = "auto") -> bool:
-        if not self.active:
-            return False
-        self._active_depth -= 1
-        if self._active_depth > 0:
-            return False
-        await self._finish(
-            SessionCompactionEvent(
-                phase=SessionCompactionPhase.COMPLETED,
-                trigger=_trigger(trigger),
+        async with self._transition_lock:
+            if not self.active:
+                return False
+            self._active_depth -= 1
+            if self._active_depth > 0:
+                return False
+            await self._finish(
+                SessionCompactionEvent(
+                    phase=SessionCompactionPhase.COMPLETED,
+                    trigger=_trigger(trigger),
+                )
             )
-        )
-        return True
+            return True
 
     async def expire(self) -> bool:
         """Emit the bounded watchdog once and request turn interruption."""
 
-        if not self.active:
-            return False
-        await self._finish(
-            SessionCompactionEvent(
-                phase=SessionCompactionPhase.WATCHDOG,
-                trigger=self._active_trigger,
-                watchdog_seconds=self._watchdog_seconds,
+        async with self._transition_lock:
+            if not self.active:
+                return False
+            await self._finish(
+                SessionCompactionEvent(
+                    phase=SessionCompactionPhase.WATCHDOG,
+                    trigger=self._active_trigger,
+                    watchdog_seconds=self._watchdog_seconds,
+                )
             )
-        )
-        await self._notify_watchdog()
-        return True
+            await self._notify_watchdog()
+            return True
 
     async def end_turn(self, *, completed: bool) -> None:
         """Close a missing boundary at the turn's proven terminal edge.
@@ -186,19 +190,20 @@ class NativeCompactionLifecycle:
         Any other terminal outcome marks an active compaction failed.
         """
 
-        if self.active:
-            await self._finish(
-                SessionCompactionEvent(
-                    phase=(
-                        SessionCompactionPhase.COMPLETED
-                        if completed
-                        else SessionCompactionPhase.FAILED
-                    ),
-                    trigger=self._active_trigger,
+        async with self._transition_lock:
+            if self.active:
+                await self._finish(
+                    SessionCompactionEvent(
+                        phase=(
+                            SessionCompactionPhase.COMPLETED
+                            if completed
+                            else SessionCompactionPhase.FAILED
+                        ),
+                        trigger=self._active_trigger,
+                    )
                 )
-            )
-        self._on_event = None
-        self._on_watchdog = None
+            self._on_event = None
+            self._on_watchdog = None
 
     async def _watchdog(self) -> None:
         try:

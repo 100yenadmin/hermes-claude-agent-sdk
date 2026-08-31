@@ -163,3 +163,26 @@ def test_turn_terminal_fallback_closes_an_active_compaction_exactly_once() -> No
         SessionCompactionPhase.STARTED,
         SessionCompactionPhase.FAILED,
     ]
+
+
+def test_concurrent_terminal_cleanup_cannot_drop_the_failed_phase() -> None:
+    async def scenario() -> None:
+        events = []
+        lifecycle = NativeCompactionLifecycle(watchdog_seconds=1)
+        lifecycle.bind(on_event=events.append)
+        callback = lifecycle.build_hooks(
+            SimpleNamespace(HookMatcher=_HookMatcher)
+        )["PreCompact"][0].hooks[0]
+
+        await callback({"trigger": "auto"}, None, None)
+        first = asyncio.create_task(lifecycle.end_turn(completed=False))
+        await asyncio.sleep(0)
+        second = asyncio.create_task(lifecycle.end_turn(completed=False))
+        await asyncio.gather(first, second)
+
+        assert [event.phase for event in events] == [
+            SessionCompactionPhase.STARTED,
+            SessionCompactionPhase.FAILED,
+        ]
+
+    asyncio.run(scenario())

@@ -432,6 +432,41 @@ def test_native_compaction_suspends_then_restamps_the_turn_deadline() -> None:
     asyncio.run(scenario())
 
 
+def test_cancelling_active_compaction_emits_failed_exactly_once() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        events = []
+        session = SDKSession(
+            _configuration(turn_timeout_seconds=1),
+            sdk_module=_sdk(clients, [[]]),
+        )
+
+        turn = asyncio.create_task(
+            session.run_turn(
+                "cancel active compaction",
+                on_compaction_event=events.append,
+            )
+        )
+        while not clients or not clients[0].queries:
+            await asyncio.sleep(0)
+
+        hook = clients[0].options.fields["hooks"]["PreCompact"][0].hooks[0]
+        await hook({"trigger": "auto"}, None, None)
+        await session.cancel()
+        result = await turn
+        await session.close()
+
+        assert result.outcome is SessionOutcome.CANCELLED
+        assert [event.phase for event in events] == [
+            SessionCompactionPhase.STARTED,
+            SessionCompactionPhase.FAILED,
+        ]
+        assert clients[0].interrupted == 1
+        assert clients[0].disconnected == 1
+
+    asyncio.run(scenario())
+
+
 def test_resume_is_only_passed_through_public_option_field() -> None:
     async def scenario() -> None:
         clients: list[_FakeClient] = []
