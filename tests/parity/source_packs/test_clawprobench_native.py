@@ -129,6 +129,8 @@ def test_native_pack_has_exact_pinned_coverage_and_provenance():
     assert len(rows) == 36
     assert tuple(source_rows) == EXPECTED_SOURCE_ROWS
     assert pack["pack_id"] == "clawprobench_native"
+    assert pack["schema_version"] == 1
+    assert "source_pack_schema_version" not in pack
     assert pack["status"] == pack["mapping_status"] == "PENDING"
     source = pack["source_pack"]["source"]
     assert source["commit_sha"] == "c4b8395854fe0752eef435b44f140366efd44d8e"
@@ -188,6 +190,7 @@ def test_native_pack_paths_states_and_traces_are_closed():
             ("recovery_path", "PASS", "complete"),
         ):
             path = row[role]
+            role_name = role.removesuffix("_path")
             assert set(path) == PATH_KEYS
             assert path["expected_outcome"] == expected
             assert path["terminal"] == {"kind": terminal, "count": 1}
@@ -196,6 +199,10 @@ def test_native_pack_paths_states_and_traces_are_closed():
             assert path["side_effect_count"] == 0
             assert set(path["trace_codes"]) <= trace_registry
             assert "outcome" not in path.keys()
+            assert path["trace_codes"][0] == f"path.{role_name}.begin"
+            assert path["trace_codes"][-2:] == [f"terminal.{terminal}", f"path.{role_name}.end"]
+            assert path["trace_codes"].count(f"terminal.{terminal}") == 1
+            assert sum(code.startswith("terminal.") for code in path["trace_codes"]) == 1
             _assert_state(path["state_before"])
             _assert_state(path["state_after"])
         _assert_state(row["state_before"])
@@ -204,6 +211,11 @@ def test_native_pack_paths_states_and_traces_are_closed():
         assert row["adapter"]["side_effect_mode"] == "dry_run"
         assert row["adapter"]["fixture_binding"] == "digest_only"
         assert row["repeat_policy"]["mode"] in {"once", "consecutive_3"}
+        assert set(row["primary_proof"]) == {"kind", "ref", "sha256"}
+        assert row["primary_proof"]["kind"] == "deterministic"
+        for proof in row["secondary_proof"]:
+            assert set(proof) == {"kind", "ref", "sha256"}
+            assert proof["kind"] == "deterministic"
         assert len(row["secondary_proof"]) == 2
 
 
