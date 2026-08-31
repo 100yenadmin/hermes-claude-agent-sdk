@@ -46,6 +46,7 @@ _PATH_KEYS = ("required", "expected_outcome", "trace_codes", "terminal", "tool_c
 _PROOF_KINDS = ("focused_test", "deterministic", "integration", "live", "source_map", "receipt", "ledger")
 _CLASSIFICATIONS = ("covered_current", "equivalent_host", "requires_0_3_239", "not_runtime_applicable")
 _SURFACES = ("registration", "selection", "approval", "tool", "denial", "recovery", "resume", "isolation", "compaction", "usage", "packaging", "inventory", "sdk")
+_LANE_BY_PACK = {"v2_non_soak": "catalog", "openclaw_active": "openclaw", "sdk_boundary": "sdk_boundary", "clawprobench_native": "clawprobench_native"}
 
 
 class CatalogValidationError(ValueError):
@@ -215,7 +216,7 @@ def _path(value: Any, role: str, field: str) -> dict[str, Any]:
         if expected != "NOT_APPLICABLE" or traces or calls or side_effects or events or kind != "not_applicable" or count != 0 or before != _EMPTY_STATE or after != _EMPTY_STATE:
             _bad(field)
         return result
-    if not traces or traces[0] != f"path.{role}.begin" or traces[-1] != f"path.{role}.end":
+    if not traces or traces[0] != f"path.{role}.begin" or traces[-1] != f"path.{role}.end" or sum(code.startswith("terminal.") for code in traces) != 1 or f"terminal.{kind}" not in traces:
         _bad(field)
     if role == "denial" and (expected != "EXPECTED_NEGATIVE" or kind not in ("failed", "cancelled")):
         _bad(field)
@@ -317,7 +318,7 @@ def _capability(value: Any, source_keys: set[tuple[str, str]], inventory_names: 
         mapped.add(key)
     if not source_rows or source_rows != sorted(source_rows, key=lambda item: (item["pack_id"], item["row_id"])): _bad("source rows")
     _match(result["scenario_id"], _SCENARIO, "scenario")
-    _enum(result["lane"], tuple(EXPECTED_PACK_COUNTS), "lane")
+    if result["lane"] not in _LANE_BY_PACK.values() or len({_LANE_BY_PACK[item["pack_id"]] for item in source_rows}) != 1 or result["lane"] != _LANE_BY_PACK[source_rows[0]["pack_id"]]: _bad("lane")
     _enum(result["surface"], _SURFACES, "surface")
     _enum(result["owner"], ("plugin", "host", "exact_pair"), "owner")
     if result["consumers"] != list(CONSUMERS): _bad("consumers")
@@ -380,11 +381,11 @@ def validate_catalog(value: Mapping[str, Any]) -> dict[str, Any]:
     caps = _list(catalog["capabilities"], "capabilities", 124)
     cap_ids_raw = [cap.get("id") if isinstance(cap, Mapping) else None for cap in caps]
     if any(not isinstance(cap, Mapping) or not isinstance(identifier, str) for cap, identifier in zip(caps, cap_ids_raw)) or cap_ids_raw != sorted(cap_ids_raw): _bad("capabilities")
-    cap_ids, mapped_keys, scopes = set(), set(), {}
+    cap_ids, mapped_keys, scopes, scenario_ids = set(), set(), {}, set()
     for cap in caps:
         normalized, mapped = _capability(cap, source_keys, inventory_names, ledger_classes)
-        if normalized["id"] in cap_ids or mapped_keys & mapped: _bad("capability bijection")
-        cap_ids.add(normalized["id"])
+        if normalized["id"] in cap_ids or normalized["scenario_id"] in scenario_ids or mapped_keys & mapped: _bad("capability bijection")
+        cap_ids.add(normalized["id"]); scenario_ids.add(normalized["scenario_id"])
         mapped_keys |= mapped
         scopes[normalized["id"]] = normalized["session_scope"]
     if mapped_keys != source_keys or len(cap_ids) != 124: _bad("capability bijection")

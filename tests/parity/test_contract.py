@@ -56,7 +56,7 @@ def _path(role: str, required: bool) -> dict[str, Any]:
     return {
         "required": True,
         "expected_outcome": "EXPECTED_NEGATIVE" if role == "denial" else "PASS",
-        "trace_codes": [f"path.{role}.begin", f"path.{role}.end"],
+        "trace_codes": [f"path.{role}.begin", f"terminal.{'failed' if role == 'denial' else 'complete'}", f"path.{role}.end"],
         "terminal": {
             "kind": "failed" if role == "denial" else "complete",
             "count": 1,
@@ -103,7 +103,7 @@ def _catalog() -> dict[str, Any]:
                 "id": f"CAP-{index:03d}",
                 "source_rows": [{"pack_id": pack_id, "row_id": row_id}],
                 "scenario_id": f"SCN-{index:03d}",
-                "lane": pack_id,
+                "lane": {"v2_non_soak": "catalog", "openclaw_active": "openclaw", "sdk_boundary": "sdk_boundary", "clawprobench_native": "clawprobench_native"}[pack_id],
                 "surface": "tool",
                 "owner": "plugin",
                 "consumers": ["inventory", "run", "grade"],
@@ -205,6 +205,7 @@ def test_valid_catalog_and_deterministic_hash_pass() -> None:
     lambda value: value["source_packs"][0].update({"expected_count": 52}),
     lambda value: value["source_packs"][0]["row_ids"].reverse(),
     lambda value: value["capabilities"][0]["positive_path"].update({"outcome": "PASS"}),
+    lambda value: value["capabilities"][0].update({"lane": "v2_non_soak"}),
     lambda value: value["capabilities"][0].update({"prompt": "forbidden"}),
 ])
 def test_catalog_rejects_malformed_or_forbidden_shapes(mutation: Any) -> None:
@@ -224,6 +225,27 @@ def test_catalog_rejects_source_mapping_duplicates_and_hash_tamper() -> None:
     catalog = _catalog()
     catalog["catalog_sha256"] = hash_catalog(catalog)
     catalog["source_map_sha256"] = "c" * 64
+    with pytest.raises(CatalogValidationError):
+        load_catalog(catalog)
+
+
+@pytest.mark.parametrize("trace_codes", [
+    ["path.positive.begin", "path.positive.end"],
+    ["path.positive.begin", "terminal.complete", "terminal.complete", "path.positive.end"],
+    ["path.positive.begin", "terminal.failed", "path.positive.end"],
+])
+def test_required_path_requires_one_matching_terminal_trace(trace_codes: list[str]) -> None:
+    catalog = _catalog()
+    catalog["capabilities"][0]["positive_path"]["trace_codes"] = trace_codes
+    catalog["catalog_sha256"] = hash_catalog(catalog)
+    with pytest.raises(CatalogValidationError):
+        load_catalog(catalog)
+
+
+def test_duplicate_scenario_ids_fail_closed() -> None:
+    catalog = _catalog()
+    catalog["capabilities"][1]["scenario_id"] = catalog["capabilities"][0]["scenario_id"]
+    catalog["catalog_sha256"] = hash_catalog(catalog)
     with pytest.raises(CatalogValidationError):
         load_catalog(catalog)
 
