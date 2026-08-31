@@ -6,6 +6,7 @@ import asyncio
 import importlib
 import os
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import replace
 from typing import Any
 
 from .compatibility import API_MODES, MODEL_PREFIXES, PROVIDER_IDS, RUNTIME_ID
@@ -328,7 +329,12 @@ class ClaudeAgentSDKRuntime:
             elif self._session.can_restart_after_cancel:
                 configuration = self._session_configuration
                 assert configuration is not None
-                self._session = self._new_session(configuration)
+                replacement_configuration = replace(
+                    configuration,
+                    resume_external_session_id=resume_id,
+                )
+                self._session_configuration = replacement_configuration
+                self._session = self._new_session(replacement_configuration)
             bridge = self._bridge
             assert bridge is not None
             bridge.begin_turn(request.correlation_id)
