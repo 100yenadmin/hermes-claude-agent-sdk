@@ -38,6 +38,7 @@ class ExecutionContext:
     contract_hash: str
     catalog_hash: str
     remaining_turn_budget: int
+    repo_root: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -482,6 +483,7 @@ async def run_catalog_async(
                             contract_hash=catalog.contract_hash,
                             catalog_hash=catalog.catalog_hash,
                             remaining_turn_budget=remaining_turn_budget,
+                            repo_root=str(catalog.path.parent.parent),
                         )
                         executor_result = await _call_executor(executor, context)
                         _validate_executor_result(executor_result, remaining_turn_budget)

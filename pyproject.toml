@@ -34,7 +34,7 @@ test = [
 claude-agent-sdk = "hermes_claude_agent_sdk"
 
 [project.entry-points."hermes_claude_agent_sdk.parity_executors"]
-active-approval-turn-tool-followthrough = "hermes_claude_agent_sdk.parity.executors:approval_followthrough"
+v3 = "hermes_claude_agent_sdk.parity.executors:EXECUTORS"
 
 [project.scripts]
 hermes-claude-agent-sdk = "hermes_claude_agent_sdk.__main__:main"

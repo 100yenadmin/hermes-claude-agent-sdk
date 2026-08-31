@@ -5,10 +5,10 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Mapping
-from types import SimpleNamespace
 from typing import Any
 
 from .hashing import sha256_value
+from .focused_suite import boundary_execution_ids, boundary_focused_suite
 from .results import ExecutionClassification
 from .runner import ExecutionBundle, ExecutionContext, ExecutionOutcome
 
@@ -236,4 +236,13 @@ async def approval_followthrough(context: ExecutionContext) -> ExecutionBundle:
     return ExecutionBundle(outcomes=outcomes, turn_count=0)
 
 
-__all__ = ["approval_followthrough"]
+EXECUTORS = {
+    "active-approval-turn-tool-followthrough": approval_followthrough,
+    **{
+        execution_id: boundary_focused_suite
+        for execution_id in boundary_execution_ids()
+    },
+}
+
+
+__all__ = ["EXECUTORS", "approval_followthrough"]

@@ -54,9 +54,9 @@ rows:
     source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L570"
     title: "Preserves cache, effort, and checkpoint-fork controls through SDK options"
     status: "equivalent_host"
-    evidence_state: "new_required"
+    evidence_state: "existing_candidate"
     evidence_refs:
-      - "tests/parity/boundary/cache-effort-checkpoint-fork-options.pending"
+      - "tests/parity/test_boundary_adaptations.py::test_cache_receipts_and_resume_survive_while_unknown_fork_controls_fail_closed"
     release_blocking: true
     mapping_note: "The provider-neutral host owns this invariant; v3 must bind the matching host receipt instead of adding a Claude-specific host type."
   - id: "compatible-warm-query-process-reuse"
@@ -72,9 +72,9 @@ rows:
     source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L665"
     title: "Keeps a terminal error turn warm query reusable for the next turn"
     status: "equivalent_host"
-    evidence_state: "new_required"
+    evidence_state: "existing_candidate"
     evidence_refs:
-      - "tests/parity/boundary/terminal-error-warm-query-reuse.pending"
+      - "tests/test_sdk_session.py::test_terminal_error_turn_keeps_the_compatible_sdk_session_warm"
     release_blocking: true
     mapping_note: "The provider-neutral host owns this invariant; v3 must bind the matching host receipt instead of adding a Claude-specific host type."
   - id: "execution-fingerprint-change-restarts-warm-query"
@@ -109,18 +109,19 @@ rows:
     source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L792"
     title: "Rebinds a persistent SDK approval callback to only the active admitted turn"
     status: "equivalent_host"
-    evidence_state: "new_required"
+    evidence_state: "existing_candidate"
     evidence_refs:
-      - "tests/parity/boundary/approval-callback-active-turn-rebind.pending"
+      - "tests/parity/test_boundary_adaptations.py::test_cancelled_or_late_tool_request_is_fenced_then_next_turn_rebinds"
+      - "tests/test_tool_bridge.py::test_begin_turn_refreshes_tool_correlation_without_rebuilding_bridge"
     release_blocking: true
     mapping_note: "The provider-neutral host owns this invariant; v3 must bind the matching host receipt instead of adding a Claude-specific host type."
   - id: "late-approval-rejected"
     source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L854"
     title: "Rejects an approval that resolves after its exact admitted turn has ended"
     status: "equivalent_host"
-    evidence_state: "new_required"
+    evidence_state: "existing_candidate"
     evidence_refs:
-      - "tests/parity/boundary/late-approval-rejected.pending"
+      - "tests/parity/test_boundary_adaptations.py::test_cancelled_or_late_tool_request_is_fenced_then_next_turn_rebinds"
     release_blocking: true
     mapping_note: "The provider-neutral host owns this invariant; v3 must bind the matching host receipt instead of adding a Claude-specific host type."
   - id: "background-provisional-result-settlement"
@@ -146,9 +147,9 @@ rows:
     source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L975"
     title: "Preserves variadic directories, tools, and managed plugin MCP isolation"
     status: "not_runtime_applicable"
-    evidence_state: "new_required"
+    evidence_state: "existing_candidate"
     evidence_refs:
-      - "tests/parity/boundary/variadic-directories-tools-managed-mcp-isolation.pending"
+      - "tests/parity/test_boundary_adaptations.py::test_variadic_sdk_surfaces_are_denied_without_weakening_tool_or_mcp_isolation"
     release_blocking: true
     mapping_note: "The current runtime surface does not expose this upstream mechanism; v3 must prove the adapted fail-closed or host-equivalent behavior, not count the classification as a pass."
   - id: "wildcard-mcp-grants-expand-to-admitted-tools"
@@ -164,18 +165,18 @@ rows:
     source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L1078"
     title: "Fails closed when the official SDK exits without a terminal result"
     status: "covered_current"
-    evidence_state: "new_required"
+    evidence_state: "existing_candidate"
     evidence_refs:
-      - "tests/parity/boundary/missing-terminal-result-fails-closed.pending"
+      - "tests/test_sdk_session.py::test_sdk_stream_without_a_terminal_result_fails_closed"
     release_blocking: true
     mapping_note: "Current plugin behavior has a direct deterministic evidence target; the v3 executor and trace grade remain required."
   - id: "structured-question-not-tool-approval"
     source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.permissions.test.ts#L104"
     title: "Routes AskUserQuestion through structured input instead of tool approval"
     status: "not_runtime_applicable"
-    evidence_state: "new_required"
+    evidence_state: "existing_candidate"
     evidence_refs:
-      - "tests/parity/boundary/structured-question-not-tool-approval.pending"
+      - "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers"
     release_blocking: true
     mapping_note: "The current runtime surface does not expose this upstream mechanism; v3 must prove the adapted fail-closed or host-equivalent behavior, not count the classification as a pass."
   - id: "native-tool-policy-precedes-user-shadow"
@@ -200,27 +201,27 @@ rows:
     source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk-user-input.test.ts#L50"
     title: "Maps questions and answers while deduplicating SDK callbacks"
     status: "not_runtime_applicable"
-    evidence_state: "new_required"
+    evidence_state: "existing_candidate"
     evidence_refs:
-      - "tests/parity/boundary/structured-question-answer-mapping-dedup.pending"
+      - "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers"
     release_blocking: true
     mapping_note: "The current runtime surface does not expose this upstream mechanism; v3 must prove the adapted fail-closed or host-equivalent behavior, not count the classification as a pass."
   - id: "structured-question-skip-denial-guidance"
     source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk-user-input.test.ts#L108"
     title: "Returns actionable denial guidance when the operator skips"
     status: "not_runtime_applicable"
-    evidence_state: "new_required"
+    evidence_state: "existing_candidate"
     evidence_refs:
-      - "tests/parity/boundary/structured-question-skip-denial-guidance.pending"
+      - "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers"
     release_blocking: true
     mapping_note: "The current runtime surface does not expose this upstream mechanism; v3 must prove the adapted fail-closed or host-equivalent behavior, not count the classification as a pass."
   - id: "malformed-question-rejected-before-host"
     source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk-user-input.test.ts#L126"
     title: "Rejects malformed questions before invoking the host"
     status: "not_runtime_applicable"
-    evidence_state: "new_required"
+    evidence_state: "existing_candidate"
     evidence_refs:
-      - "tests/parity/boundary/malformed-question-rejected-before-host.pending"
+      - "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers"
     release_blocking: true
     mapping_note: "The current runtime surface does not expose this upstream mechanism; v3 must prove the adapted fail-closed or host-equivalent behavior, not count the classification as a pass."
-proof_boundary: "This ledger classifies adaptation ownership and evidence targets. Existing-candidate references are not v3 result packets; new_required rows remain pending, and no row passes until its catalog paths grade on the exact candidate."
+proof_boundary: "This ledger classifies adaptation ownership and evidence targets. Existing-candidate references are not v3 result packets, and no row passes until its catalog paths grade on the exact candidate."

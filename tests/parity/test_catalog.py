@@ -46,7 +46,7 @@ def test_boundary_ledger_has_exactly_one_status_per_source_row(catalog) -> None:
     )
 
 
-def test_boundary_ledger_matches_catalog_and_keeps_pending_evidence_visible(catalog) -> None:
+def test_boundary_ledger_matches_catalog_and_has_no_proofless_pending_target(catalog) -> None:
     ledger = yaml.safe_load(
         (CATALOG_PATH.parent / "agent-sdk-boundary-ledger-v3.yaml").read_text(
             encoding="utf-8"
@@ -63,7 +63,12 @@ def test_boundary_ledger_matches_catalog_and_keeps_pending_evidence_visible(cata
     assert all(row["release_blocking"] is True for row in rows)
     assert all(row["evidence_refs"] for row in rows)
     assert all(row["status"] == catalog_rows[row["id"]].sdk_ledger_status for row in rows)
-    assert any(row["evidence_state"] == "new_required" for row in rows)
+    assert all(row["evidence_state"] == "existing_candidate" for row in rows)
+    assert all(
+        not reference.endswith(".pending")
+        for row in rows
+        for reference in row["evidence_refs"]
+    )
     assert ledger["policy"]["exclusion_is_pass"] is False
 
 
