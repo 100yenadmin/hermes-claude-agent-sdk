@@ -5,16 +5,22 @@ whole-turn runtime plugin for Hermes Agent. It is being extracted from
 [NousResearch/hermes-agent PR #65982](https://github.com/NousResearch/hermes-agent/pull/65982)
 behind a provider-neutral AgentRuntime v1 host contract.
 
-The default branch is currently a packaging and policy shell. It intentionally
-registers no runtime and performs no SDK import, credential lookup, subprocess
-start, or model query. Do not treat it as a working runtime or release.
+The current candidate registers a provider-neutral AgentRuntime v1 descriptor
+through Hermes' existing plugin entry point. Registration is lazy: it performs
+no SDK import, credential lookup, subprocess start, or model query. The runtime
+body is still a minimal fake-event shell; real Claude SDK session/process
+extraction is tracked separately.
 
 ## Compatibility target
 
 The first release candidate targets the provider-neutral host branch
-`codex/agent-runtime-plugin-api-v1`, based on Hermes main
-`64b96bb5d2755f1d34347e1fb15924a97d652f31`. The architecture issue remains
-open until that branch and its exact candidate SHA are published and read back.
+`codex/agent-runtime-plugin-api-v1` at exact host SHA
+`fe50334bf6976a048689135d776a8da569a034f4`, based on Hermes main
+`64b96bb5d2755f1d34347e1fb15924a97d652f31`.
+
+Run `hermes_claude_agent_sdk.doctor()` (or `doctor_json()`) from an environment
+with the public host API to inspect API and capability compatibility. The
+doctor never reads credentials or constructs an SDK client.
 
 - [Project tracker](https://github.com/100yenadmin/hermes-claude-agent-sdk/issues/1)
 - [Compatibility matrix](docs/compatibility.md)
