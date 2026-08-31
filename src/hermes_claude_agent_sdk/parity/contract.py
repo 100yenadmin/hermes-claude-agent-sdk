@@ -34,8 +34,8 @@ _SCENARIO = re.compile(r"^SCN-[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$")
 _PARTITION = re.compile(r"^PART-[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$")
 _ROW = re.compile(r"^[A-Za-z][A-Za-z0-9_.:-]{0,79}$")
 _FIXTURE = re.compile(r"^fixture:[A-Za-z0-9][A-Za-z0-9_.:-]{0,95}$")
-_REF = re.compile(r"^(?:src|test|doc|evidence|ledger):[A-Za-z0-9][A-Za-z0-9_.:#@-]{0,190}$")
-_SRC_REF = re.compile(r"^src:[A-Za-z0-9][A-Za-z0-9_.:#@-]{0,190}$")
+_REF = re.compile(r"^(?:src|test|doc|evidence|ledger):[A-Za-z0-9][A-Za-z0-9_.:#@/-]{0,190}$")
+_SRC_REF = re.compile(r"^src:[A-Za-z0-9][A-Za-z0-9_.:#@/-]{0,190}$")
 _EVIDENCE_REF = re.compile(r"^evidence:[A-Za-z0-9][A-Za-z0-9_.:#@-]{0,190}$")
 _SEMVER = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 _FORBIDDEN_MARKERS = ("prompt", "transcript", "cookie", "authorization", "private_key")
@@ -86,7 +86,7 @@ def _text(value: Any, field: str, maximum: int = 4096) -> str:
         _bad(field)
     if any(ord(char) < 32 or ord(char) == 127 for char in value):
         _bad(field)
-    if "\\" in value or value.startswith("/") or ".." in value or "//" in value:
+    if "\\" in value or value.startswith("/") or ":/" in value or ".." in value or "//" in value:
         _bad(field)
     lowered = value.casefold()
     if any(marker in lowered for marker in _FORBIDDEN_MARKERS):

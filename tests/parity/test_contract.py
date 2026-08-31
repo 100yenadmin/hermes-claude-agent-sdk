@@ -199,6 +199,31 @@ def test_valid_catalog_and_deterministic_hash_pass() -> None:
     assert hash_catalog({key: catalog[key] for key in reversed(catalog)}) == result["catalog_sha256"]
 
 
+def test_repository_relative_source_and_proof_refs_allow_single_slashes() -> None:
+    catalog = _catalog()
+    catalog["source_packs"][1]["source"]["source_ref"] = "src:openclaw@abc123:extensions/qa-lab/src/agentic-parity.ts#L6-11"
+    catalog["source_packs"][3]["source"]["source_ref"] = "src:clawprobench@abc123:scenario:scenarios/constraints/19_cron_conflict_buffer_live.yaml"
+    catalog["capabilities"][53]["primary_proof"]["ref"] = "src:openclaw@abc123:extensions/qa-lab/src/agentic-parity.ts#L6-11"
+    catalog["capabilities"][88]["primary_proof"]["ref"] = "src:clawprobench@abc123:scenario:scenarios/constraints/19_cron_conflict_buffer_live.yaml"
+    catalog["source_map_sha256"] = hash_source_map(catalog["source_packs"])
+    catalog["catalog_sha256"] = hash_catalog(catalog)
+    assert load_catalog(catalog)["catalog_sha256"] == catalog["catalog_sha256"]
+
+
+@pytest.mark.parametrize("source_ref", [
+    "src:openclaw@abc123:extensions/../secret",
+    "src:openclaw@abc123:/absolute/path",
+    "src:openclaw@abc123:extensions//qa-lab",
+    r"src:openclaw@abc123:extensions\\qa-lab",
+])
+def test_repository_relative_refs_reject_unsafe_paths(source_ref: str) -> None:
+    catalog = _catalog()
+    catalog["catalog_sha256"] = hash_catalog(catalog)
+    catalog["source_packs"][1]["source"]["source_ref"] = source_ref
+    with pytest.raises(CatalogValidationError):
+        load_catalog(catalog)
+
+
 @pytest.mark.parametrize("mutation", [
     lambda value: value.update({"extra": True}),
     lambda value: value.pop("capabilities"),
