@@ -156,10 +156,9 @@ def _read_sorted(values: Any, field: str, parser: Any) -> tuple[Any, ...]:
     return entries
 
 
-def _declared_projection(schema_version: int, tools: Sequence[ToolInventoryEntry],
+def _declared_projection(tools: Sequence[ToolInventoryEntry],
                          servers: Sequence[MCPServerInventoryEntry]) -> dict[str, object]:
-    return {"schema_version": schema_version,
-            "tools": [item.to_dict() for item in tools],
+    return {"tools": [item.to_dict() for item in tools],
             "mcp_servers": [item.to_dict() for item in servers]}
 
 
@@ -190,7 +189,7 @@ class DeclaredInventory:
         object.__setattr__(self, "tools", tools)
         object.__setattr__(self, "mcp_servers", servers)
         _verify_hash(self.declared_inventory_sha256,
-                     canonical_sha256(_declared_projection(self.schema_version, tools, servers)),
+                     canonical_sha256(_declared_projection(tools, servers)),
                      "declared_inventory_sha256")
 
     @classmethod
@@ -202,7 +201,8 @@ class DeclaredInventory:
                    raw["declared_inventory_sha256"])
 
     def to_dict(self) -> dict[str, object]:
-        return {**_declared_projection(self.schema_version, self.tools, self.mcp_servers),
+        return {"schema_version": self.schema_version,
+                **_declared_projection(self.tools, self.mcp_servers),
                 "declared_inventory_sha256": self.declared_inventory_sha256}
 
 
@@ -278,7 +278,7 @@ def build_declared_inventory(tools: Sequence[ToolInventoryEntry | Mapping[str, A
         raise InventoryValidationError("schema_version must be 1")
     normalized_tools = _sort_entries(tuple(_tool(item) for item in _array(tools, "tools")), "tools")
     normalized_servers = _sort_entries(tuple(_server(item) for item in _array(mcp_servers, "mcp_servers")), "mcp_servers")
-    digest = canonical_sha256(_declared_projection(schema_version, normalized_tools, normalized_servers))
+    digest = canonical_sha256(_declared_projection(normalized_tools, normalized_servers))
     return DeclaredInventory(schema_version, normalized_tools, normalized_servers, digest)
 
 
@@ -288,7 +288,7 @@ def validate_declared_inventory(value: DeclaredInventory | Mapping[str, Any]) ->
 
 def compute_declared_inventory_sha256(value: DeclaredInventory | Mapping[str, Any]) -> str:
     inventory = validate_declared_inventory(value)
-    return canonical_sha256(_declared_projection(inventory.schema_version, inventory.tools, inventory.mcp_servers))
+    return canonical_sha256(_declared_projection(inventory.tools, inventory.mcp_servers))
 
 
 def _index(tools: Sequence[Any], servers: Sequence[Any]) -> dict[tuple[str, str], Any]:

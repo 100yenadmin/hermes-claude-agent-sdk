@@ -52,11 +52,14 @@ def test_declared_inventory_is_sorted_and_hashes_only_declared_projection() -> N
     assert [item.name for item in inventory.tools] == ["alpha", "zeta"]
     assert [item.name for item in inventory.mcp_servers] == ["hermes"]
     projection = {
-        "schema_version": 1,
         "tools": [item.to_dict() for item in inventory.tools],
         "mcp_servers": [item.to_dict() for item in inventory.mcp_servers],
     }
     assert inventory.declared_inventory_sha256 == canonical_sha256(projection)
+    assert inventory.declared_inventory_sha256 != canonical_sha256(
+        {"schema_version": 1, **projection}
+    )
+    assert inventory.to_dict()["schema_version"] == 1
     assert compute_declared_inventory_sha256(inventory) == inventory.declared_inventory_sha256
     assert validate_declared_inventory(inventory).to_dict() == inventory.to_dict()
 
