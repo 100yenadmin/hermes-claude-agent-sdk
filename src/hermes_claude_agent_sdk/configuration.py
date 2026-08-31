@@ -155,7 +155,9 @@ class SDKSessionConfiguration:
             "system_prompt": system_prompt,
             "env": dict(self.env_overrides),
             "setting_sources": list(self.setting_sources),
-            "tools": [],
+            # Keep only Claude's native Agent tool available. Hermes tools are
+            # exposed through the strict, host-owned MCP bridge below.
+            "tools": ["Agent"],
             "mcp_servers": dict(self.mcp_servers),
             "strict_mcp_config": bool(self.mcp_servers),
             "allowed_tools": list(self.allowed_tools),

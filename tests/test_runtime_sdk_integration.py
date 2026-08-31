@@ -318,7 +318,7 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
         fields = clients[0].options.fields
         assert fields["permission_mode"] == "bypassPermissions"
         assert fields["system_prompt"]["append"].startswith("stable system prompt")
-        assert fields["tools"] == []
+        assert fields["tools"] == ["Agent"]
         assert fields["mcp_servers"]["hermes-tools"]["tools"] == []
         assert clients[0].queries == ["hello runtime"]
         assert clients[0].disconnected == 1

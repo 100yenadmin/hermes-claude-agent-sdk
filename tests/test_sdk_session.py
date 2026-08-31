@@ -287,7 +287,7 @@ def test_text_turn_uses_public_options_one_reader_projection_and_exact_close() -
         assert fields["cwd"] == "/synthetic/workspace"
         assert fields["env"] == {"ANTHROPIC_API_KEY": ""}
         assert fields["setting_sources"] == []
-        assert fields["tools"] == []
+        assert fields["tools"] == ["Agent"]
         assert set(fields["hooks"]) == {"PreCompact"}
         assert client.queries == ["synthetic prompt"]
         assert client.receive_calls == 1
