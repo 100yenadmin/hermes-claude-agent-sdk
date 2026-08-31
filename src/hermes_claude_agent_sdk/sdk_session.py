@@ -374,10 +374,16 @@ class SDKSession:
             try:
                 loop = asyncio.get_running_loop()
                 deadline = loop.time() + self._configuration.turn_timeout_seconds
-                await asyncio.wait_for(
-                    self._client.query(prompt),
-                    max(0.0, deadline - loop.time()),
-                )
+                try:
+                    await asyncio.wait_for(
+                        self._client.query(prompt),
+                        max(0.0, deadline - loop.time()),
+                    )
+                except asyncio.TimeoutError:
+                    await self._interrupt_then_close()
+                    return SessionTurnResult(
+                        SessionOutcome.TIMED_OUT, error_code="sdk_turn_timeout"
+                    )
                 while True:
                     try:
                         message = await asyncio.wait_for(

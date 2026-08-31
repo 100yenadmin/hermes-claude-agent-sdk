@@ -181,6 +181,38 @@ def test_turn_timeout_is_one_deadline_not_reset_by_stream_activity() -> None:
     asyncio.run(scenario())
 
 
+def test_query_phase_timeout_has_the_same_typed_timeout_result() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        sdk = _sdk(clients, [[]])
+        original_factory = sdk.ClaudeSDKClient
+
+        def make_slow_client(*, options: object) -> _FakeClient:
+            client = original_factory(options=options)
+
+            async def slow_query(_prompt: str) -> None:
+                await asyncio.sleep(1)
+
+            client.query = slow_query
+            return client
+
+        sdk.ClaudeSDKClient = make_slow_client
+        session = SDKSession(
+            _configuration(turn_timeout_seconds=0.01),
+            sdk_module=sdk,
+        )
+
+        result = await session.run_turn("bounded query")
+        await session.close()
+
+        assert result.outcome is SessionOutcome.TIMED_OUT
+        assert result.error_code == "sdk_turn_timeout"
+        assert clients[0].interrupted == 1
+        assert clients[0].disconnected == 1
+
+    asyncio.run(scenario())
+
+
 def test_text_turn_uses_public_options_one_reader_projection_and_exact_close() -> None:
     async def scenario() -> None:
         clients: list[_FakeClient] = []
