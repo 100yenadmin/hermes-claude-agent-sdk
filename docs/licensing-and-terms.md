@@ -15,6 +15,9 @@ email addresses.
 The MIT license grants permissions for the covered source and documentation
 subject to its conditions and disclaimer. It does not grant rights in software,
 assets, trademarks, accounts, or services that are not covered by that license.
+For clarity, that grant includes customer and commercial use of the covered
+Software; the separate Anthropic service boundary below does not narrow those
+MIT rights.
 
 ## 2. Dependency license metadata
 
@@ -47,9 +50,9 @@ In particular:
 - The MIT source license does not provide an Anthropic account, subscription,
   OAuth entitlement, API permission, or billing allowance.
 - Anthropic service terms are not equivalent to the MIT license.
-- This repository does not grant an Anthropic account or service entitlement
-  and does not certify that a proposed use complies with current Anthropic
-  service terms.
+- This repository does not grant an Anthropic account or service entitlement,
+  and it does not certify that customer or commercial use of Anthropic services
+  complies with current Anthropic service terms.
 - Credential, account, usage, and data-handling decisions remain the
   operator's responsibility and must not be inferred from source licensing.
 

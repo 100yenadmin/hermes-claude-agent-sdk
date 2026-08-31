@@ -47,6 +47,36 @@ doctor never reads credentials or constructs an SDK client.
 - [Subscription-only security model](docs/subscription-only-security.md)
 - [Removal and rollback](docs/removal-and-rollback.md)
 
+## Installation and activation
+
+Install the package into the Hermes environment:
+
+```sh
+python -m pip install hermes-claude-agent-sdk
+```
+
+Installation exposes the `hermes_agent.plugins` entry point but does not enable
+the plugin. Hermes keeps installed plugins disabled until the operator opts in
+explicitly. Enable this plugin with the supported host command:
+
+```sh
+hermes plugins enable claude-agent-sdk
+```
+
+To roll back while keeping the package installed, disable the entry point:
+
+```sh
+hermes plugins disable claude-agent-sdk
+```
+
+For full removal, disable the entry point first and then uninstall the package:
+
+```sh
+python -m pip uninstall -y hermes-claude-agent-sdk
+```
+
+Disabling or uninstalling this plugin does not remove built-in Hermes behavior.
+
 ## Release boundary
 
 No package-index release is authorized. The first distributable candidate will
