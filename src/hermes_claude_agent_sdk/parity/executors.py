@@ -9,6 +9,7 @@ from typing import Any
 
 from .hashing import sha256_value
 from .focused_suite import boundary_execution_ids, boundary_focused_suite
+from .native_suite import native_execution_ids, native_scenario_suite
 from .results import ExecutionClassification
 from .runner import ExecutionBundle, ExecutionContext, ExecutionOutcome
 
@@ -241,6 +242,10 @@ EXECUTORS = {
     **{
         execution_id: boundary_focused_suite
         for execution_id in boundary_execution_ids()
+    },
+    **{
+        execution_id: native_scenario_suite
+        for execution_id in native_execution_ids()
     },
 }
 

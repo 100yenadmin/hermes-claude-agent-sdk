@@ -79,7 +79,7 @@ def test_focused_suite_builds_three_sanitized_path_outcomes(
     )
     assert all(
         [event["kind"] for event in outcome.normalized_events]
-        == ["start", "focused_test", "terminal"]
+        == ["start", "state", "terminal"]
         for outcome in result.outcomes.values()
     )
 

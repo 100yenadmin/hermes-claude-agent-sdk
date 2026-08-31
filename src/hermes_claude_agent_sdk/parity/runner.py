@@ -39,6 +39,7 @@ class ExecutionContext:
     catalog_hash: str
     remaining_turn_budget: int
     repo_root: str = ""
+    inventory_tools: tuple[Mapping[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -380,6 +381,7 @@ async def run_catalog_async(
     output: str | Path,
     resume: bool,
     registry: ExecutorRegistry,
+    inventory_tools: Sequence[Mapping[str, str]] = (),
     capability_ids: Sequence[str] = (),
     max_trials_per_path: int = 6,
 ) -> tuple[tuple[ResultPacket, ...], GradeReport]:
@@ -484,6 +486,7 @@ async def run_catalog_async(
                             catalog_hash=catalog.catalog_hash,
                             remaining_turn_budget=remaining_turn_budget,
                             repo_root=str(catalog.path.parent.parent),
+                            inventory_tools=tuple(inventory_tools),
                         )
                         executor_result = await _call_executor(executor, context)
                         _validate_executor_result(executor_result, remaining_turn_budget)

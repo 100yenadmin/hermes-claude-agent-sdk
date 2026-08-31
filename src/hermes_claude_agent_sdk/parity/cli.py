@@ -143,6 +143,7 @@ def _run(args: argparse.Namespace) -> int:
         output=args.output,
         resume=args.resume,
         registry=load_entrypoint_executors(),
+        inventory_tools=inventory.observed_tools,
         capability_ids=tuple(args.capability_id),
     )
     exact_candidate = candidate_hash(

@@ -157,14 +157,19 @@ def _terminal_events(
     output_hash: str,
 ) -> tuple[dict[str, Any], ...]:
     terminal = "denied" if passed and path == "denial" else "completed" if passed else "failed"
+    evidence_hash = sha256_value(
+        {
+            "node_manifest_hash": node_manifest_hash,
+            "output_hash": output_hash,
+        }
+    )
     return (
         {"sequence": 1, "kind": "start", "status": "started"},
         {
             "sequence": 2,
-            "kind": "focused_test",
-            "status": "passed" if passed else "failed",
-            "node_manifest_hash": node_manifest_hash,
-            "output_hash": output_hash,
+            "kind": "state",
+            "status": "focused_test_passed" if passed else "focused_test_failed",
+            "metadata_hash": evidence_hash,
         },
         {
             "sequence": 3,
