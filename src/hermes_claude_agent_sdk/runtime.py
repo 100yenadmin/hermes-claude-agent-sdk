@@ -367,11 +367,20 @@ class ClaudeAgentSDKRuntime:
                 )
             )
             cancel_sent = False
+            cancellation_unavailable = False
             while not task.done() or not queue.empty():
                 try:
                     projection = await asyncio.wait_for(queue.get(), 0.05)
                 except asyncio.TimeoutError:
-                    if host.cancellation_requested() and not cancel_sent:
+                    try:
+                        cancellation_state = host.cancellation_requested()
+                    except Exception:
+                        cancellation_state = None
+                    if cancellation_state is True and not cancel_sent:
+                        cancel_sent = True
+                        await session.cancel()
+                    elif cancellation_state is not False and not cancel_sent:
+                        cancellation_unavailable = True
                         cancel_sent = True
                         await session.cancel()
                     continue
@@ -402,6 +411,25 @@ class ClaudeAgentSDKRuntime:
                     yield event
 
             result = await task
+            if cancellation_unavailable:
+                phase = (
+                    RuntimeFailurePhase.AFTER_SIDE_EFFECTS
+                    if bridge.host_execution_count > bridge_execution_start
+                    else RuntimeFailurePhase.AFTER_VISIBLE_OUTPUT
+                    if visible
+                    else RuntimeFailurePhase.BEFORE_VISIBLE_OUTPUT
+                )
+                terminal = True
+                yield RuntimeFailedEvent(
+                    failure=_failure(
+                        "claude_runtime_cancellation_unavailable",
+                        "Claude runtime cancellation state is unavailable",
+                        phase,
+                        replay_safe=False,
+                    )
+                )
+                await session.release_background_results()
+                return
             if result.outcome is SessionOutcome.COMPLETE:
                 final_text = result.final_text or ""
                 if result.state_update.external_session_id is not None:

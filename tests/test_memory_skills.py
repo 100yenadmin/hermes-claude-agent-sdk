@@ -64,6 +64,18 @@ def test_schema_hash_is_stable_for_mapping_order_but_changes_for_schema_content(
     )
 
 
+def test_non_string_mapping_keys_hash_without_comparing_opaque_values() -> None:
+    schema = {
+        "name": "memory",
+        "parameters": {
+            1: {"first": "opaque"},
+            2: {"second": "opaque"},
+        },
+    }
+
+    assert len(stable_tool_schema_hash(schema)) == 64
+
+
 def test_unknown_and_malformed_schemas_are_ignored_without_raw_payload_capture() -> None:
     refs = build_memory_skill_references(
         [

@@ -92,6 +92,9 @@ class _Client:
             )
         if self.mode in {"cancel", "compaction_watchdog"}:
             return
+        if self.mode == "cancellation_probe_failure":
+            await self._messages.put(AssistantMessage([TextBlock("queued before probe failure")]))
+            return
         if self.mode not in {"unknown", "tool_failure"}:
             await self._messages.put(SystemMessage("init", {"apiKeySource": "none"}))
             await self._messages.put(AssistantMessage([TextBlock("hello")]))
@@ -165,9 +168,15 @@ def _sdk(mode: str, clients: list[_Client]) -> ModuleType:
 
 
 class _Host:
-    def __init__(self, *, cancel_after: int | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        cancel_after: int | None = None,
+        cancellation_error_after: int | None = None,
+    ) -> None:
         self.calls: list[tuple[str, dict[str, object]]] = []
         self.cancel_after = cancel_after
+        self.cancellation_error_after = cancellation_error_after
         self.cancel_checks = 0
         self.background = []
         self.observed_events: list[str] = []
@@ -202,6 +211,11 @@ class _Host:
 
     def cancellation_requested(self) -> bool:
         self.cancel_checks += 1
+        if (
+            self.cancellation_error_after is not None
+            and self.cancel_checks >= self.cancellation_error_after
+        ):
+            raise RuntimeError("synthetic cancellation probe failure")
         return self.cancel_after is not None and self.cancel_checks >= self.cancel_after
 
 
@@ -518,6 +532,25 @@ def test_cancellation_interrupts_and_closes_once_with_one_terminal() -> None:
         assert client.disconnected == 1
 
     asyncio.run(scenario())
+
+
+def test_in_loop_cancellation_probe_failure_drains_projection_then_fails_closed() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("cancellation_probe_failure", clients)
+        host = _Host(cancellation_error_after=2)
+        events = await _collect(runtime, _request(), host)
+        await runtime.close()
+        return events, clients[0]
+
+    events, client = asyncio.run(scenario())
+
+    assert [event.kind.value for event in events] == ["content", "failed"]
+    assert events[0].text == "queued before probe failure"
+    assert events[-1].failure.code == "claude_runtime_cancellation_unavailable"
+    assert events[-1].failure.phase.value == "after_visible_output"
+    assert client.interrupted == 1
+    assert client.disconnected == 1
 
 
 def test_runtime_reuses_one_client_reader_and_uses_host_only_for_idle_completion() -> None:

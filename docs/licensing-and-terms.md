@@ -47,14 +47,16 @@ In particular:
 - The MIT source license does not provide an Anthropic account, subscription,
   OAuth entitlement, API permission, or billing allowance.
 - Anthropic service terms are not equivalent to the MIT license.
-- This repository does not grant permission for customer or commercial use and
-  does not certify that a proposed use complies with current service terms.
+- This repository does not grant an Anthropic account or service entitlement
+  and does not certify that a proposed use complies with current Anthropic
+  service terms.
 - Credential, account, usage, and data-handling decisions remain the
   operator's responsibility and must not be inferred from source licensing.
 
-Any customer-facing or commercial distribution decision requires the operator's
-own terms review and, where appropriate, legal review. No sentence in this
-document should be read as a compatibility opinion or approval.
+Any use of Anthropic services requires the operator's own terms review and,
+where appropriate, legal review. No sentence in this document should be read as
+a service-terms compatibility opinion or approval. These service restrictions
+do not narrow the rights granted for the Software by `LICENSE`.
 
 ## 4. Release-time checklist
 

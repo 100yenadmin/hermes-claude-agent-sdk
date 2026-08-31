@@ -45,7 +45,7 @@ def _canonical_value(value: Any) -> Any:
                 pairs.append((f"<key:{type(key).__name__}>", {"__type__": type(item).__name__}))
                 continue
             pairs.append((key, _canonical_value(item)))
-        return {key: item for key, item in sorted(pairs)}
+        return dict(sorted(pairs, key=lambda pair: pair[0]))
     if isinstance(value, (list, tuple)):
         return [_canonical_value(item) for item in value]
     if isinstance(value, (set, frozenset)):
