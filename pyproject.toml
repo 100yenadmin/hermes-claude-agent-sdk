@@ -31,6 +31,9 @@ test = [
 [project.entry-points."hermes_agent.plugins"]
 claude-agent-sdk = "hermes_claude_agent_sdk"
 
+[project.scripts]
+hermes-claude-agent-sdk = "hermes_claude_agent_sdk.__main__:main"
+
 [project.urls]
 Homepage = "https://github.com/100yenadmin/hermes-claude-agent-sdk"
 Issues = "https://github.com/100yenadmin/hermes-claude-agent-sdk/issues"
