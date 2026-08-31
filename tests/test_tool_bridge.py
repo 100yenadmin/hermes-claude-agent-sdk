@@ -186,6 +186,57 @@ def test_unsupported_schema_fails_closed_at_construction() -> None:
         )
 
 
+def test_host_schema_defaults_and_anyof_are_supported_and_enforced() -> None:
+    host = RecordingHost()
+    bridge = HostToolBridge(
+        host,
+        [
+            _openai(
+                "terminal",
+                {
+                    "type": "object",
+                    "properties": {
+                        "command": {
+                            "description": "Synthetic command",
+                            "anyOf": [
+                                {"type": "string"},
+                                {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "minItems": 1,
+                                },
+                            ],
+                        },
+                        "timeout": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 30,
+                        },
+                    },
+                    "required": ["command"],
+                    "additionalProperties": False,
+                },
+            )
+        ],
+    )
+
+    _run(bridge.handle_tool_call("one", "terminal", {"command": "pwd"}))
+    _run(
+        bridge.handle_tool_call(
+            "two",
+            "terminal",
+            {"command": ["pwd"], "timeout": 10},
+        )
+    )
+    with pytest.raises(ToolBridgeRequestError):
+        _run(bridge.handle_tool_call("three", "terminal", {"command": 7}))
+
+    assert host.calls == [
+        ("terminal", {"command": "pwd"}),
+        ("terminal", {"command": ["pwd"], "timeout": 10}),
+    ]
+
+
 def test_cancellation_and_cancellation_probe_failure_do_not_call_host() -> None:
     host = RecordingHost()
     host.cancelled = True

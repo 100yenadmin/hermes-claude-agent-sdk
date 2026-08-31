@@ -248,6 +248,8 @@ _SCHEMA_KEYS = frozenset(
         "additionalProperties",
         "items",
         "enum",
+        "default",
+        "anyOf",
         "minLength",
         "maxLength",
         "minimum",
@@ -280,8 +282,41 @@ def _valid_schema(schema: Any, depth: int = 0) -> bool:
     if any(type(key) is not str or key not in _SCHEMA_KEYS for key in schema):
         return False
     schema_type = schema.get("type")
-    if type(schema_type) is not str or schema_type not in _SCHEMA_TYPES:
+    alternatives = schema.get("anyOf")
+    if schema_type is None and alternatives is None:
         return False
+    if schema_type is not None and (
+        type(schema_type) is not str or schema_type not in _SCHEMA_TYPES
+    ):
+        return False
+
+    if "default" in schema and _copy_plain_json(schema["default"]) is _INVALID:
+        return False
+    if alternatives is not None:
+        if (
+            type(alternatives) is not list
+            or not alternatives
+            or len(alternatives) > 16
+            or any(not _valid_schema(child, depth + 1) for child in alternatives)
+        ):
+            return False
+        if schema_type is None:
+            return not any(
+                key in schema
+                for key in (
+                    "properties",
+                    "required",
+                    "additionalProperties",
+                    "items",
+                    "minLength",
+                    "maxLength",
+                    "minimum",
+                    "maximum",
+                    "minItems",
+                    "maxItems",
+                    "enum",
+                )
+            )
 
     if "description" in schema and type(schema["description"]) is not str:
         return False
@@ -428,7 +463,14 @@ def normalize_tool_schemas(specs: Sequence[Any]) -> tuple[HostToolDefinition, ..
 
 
 def _matches_schema(value: Any, schema: dict[str, Any]) -> bool:
-    schema_type = schema["type"]
+    alternatives = schema.get("anyOf")
+    if alternatives is not None and not any(
+        _matches_schema(value, child) for child in alternatives
+    ):
+        return False
+    schema_type = schema.get("type")
+    if schema_type is None:
+        return True
     if schema_type == "object":
         if type(value) is not dict:
             return False
