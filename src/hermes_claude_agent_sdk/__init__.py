@@ -35,6 +35,14 @@ def register(context: object) -> None:
     SDK client, credential lookup, subprocess, or model query occurs here.
     """
 
+    register_profile = getattr(context, "register_provider_profile", None)
+    if not callable(register_profile):
+        raise TypeError("Hermes plugin context lacks register_provider_profile()")
+    profile = register_provider_profile()
+    if profile is None:
+        raise RuntimeError("Hermes provider profile API is unavailable")
+    register_profile(profile)
+
     register_agent_runtime = getattr(context, "register_agent_runtime", None)
     if not callable(register_agent_runtime):
         raise TypeError("Hermes plugin context lacks register_agent_runtime()")

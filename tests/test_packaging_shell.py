@@ -33,6 +33,10 @@ def test_plugin_entry_point_loads_bare_module_without_side_effects() -> None:
 
     class Context:
         registration = None
+        provider_profile = None
+
+        def register_provider_profile(self, profile):
+            self.provider_profile = profile
 
         def register_agent_runtime(self, *, descriptor, factory):
             self.registration = (descriptor, factory)
@@ -41,3 +45,4 @@ def test_plugin_entry_point_loads_bare_module_without_side_effects() -> None:
     assert module.register(context) is None
     assert context.registration is not None
     assert context.registration[1] is module.create_runtime
+    assert context.provider_profile.name == "claude-agent-sdk"

@@ -2,7 +2,7 @@
 
 | Plugin | Hermes host | SDK | Status |
 | --- | --- | --- | --- |
-| `0.1.0rc1` candidate | AgentRuntime v1 at `54b76cc61d32449a4653b61e974ab78deefe64ac` | `claude-agent-sdk==0.2.144` | Local contract-tested |
+| `0.1.0rc1` candidate | AgentRuntime v1 at `7d025c946e743799f26eb9abcb4c0abde2f88f85` | `claude-agent-sdk==0.2.144` | Local contract-tested |
 
 Registration must reject an unsupported runtime API or missing host capability
 through the host's `register_agent_runtime()` before retaining or constructing

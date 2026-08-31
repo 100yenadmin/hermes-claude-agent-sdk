@@ -18,6 +18,10 @@ import hermes_claude_agent_sdk.runtime as runtime_module  # noqa: E402
 class _Context:
     def __init__(self) -> None:
         self.registration = None
+        self.provider_profile = None
+
+    def register_provider_profile(self, profile):
+        self.provider_profile = profile
 
     def register_agent_runtime(self, *, descriptor, factory):
         runtime_api.validate_runtime_descriptor(descriptor)
@@ -52,6 +56,8 @@ def test_register_uses_public_descriptor_and_retains_zero_argument_factory(monke
     assert descriptor.provider_ids == frozenset({"claude-agent-sdk"})
     assert descriptor.api_modes == frozenset({"agent_runtime"})
     assert "background_delivery_v1" in descriptor.required_host_capabilities
+    assert "provider_profile_registration_v1" in descriptor.required_host_capabilities
+    assert context.provider_profile.name == "claude-agent-sdk"
     assert "claude-fable-5".startswith(descriptor.model_prefixes[0])
     assert factory is plugin.create_runtime
     assert "claude_agent_sdk" not in sys.modules
