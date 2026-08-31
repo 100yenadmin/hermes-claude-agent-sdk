@@ -33,7 +33,6 @@ if str(HOST_ROOT) not in sys.path:
     sys.path.insert(0, str(HOST_ROOT))
 
 from agent.runtime_dispatch import HermesRuntimeHostServices
-from tools.delegate_tool import DELEGATE_TASK_SCHEMA
 
 from hermes_claude_agent_sdk.tool_bridge import HostToolBridge
 
@@ -45,14 +44,33 @@ REQUEST_ID = "synthetic-sdk-request-42"
 
 
 def _delegate_tool_schema() -> dict[str, Any]:
-    """Adapt Hermes' registry schema to the public function-tool shape."""
+    """Return the public function-tool shape consumed by the host facade."""
 
     return {
         "type": "function",
         "function": {
-            "name": DELEGATE_TASK_SCHEMA["name"],
-            "description": DELEGATE_TASK_SCHEMA["description"],
-            "parameters": DELEGATE_TASK_SCHEMA["parameters"],
+            "name": "delegate_task",
+            "description": "Delegate one or more bounded tasks through Hermes",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tasks": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "goal": {"type": "string"},
+                                "context": {"type": "string"},
+                            },
+                            "required": ["goal"],
+                            "additionalProperties": False,
+                        },
+                    },
+                    "action": {"type": "string", "enum": ["spawn"]},
+                },
+                "required": ["tasks"],
+                "additionalProperties": False,
+            },
         },
     }
 
