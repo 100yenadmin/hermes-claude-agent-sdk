@@ -160,6 +160,50 @@ class _Client:
         await self._messages.put(_END)
 
 
+class _InterruptThenSuccessClient(_Client):
+    def __init__(self, *, options: _Options, first: bool) -> None:
+        super().__init__(options=options, mode="interrupt_then_success")
+        self.first = first
+
+    async def query(self, prompt: str) -> None:
+        self.queries.append(prompt)
+        if not self.first:
+            await self._messages.put(SystemMessage("init", {"apiKeySource": "none"}))
+            await self._messages.put(
+                AssistantMessage([TextBlock("fresh second turn")])
+            )
+            await self._messages.put(
+                ResultMessage(
+                    result="fresh second turn",
+                    session_id="synthetic-second-session",
+                    usage={"input_tokens": 2, "output_tokens": 3},
+                )
+            )
+            return
+        await self._messages.put(SystemMessage("init", {"apiKeySource": "none"}))
+        await self._messages.put(
+            AssistantMessage([TextBlock("partial interrupted turn")])
+        )
+
+    async def interrupt(self) -> None:
+        self.interrupted += 1
+        # The SDK may have already queued an aborted result when interrupt
+        # returns.  Closing the first client prevents that stale tail from
+        # crossing into the replacement client's reader.
+        self._closed = True
+        await self._messages.put(
+            AssistantMessage([TextBlock("stale interrupted tail")])
+        )
+        await self._messages.put(
+            ResultMessage(
+                result="stale interrupted tail",
+                session_id="synthetic-stale-session",
+                terminal_reason="aborted_streaming",
+            )
+        )
+        await self._messages.put(_END)
+
+
 def _sdk(mode: str, clients: list[_Client]) -> ModuleType:
     sdk = ModuleType("claude_agent_sdk")
     sdk.ClaudeAgentOptions = _Options
@@ -167,6 +211,36 @@ def _sdk(mode: str, clients: list[_Client]) -> ModuleType:
 
     def make_client(*, options: _Options) -> _Client:
         client = _Client(options=options, mode=mode)
+        clients.append(client)
+        return client
+
+    def tool(name, description, input_schema):
+        def decorate(handler):
+            return {
+                "name": name,
+                "description": description,
+                "input_schema": input_schema,
+                "handler": handler,
+            }
+
+        return decorate
+
+    def create_sdk_mcp_server(*, name, version, tools):
+        return {"name": name, "version": version, "tools": tools}
+
+    sdk.ClaudeSDKClient = make_client
+    sdk.tool = tool
+    sdk.create_sdk_mcp_server = create_sdk_mcp_server
+    return sdk
+
+
+def _interrupt_then_success_sdk(clients: list[_InterruptThenSuccessClient]) -> ModuleType:
+    sdk = ModuleType("claude_agent_sdk")
+    sdk.ClaudeAgentOptions = _Options
+    sdk.HookMatcher = _HookMatcher
+
+    def make_client(*, options: _Options) -> _InterruptThenSuccessClient:
+        client = _InterruptThenSuccessClient(options=options, first=not clients)
         clients.append(client)
         return client
 
@@ -229,6 +303,33 @@ class _Host:
     def cancellation_requested(self) -> bool:
         self.cancel_checks += 1
         return self.cancel_after is not None and self.cancel_checks >= self.cancel_after
+
+
+class _CancelOnceAfterContentHost(_Host):
+    def __init__(self) -> None:
+        super().__init__()
+        self.content_observed = False
+        self._cancel_sent = False
+
+    def cancellation_requested(self) -> bool:
+        self.cancel_checks += 1
+        if self.content_observed and not self._cancel_sent:
+            self._cancel_sent = True
+            return True
+        return False
+
+
+class _PreSetThenContinueHost(_Host):
+    def __init__(self) -> None:
+        super().__init__()
+        self._pre_set = True
+
+    def cancellation_requested(self) -> bool:
+        self.cancel_checks += 1
+        if self._pre_set:
+            self._pre_set = False
+            return True
+        return False
 
 
 class _WallClockCancellationHost(_Host):
@@ -547,6 +648,27 @@ def test_unknown_billing_blocks_success_and_tool_side_effect_is_conservative() -
     assert not any(event.kind.value in {"usage", "completed"} for event in after_tool)
 
 
+def test_billing_retirement_does_not_restart_runtime_session() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("unknown", clients)
+        host = _Host()
+
+        first_events = await _collect(runtime, _request(), host)
+        second_events = await _collect(runtime, _request(), host)
+        await runtime.close()
+        return first_events, second_events, clients
+
+    first_events, second_events, clients = asyncio.run(scenario())
+
+    assert first_events[-1].kind.value == "failed"
+    assert first_events[-1].failure.code == "claude_subscription_billing_blocked"
+    assert second_events[-1].kind.value == "failed"
+    assert second_events[-1].failure.code == "session_closed"
+    assert len(clients) == 1
+    assert clients[0].queries == ["hello runtime"]
+
+
 def test_cancellation_interrupts_and_closes_once_with_one_terminal() -> None:
     async def scenario():
         clients: list[_Client] = []
@@ -588,6 +710,72 @@ def test_cancellation_is_polled_during_sustained_projection_stream() -> None:
     assert events[-1].kind.value == "cancelled"
     assert client.interrupted == 1
     assert client.disconnected == 1
+
+
+def test_mid_stream_interrupt_breaks_and_discards_tail() -> None:
+    async def scenario():
+        clients: list[_InterruptThenSuccessClient] = []
+        runtime = ClaudeAgentSDKRuntime(
+            auth_probe=lambda: SimpleNamespace(
+                allowed=True, category="subscription_oauth"
+            ),
+            sdk_module=_interrupt_then_success_sdk(clients),
+            cwd="/synthetic/workspace",
+            parent_env={},
+        )
+        host = _CancelOnceAfterContentHost()
+
+        first_events = []
+        async for event in runtime.run_turn(_request(), host):
+            first_events.append(event)
+            if event.kind.value == "content":
+                host.content_observed = True
+
+        second_events = await _collect(runtime, _request(), host)
+        await runtime.close()
+        return first_events, second_events, clients
+
+    first_events, second_events, clients = asyncio.run(scenario())
+
+    terminal_kinds = {"completed", "cancelled", "failed"}
+    assert [event.kind.value for event in first_events] == ["content", "cancelled"]
+    assert first_events[0].text == "partial interrupted turn"
+    assert sum(event.kind.value in terminal_kinds for event in first_events) == 1
+    assert first_events[-1].kind.value == "cancelled"
+    assert all(
+        getattr(event, "text", None) != "stale interrupted tail"
+        for event in first_events + second_events
+    )
+
+    assert second_events[-1].kind.value == "completed"
+    assert second_events[-1].result["text"] == "fresh second turn"
+    assert sum(event.kind.value == "usage" for event in second_events) == 1
+    assert sum(event.kind.value in terminal_kinds for event in second_events) == 1
+    assert clients[0].interrupted == 1
+    assert clients[0].disconnected == 1
+    assert clients[1].interrupted == 0
+    assert clients[1].disconnected == 1
+
+
+def test_pre_set_interrupt_event_honored_then_next_turn_runs() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("success", clients)
+        host = _PreSetThenContinueHost()
+
+        first_events = await _collect(runtime, _request(), host)
+        second_events = await _collect(runtime, _request(), host)
+        await runtime.close()
+        return first_events, second_events, clients
+
+    first_events, second_events, clients = asyncio.run(scenario())
+
+    assert [event.kind.value for event in first_events] == ["cancelled"]
+    assert [event.kind.value for event in second_events][-1] == "completed"
+    assert second_events[-1].result["text"] == "hello"
+    assert clients[0].interrupted == 0
+    assert clients[0].disconnected == 1
+    assert clients[0].queries == ["hello runtime"]
 
 
 def test_in_loop_cancellation_probe_failure_drains_projection_then_fails_closed() -> None:

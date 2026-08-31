@@ -192,6 +192,12 @@ class SDKSession:
         self._background_delivery_enabled = False
         self._pending_background_results: deque[_PendingBackgroundResult] = deque()
 
+    @property
+    def can_restart_after_cancel(self) -> bool:
+        """Whether runtime may replace this session after an explicit cancel."""
+
+        return self._closed and self._cancel_requested
+
     def _sdk_module(self) -> Any:
         if self._sdk is None:
             self._sdk = importlib.import_module("claude_agent_sdk")

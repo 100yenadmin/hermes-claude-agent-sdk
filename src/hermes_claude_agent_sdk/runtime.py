@@ -109,6 +109,7 @@ class ClaudeAgentSDKRuntime:
         self._bridge: HostToolBridge | None = None
         self._host: Any | None = None
         self._session_contract: tuple[str, str, str, str, str | None] | None = None
+        self._session_configuration: SDKSessionConfiguration | None = None
         self._closed = False
 
     async def _emit_background_result(self, result: Any) -> None:
@@ -151,6 +152,17 @@ class ClaudeAgentSDKRuntime:
         except Exception:
             self._auth_allowed = False
         return self._auth_allowed
+
+    def _new_session(self, configuration: SDKSessionConfiguration) -> Any:
+        from .sdk_session import SDKSession
+
+        return SDKSession(
+            configuration,
+            sdk_module=self._sdk,
+            client_factory=self._client_factory,
+            on_background_result=self._emit_background_result,
+            compaction_watchdog_seconds=self._compaction_watchdog_seconds,
+        )
 
     def preflight(self, request: Any) -> Any:
         from agent.runtime_api import RuntimeFailurePhase
@@ -199,7 +211,7 @@ class ClaudeAgentSDKRuntime:
         )
         from .content_events import ClaudeSdkEventProjector, ProjectionResult
         from .compaction import SessionCompactionPhase
-        from .sdk_session import SDKSession, SessionOutcome
+        from .sdk_session import SessionOutcome
 
         preflight_failure = self.preflight(request)
         if preflight_failure is not None:
@@ -301,13 +313,8 @@ class ClaudeAgentSDKRuntime:
                 )
                 self._bridge = bridge
                 self._session_contract = session_contract
-                self._session = SDKSession(
-                    configuration,
-                    sdk_module=self._sdk,
-                    client_factory=self._client_factory,
-                    on_background_result=self._emit_background_result,
-                    compaction_watchdog_seconds=self._compaction_watchdog_seconds,
-                )
+                self._session_configuration = configuration
+                self._session = self._new_session(configuration)
             elif session_contract != self._session_contract:
                 yield RuntimeFailedEvent(
                     failure=_failure(
@@ -318,6 +325,10 @@ class ClaudeAgentSDKRuntime:
                     )
                 )
                 return
+            elif self._session.can_restart_after_cancel:
+                configuration = self._session_configuration
+                assert configuration is not None
+                self._session = self._new_session(configuration)
             bridge = self._bridge
             assert bridge is not None
             bridge.begin_turn(request.correlation_id)

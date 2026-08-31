@@ -546,6 +546,45 @@ def test_cancel_interrupts_retires_client_and_classifies_once() -> None:
     asyncio.run(scenario())
 
 
+def test_interrupted_turn_consumes_its_own_result() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        session = SDKSession(
+            _configuration(),
+            sdk_module=_sdk(
+                clients,
+                [
+                    [
+                        SystemMessage("init", {"apiKeySource": "none"}),
+                        AssistantMessage([TextBlock("interrupted partial")]),
+                        ResultMessage(
+                            result="interrupted tail",
+                            terminal_reason="aborted_streaming",
+                        ),
+                    ],
+                    [
+                        SystemMessage("init", {"apiKeySource": "none"}),
+                        AssistantMessage([TextBlock("next turn")]),
+                        ResultMessage(result="next turn"),
+                    ],
+                ],
+            ),
+        )
+
+        first = await session.run_turn("interrupting turn")
+        second = await session.run_turn("next turn")
+        await session.close()
+
+        assert first.outcome is SessionOutcome.CANCELLED
+        assert second.outcome is SessionOutcome.COMPLETE
+        assert second.final_text == "next turn"
+        assert clients[0].queries == ["interrupting turn", "next turn"]
+        assert clients[0].interrupted == 0
+        assert clients[0].disconnected == 1
+
+    asyncio.run(scenario())
+
+
 def test_concurrent_turns_are_serialized_on_one_reader() -> None:
     async def scenario() -> None:
         clients: list[_FakeClient] = []
