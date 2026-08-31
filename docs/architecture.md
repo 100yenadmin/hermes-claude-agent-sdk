@@ -13,6 +13,10 @@ exact SHA is recorded. The frozen local capability manifest has SHA-256
 
 Hermes owns the runtime protocol, registration and dispatch, host security and
 tool facades, generic state and receipts, compaction lifecycle, and replay
-policy. This package owns the Claude SDK dependency, SDK session lifecycle,
+policy. It also owns the exact parent binding, idle delivery/requeue, route
+refresh, and post-close rejection behind `background_delivery_v1`. This
+package owns the Claude SDK dependency, SDK session lifecycle,
 content conversion, subscription classification, Claude resume state, native
-compaction mapping, context adapters, diagnostics, and packaging.
+compaction mapping, context adapters, diagnostics, and packaging. It retains
+one public SDK reader per runtime instance and classifies idle result bursts,
+but it never sees host routing identifiers and never duplicates host delivery.

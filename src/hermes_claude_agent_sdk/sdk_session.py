@@ -8,8 +8,10 @@ claims so two callers can never consume the same stream concurrently.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import importlib
 import inspect
+from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable
@@ -34,6 +36,19 @@ class SessionOutcome(str, Enum):
     CLOSED = "closed"
 
 
+class BackgroundSessionOutcome(str, Enum):
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True, slots=True)
+class BackgroundSessionResult:
+    """Bounded provider-local value awaiting host-owned delivery."""
+
+    content: str
+    outcome: BackgroundSessionOutcome = BackgroundSessionOutcome.COMPLETED
+
+
 @dataclass(frozen=True, slots=True)
 class SessionStateUpdate:
     external_session_id: str | None = None
@@ -53,6 +68,12 @@ class _StreamEnded:
     failed: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class _PendingBackgroundResult:
+    result: BackgroundSessionResult
+    requires_foreground_trust: bool
+
+
 _CANCELLED = object()
 _IMMEDIATE_BILLING_BLOCKS = {
     BillingBlockReason.API_KEY_SOURCE,
@@ -60,6 +81,16 @@ _IMMEDIATE_BILLING_BLOCKS = {
     BillingBlockReason.OVERAGE,
     BillingBlockReason.CONFLICTING_EVIDENCE,
 }
+_MAX_BACKGROUND_BYTES = 16_384
+_BACKGROUND_DEDUPLICATION_WINDOW = 64
+
+
+def _bounded_background_text(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    normalized = value.replace("\r\n", "\n").replace("\r", "\n").strip()
+    encoded = normalized.encode("utf-8")[:_MAX_BACKGROUND_BYTES]
+    return encoded.decode("utf-8", errors="ignore").strip()
 
 
 async def _call(callback: Callable[[Any], Any] | None, value: Any) -> None:
@@ -115,6 +146,7 @@ class SDKSession:
         projector: ClaudeSdkEventProjector | None = None,
         on_projection: Callable[[ProjectionResult], Any] | None = None,
         on_billing_decision: Callable[[BillingDecision], Any] | None = None,
+        on_background_result: Callable[[BackgroundSessionResult], Any] | None = None,
     ) -> None:
         self._configuration = configuration
         self._sdk = sdk_module
@@ -124,6 +156,7 @@ class SDKSession:
         )
         self._on_projection = on_projection
         self._on_billing_decision = on_billing_decision
+        self._on_background_result = on_background_result
         self._client: Any | None = None
         self._reader_task: asyncio.Task[None] | None = None
         self._active_inbox: asyncio.Queue[Any] | None = None
@@ -132,6 +165,16 @@ class SDKSession:
         self._close_lock = asyncio.Lock()
         self._closed = False
         self._cancel_requested = False
+        self._background_projector = ClaudeSdkEventProjector(model=configuration.model)
+        self._background_text = ""
+        self._background_evidence: SDKBillingEvidence | None = None
+        self._background_blocked = False
+        self._foreground_billing_allowed = False
+        self._background_fingerprints: deque[bytes] = deque()
+        self._background_fingerprint_set: set[bytes] = set()
+        self._background_delivery_lock = asyncio.Lock()
+        self._background_delivery_enabled = False
+        self._pending_background_results: deque[_PendingBackgroundResult] = deque()
 
     def _sdk_module(self) -> Any:
         if self._sdk is None:
@@ -170,8 +213,13 @@ class SDKSession:
                 inbox = self._active_inbox
                 if inbox is not None:
                     inbox.put_nowait(message)
-                # Messages outside a claimed turn are intentionally discarded;
-                # they can never become the next turn's answer.
+                    if type(message).__name__ == "ResultMessage":
+                        # The reader owns the turn boundary.  Later messages
+                        # are idle completions, never the next turn's answer.
+                        if self._active_inbox is inbox:
+                            self._active_inbox = None
+                    continue
+                await self._handle_background_message(message)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -181,7 +229,107 @@ class SDKSession:
             if inbox is not None:
                 inbox.put_nowait(_StreamEnded(failed=failed))
 
-    async def run_turn(self, prompt: str) -> SessionTurnResult:
+    async def _handle_background_message(self, message: Any) -> None:
+        """Classify one idle SDK burst without exposing provider identifiers."""
+
+        if self._closed:
+            return
+        billing_update = extract_sdk_billing_evidence(message)
+        if billing_update is not None:
+            self._background_evidence = _merge_evidence(
+                self._background_evidence, billing_update
+            )
+            decision = classify_sdk_billing(self._background_evidence)
+            if decision.block_reason in _IMMEDIATE_BILLING_BLOCKS:
+                self._background_blocked = True
+
+        projection = self._background_projector.project(message)
+        if type(message).__name__ != "ResultMessage":
+            if projection.final_text:
+                combined = "\n".join(
+                    part for part in (self._background_text, projection.final_text) if part
+                )
+                self._background_text = _bounded_background_text(combined)
+            return
+
+        text = _bounded_background_text(projection.final_text or self._background_text)
+        evidence = self._background_evidence
+        blocked = self._background_blocked
+        self._background_text = ""
+        self._background_evidence = None
+        self._background_blocked = False
+        if not text or blocked:
+            return
+        if evidence is not None and not classify_sdk_billing(evidence).allowed:
+            return
+
+        outcome = (
+            BackgroundSessionOutcome.FAILED
+            if getattr(message, "is_error", False) is True
+            else BackgroundSessionOutcome.COMPLETED
+        )
+        fingerprint = hashlib.sha256(
+            outcome.value.encode("ascii") + b"\0" + text.encode("utf-8")
+        ).digest()
+        if fingerprint in self._background_fingerprint_set:
+            return
+        if len(self._background_fingerprints) >= _BACKGROUND_DEDUPLICATION_WINDOW:
+            expired = self._background_fingerprints.popleft()
+            self._background_fingerprint_set.discard(expired)
+        self._background_fingerprints.append(fingerprint)
+        self._background_fingerprint_set.add(fingerprint)
+        pending = _PendingBackgroundResult(
+            result=BackgroundSessionResult(content=text, outcome=outcome),
+            requires_foreground_trust=evidence is None,
+        )
+        async with self._background_delivery_lock:
+            if self._closed:
+                return
+            if not self._background_delivery_enabled:
+                if len(self._pending_background_results) < _BACKGROUND_DEDUPLICATION_WINDOW:
+                    self._pending_background_results.append(pending)
+                return
+            if pending.requires_foreground_trust and not self._foreground_billing_allowed:
+                return
+            await self._deliver_background_result(pending.result)
+
+    async def _deliver_background_result(self, result: BackgroundSessionResult) -> None:
+        try:
+            await _call(self._on_background_result, result)
+        except Exception:
+            # The host owns rejection, retry, and requeue.  A sealed binding
+            # must not retire the SDK reader or trigger plugin-local retry.
+            return
+
+    async def release_background_results(self) -> None:
+        """Open delivery only after the host has observed the turn terminal."""
+
+        async with self._background_delivery_lock:
+            if self._closed:
+                self._pending_background_results.clear()
+                return
+            self._background_delivery_enabled = True
+            while self._pending_background_results:
+                pending = self._pending_background_results.popleft()
+                if (
+                    pending.requires_foreground_trust
+                    and not self._foreground_billing_allowed
+                ):
+                    continue
+                await self._deliver_background_result(pending.result)
+
+    async def _pause_background_delivery(self) -> None:
+        async with self._background_delivery_lock:
+            self._background_delivery_enabled = False
+
+    async def run_turn(
+        self,
+        prompt: str,
+        *,
+        projector: ClaudeSdkEventProjector | None = None,
+        on_projection: Callable[[ProjectionResult], Any] | None = None,
+        on_billing_decision: Callable[[BillingDecision], Any] | None = None,
+    ) -> SessionTurnResult:
         if not isinstance(prompt, str) or not prompt.strip():
             return SessionTurnResult(
                 SessionOutcome.FAILED, error_code="invalid_prompt"
@@ -198,8 +346,18 @@ class SDKSession:
             if self._cancel_requested:
                 return SessionTurnResult(SessionOutcome.CANCELLED)
 
+            await self._pause_background_delivery()
             inbox: asyncio.Queue[Any] = asyncio.Queue()
             self._active_inbox = inbox
+            turn_projector = projector or self._projector
+            turn_projection_callback = (
+                on_projection if on_projection is not None else self._on_projection
+            )
+            turn_billing_callback = (
+                on_billing_decision
+                if on_billing_decision is not None
+                else self._on_billing_decision
+            )
             evidence: SDKBillingEvidence | None = None
             final_text: str | None = None
             state = SessionStateUpdate()
@@ -232,7 +390,7 @@ class SDKSession:
                         evidence = _merge_evidence(evidence, billing_update)
                         decision = classify_sdk_billing(evidence)
                         if decision.block_reason in _IMMEDIATE_BILLING_BLOCKS:
-                            await _call(self._on_billing_decision, decision)
+                            await _call(turn_billing_callback, decision)
                             await self._interrupt_then_close()
                             return SessionTurnResult(
                                 SessionOutcome.BILLING_BLOCKED,
@@ -243,8 +401,8 @@ class SDKSession:
                             )
 
                     if type(message).__name__ != "ResultMessage":
-                        projection = self._projector.project(message)
-                        await _call(self._on_projection, projection)
+                        projection = turn_projector.project(message)
+                        await _call(turn_projection_callback, projection)
                         if projection.final_text is not None:
                             final_text = projection.final_text
                         continue
@@ -259,7 +417,7 @@ class SDKSession:
                     ):
                         state = SessionStateUpdate(external_session_id=session_id)
                     decision = classify_sdk_billing(evidence)
-                    await _call(self._on_billing_decision, decision)
+                    await _call(turn_billing_callback, decision)
                     if not decision.allowed:
                         # A billing block retires the client.  The policy
                         # forbids any later SDK call on the same child.
@@ -271,10 +429,11 @@ class SDKSession:
                             billing_decision=decision,
                             error_code="sdk_billing_blocked",
                         )
+                    self._foreground_billing_allowed = True
                     # Result projection contains RuntimeCompletedEvent, so it
                     # is released only after the billing decision is allowed.
-                    projection = self._projector.project(message)
-                    await _call(self._on_projection, projection)
+                    projection = turn_projector.project(message)
+                    await _call(turn_projection_callback, projection)
                     if projection.final_text is not None:
                         final_text = projection.final_text
                     terminal_reason = getattr(message, "terminal_reason", None)
@@ -338,6 +497,9 @@ class SDKSession:
             if self._closed:
                 return
             self._closed = True
+            async with self._background_delivery_lock:
+                self._background_delivery_enabled = False
+                self._pending_background_results.clear()
             inbox = self._active_inbox
             if inbox is not None:
                 inbox.put_nowait(_CANCELLED)
@@ -358,6 +520,8 @@ class SDKSession:
 
 
 __all__ = [
+    "BackgroundSessionOutcome",
+    "BackgroundSessionResult",
     "SDKSession",
     "SessionOutcome",
     "SessionStateUpdate",

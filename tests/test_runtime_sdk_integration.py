@@ -93,6 +93,14 @@ class _Client:
                 usage={"input_tokens": 2, "output_tokens": 3},
             )
         )
+        if self.mode == "success_with_background":
+            await self._messages.put(AssistantMessage([TextBlock("background queued")]))
+            await self._messages.put(
+                ResultMessage(
+                    result="background queued",
+                    session_id="synthetic-hidden-queued",
+                )
+            )
 
     async def receive_messages(self):
         while not self._closed:
@@ -144,6 +152,9 @@ class _Host:
         self.calls: list[tuple[str, dict[str, object]]] = []
         self.cancel_after = cancel_after
         self.cancel_checks = 0
+        self.background = []
+        self.observed_events: list[str] = []
+        self.background_after_terminal: list[bool] = []
 
     async def execute_tool(self, name, arguments):
         self.calls.append((name, dict(arguments)))
@@ -163,6 +174,13 @@ class _Host:
 
     async def emit_compaction(self, event):
         return None
+
+    async def emit_background_result(self, result):
+        self.background.append(result)
+        self.background_after_terminal.append(
+            bool(self.observed_events)
+            and self.observed_events[-1] in {"completed", "cancelled", "failed"}
+        )
 
     def cancellation_requested(self) -> bool:
         self.cancel_checks += 1
@@ -362,5 +380,72 @@ def test_cancellation_interrupts_and_closes_once_with_one_terminal() -> None:
         assert [event.kind.value for event in events] == ["cancelled"]
         assert client.interrupted == 1
         assert client.disconnected == 1
+
+    asyncio.run(scenario())
+
+
+def test_runtime_reuses_one_client_reader_and_uses_host_only_for_idle_completion() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("success", clients)
+        host = _Host()
+
+        first = await _collect(runtime, _request(), host)
+        client = clients[0]
+        await client._messages.put(AssistantMessage([TextBlock("background one")]))
+        await client._messages.put(
+            ResultMessage(result="background one", session_id="synthetic-hidden-background")
+        )
+        for _ in range(100):
+            if host.background:
+                break
+            await asyncio.sleep(0)
+        second = await _collect(runtime, _request(), host)
+        await runtime.close()
+        await runtime.close()
+
+        assert len(clients) == 1
+        assert client.connected == 1
+        assert client.disconnected == 1
+        assert client.queries == ["hello runtime", "hello runtime"]
+        assert sum(event.kind.value == "completed" for event in first) == 1
+        assert sum(event.kind.value == "completed" for event in second) == 1
+        assert len(host.background) == 1
+        assert host.background[0].content == "background one"
+        assert set(host.background[0].__dataclass_fields__) == {"content", "outcome"}
+
+    asyncio.run(scenario())
+
+
+def test_runtime_rejects_a_replacement_host_binding_without_query_or_reroute() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("success", clients)
+        first_host = _Host()
+        await _collect(runtime, _request(), first_host)
+
+        events = await _collect(runtime, _request(), _Host())
+        await runtime.close()
+
+        assert [event.kind.value for event in events] == ["failed"]
+        assert events[0].failure.code == "claude_runtime_host_binding_changed"
+        assert clients[0].queries == ["hello runtime"]
+
+    asyncio.run(scenario())
+
+
+def test_queued_idle_burst_is_released_only_after_parent_terminal_is_observed() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("success_with_background", clients)
+        host = _Host()
+
+        async for event in runtime.run_turn(_request(), host):
+            host.observed_events.append(event.kind.value)
+        await runtime.close()
+
+        assert host.observed_events[-1] == "completed"
+        assert [item.content for item in host.background] == ["background queued"]
+        assert host.background_after_terminal == [True]
 
     asyncio.run(scenario())

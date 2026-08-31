@@ -15,6 +15,15 @@ state and subscription-included usage receipts. Deterministic and packaging
 tests cover that composition; the first isolated live turn remains a separate
 release gate.
 
+For a bound Hermes parent session, the runtime retains one public SDK client
+and one `receive_messages()` reader across turns. Native Agent work that ends
+during `run_turn()` stays in that turn and produces one terminal event. A
+later idle completion is reduced to the host's bounded provider-neutral
+`RuntimeBackgroundResult` and passed only to
+`RuntimeHostServices.emit_background_result()`. The plugin never receives or
+chooses a Hermes session or gateway route, never performs a latest-session
+lookup, and never adds a provider-specific queue or retry path.
+
 The descriptor owns the provider id `claude-agent-sdk` and the generic
 `agent_runtime` mode. Claude model ids are selected by the declared `claude-`
 and `anthropic/claude-` prefixes; the host's `anthropic_messages` provider
@@ -24,8 +33,7 @@ remains a separate transport and is not routed to this plugin.
 
 The first release candidate targets the provider-neutral host branch
 `codex/agent-runtime-plugin-api-v1` at exact host SHA
-`0b702c0f34d064ac8e1db45096b179085b1fbb92`, based on Hermes main
-`64b96bb5d2755f1d34347e1fb15924a97d652f31`.
+`ed25603753b6bbc5b3efcf62c169b0873f64d127`.
 
 Run `hermes_claude_agent_sdk.doctor()` (or `doctor_json()`) from an environment
 with the public host API to inspect API and capability compatibility. The

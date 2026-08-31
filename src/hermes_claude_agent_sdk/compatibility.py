@@ -25,6 +25,7 @@ SDK_VERSION = "0.2.144"
 # factory or SDK client can be activated.
 REQUIRED_HOST_CAPABILITIES = frozenset(
     {
+        "background_delivery_v1",
         "cancellation_v1",
         "compaction_events_v1",
         "host_approval_v1",

@@ -104,7 +104,31 @@ class ClaudeAgentSDKRuntime:
         self._parent_env = parent_env
         self._auth_allowed: bool | None = None
         self._session: Any | None = None
+        self._bridge: HostToolBridge | None = None
+        self._host: Any | None = None
         self._closed = False
+
+    async def _emit_background_result(self, result: Any) -> None:
+        """Delegate exact-parent routing and delivery exclusively to the host."""
+
+        if self._closed or self._host is None:
+            return
+        from agent.runtime_api import RuntimeBackgroundOutcome, RuntimeBackgroundResult
+        from .sdk_session import BackgroundSessionOutcome
+
+        outcome = (
+            RuntimeBackgroundOutcome.FAILED
+            if result.outcome is BackgroundSessionOutcome.FAILED
+            else RuntimeBackgroundOutcome.COMPLETED
+        )
+        try:
+            await self._host.emit_background_result(
+                RuntimeBackgroundResult(content=result.content, outcome=outcome)
+            )
+        except Exception:
+            # A sealed host binding rejects late work.  Delivery/requeue is a
+            # host responsibility, so the plugin neither retries nor reroutes.
+            return
 
     def _default_auth_probe(self) -> Any:
         module = importlib.import_module(".auth", __package__)
@@ -202,6 +226,16 @@ class ClaudeAgentSDKRuntime:
                 )
             )
             return
+        if self._host is not None and host is not self._host:
+            yield RuntimeFailedEvent(
+                failure=_failure(
+                    "claude_runtime_host_binding_changed",
+                    "Claude runtime host binding changed",
+                    RuntimeFailurePhase.BEFORE_VISIBLE_OUTPUT,
+                    replay_safe=False,
+                )
+            )
+            return
 
         prompt = _bounded_turn_text(request)
         if prompt is None:
@@ -220,6 +254,7 @@ class ClaudeAgentSDKRuntime:
         visible = False
         terminal = False
         bridge: HostToolBridge | None = None
+        bridge_execution_start = 0
         try:
             prompt_context = build_sdk_prompt_context(request)
             system_parts = [prompt_context.base_prompt]
@@ -228,25 +263,40 @@ class ClaudeAgentSDKRuntime:
             system_prompt_append = "\n\n".join(
                 part for part in system_parts if part
             )[:_MAX_SYSTEM_APPEND] or None
-            bridge = HostToolBridge(
-                host, request.tool_schemas, correlation_id=request.correlation_id
-            )
-            server = bridge.build_sdk_mcp_server(
-                _MCP_SERVER_NAME, sdk_module=self._sdk
-            )
-            allowed_tools = tuple(
-                f"mcp__{_MCP_SERVER_NAME}__{name}" for name in bridge.tool_names
-            )
-            configuration = SDKSessionConfiguration.create(
-                cwd=self._cwd,
-                model=request.selection.model,
-                permission_mode="bypassPermissions",
-                system_prompt_append=system_prompt_append,
-                resume_external_session_id=resume_id,
-                parent_env=self._parent_env if self._parent_env is not None else os.environ,
-                mcp_servers={_MCP_SERVER_NAME: server},
-                allowed_tools=allowed_tools,
-            )
+            if self._session is None:
+                self._host = host
+                bridge = HostToolBridge(
+                    host, request.tool_schemas, correlation_id=request.correlation_id
+                )
+                server = bridge.build_sdk_mcp_server(
+                    _MCP_SERVER_NAME, sdk_module=self._sdk
+                )
+                allowed_tools = tuple(
+                    f"mcp__{_MCP_SERVER_NAME}__{name}" for name in bridge.tool_names
+                )
+                configuration = SDKSessionConfiguration.create(
+                    cwd=self._cwd,
+                    model=request.selection.model,
+                    permission_mode="bypassPermissions",
+                    system_prompt_append=system_prompt_append,
+                    resume_external_session_id=resume_id,
+                    parent_env=(
+                        self._parent_env if self._parent_env is not None else os.environ
+                    ),
+                    mcp_servers={_MCP_SERVER_NAME: server},
+                    allowed_tools=allowed_tools,
+                )
+                self._bridge = bridge
+                self._session = SDKSession(
+                    configuration,
+                    sdk_module=self._sdk,
+                    client_factory=self._client_factory,
+                    on_background_result=self._emit_background_result,
+                )
+            bridge = self._bridge
+            assert bridge is not None
+            session = self._session
+            bridge_execution_start = bridge.host_execution_count
             projector = ClaudeSdkEventProjector(
                 runtime_id=RUNTIME_ID,
                 provider=request.selection.provider,
@@ -258,15 +308,13 @@ class ClaudeAgentSDKRuntime:
             async def on_projection(projection: ProjectionResult) -> None:
                 await queue.put(projection)
 
-            session = SDKSession(
-                configuration,
-                sdk_module=self._sdk,
-                client_factory=self._client_factory,
-                projector=projector,
-                on_projection=on_projection,
+            task = asyncio.create_task(
+                session.run_turn(
+                    prompt,
+                    projector=projector,
+                    on_projection=on_projection,
+                )
             )
-            self._session = session
-            task = asyncio.create_task(session.run_turn(prompt))
             cancel_sent = False
             while not task.done() or not queue.empty():
                 try:
@@ -335,15 +383,17 @@ class ClaudeAgentSDKRuntime:
                         "model": request.selection.model,
                     }
                 )
+                await session.release_background_results()
                 return
             if result.outcome is SessionOutcome.CANCELLED:
                 terminal = True
                 yield RuntimeCancelledEvent(reason="cancelled")
+                await session.release_background_results()
                 return
 
             phase = (
                 RuntimeFailurePhase.AFTER_SIDE_EFFECTS
-                if bridge.host_execution_count
+                if bridge.host_execution_count > bridge_execution_start
                 else RuntimeFailurePhase.AFTER_VISIBLE_OUTPUT
                 if visible
                 else RuntimeFailurePhase.BEFORE_VISIBLE_OUTPUT
@@ -362,6 +412,7 @@ class ClaudeAgentSDKRuntime:
                     replay_safe=False,
                 )
             )
+            await session.release_background_results()
         except asyncio.CancelledError:
             if self._session is not None:
                 await self._session.cancel()
@@ -370,7 +421,11 @@ class ClaudeAgentSDKRuntime:
             if self._session is not None:
                 await self._session.cancel()
             if not terminal:
-                side_effects = bridge.host_execution_count if bridge is not None else 0
+                side_effects = (
+                    bridge.host_execution_count - bridge_execution_start
+                    if bridge is not None
+                    else 0
+                )
                 phase = (
                     RuntimeFailurePhase.AFTER_SIDE_EFFECTS
                     if side_effects
@@ -394,6 +449,8 @@ class ClaudeAgentSDKRuntime:
                         replay_safe=False,
                     )
                 )
+                if self._session is not None:
+                    await self._session.release_background_results()
 
     async def close(self) -> None:
         if self._closed:

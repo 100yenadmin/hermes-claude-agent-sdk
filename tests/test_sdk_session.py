@@ -7,7 +7,11 @@ from types import ModuleType
 
 from hermes_claude_agent_sdk.configuration import SDKSessionConfiguration
 import hermes_claude_agent_sdk.sdk_session as sdk_session_module
-from hermes_claude_agent_sdk.sdk_session import SDKSession, SessionOutcome
+from hermes_claude_agent_sdk.sdk_session import (
+    BackgroundSessionOutcome,
+    SDKSession,
+    SessionOutcome,
+)
 
 
 SDK_IMPORTED_DURING_SESSION_IMPORT = "claude_agent_sdk" in sys.modules
@@ -295,5 +299,89 @@ def test_concurrent_turns_are_serialized_on_one_reader() -> None:
         assert [first.final_text, second.final_text] == ["one", "two"]
         assert clients[0].max_active_queries == 1
         assert clients[0].receive_calls == 1
+
+    asyncio.run(scenario())
+
+
+def test_idle_result_bursts_are_ordered_deduplicated_and_do_not_expose_session_ids() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        delivered = []
+        session = SDKSession(
+            _configuration(),
+            sdk_module=_sdk(
+                clients,
+                [[SystemMessage("init", {"apiKeySource": "none"}), ResultMessage()]],
+            ),
+            on_background_result=delivered.append,
+        )
+
+        turn = await session.run_turn("parent turn")
+        assert turn.outcome is SessionOutcome.COMPLETE
+        client = clients[0]
+        for message in (
+            AssistantMessage([TextBlock("first background")]),
+            ResultMessage(result="first background", session_id="synthetic-hidden-one"),
+            AssistantMessage([TextBlock("second background")]),
+            ResultMessage(result="second background", session_id="synthetic-hidden-two"),
+            AssistantMessage([TextBlock("first background")]),
+            ResultMessage(result="first background", session_id="synthetic-hidden-three"),
+            AssistantMessage([TextBlock("failed background")]),
+            ResultMessage(
+                result="failed background",
+                session_id="synthetic-hidden-four",
+                is_error=True,
+            ),
+        ):
+            await client._messages.put(message)
+
+        for _ in range(20):
+            await asyncio.sleep(0)
+        assert delivered == []
+        await session.release_background_results()
+        await session.close()
+        await session.close()
+
+        assert [item.content for item in delivered] == [
+            "first background",
+            "second background",
+            "failed background",
+        ]
+        assert [item.outcome for item in delivered] == [
+            BackgroundSessionOutcome.COMPLETED,
+            BackgroundSessionOutcome.COMPLETED,
+            BackgroundSessionOutcome.FAILED,
+        ]
+        assert all(len(item.content.encode("utf-8")) <= 16_384 for item in delivered)
+        assert set(delivered[0].__dataclass_fields__) == {"content", "outcome"}
+        assert client.receive_calls == 1
+        assert client.disconnected == 1
+
+    asyncio.run(scenario())
+
+
+def test_idle_background_after_close_is_dropped_without_duplicate_disconnect() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        delivered = []
+        session = SDKSession(
+            _configuration(),
+            sdk_module=_sdk(
+                clients,
+                [[SystemMessage("init", {"apiKeySource": "none"}), ResultMessage()]],
+            ),
+            on_background_result=delivered.append,
+        )
+
+        await session.run_turn("parent turn")
+        await session.close()
+        await clients[0]._messages.put(
+            ResultMessage(result="too late", session_id="synthetic-hidden-late")
+        )
+        await asyncio.sleep(0)
+        await session.close()
+
+        assert delivered == []
+        assert clients[0].disconnected == 1
 
     asyncio.run(scenario())

@@ -51,6 +51,7 @@ def test_register_uses_public_descriptor_and_retains_zero_argument_factory(monke
     assert descriptor.runtime_id == plugin.RUNTIME_ID
     assert descriptor.provider_ids == frozenset({"claude-agent-sdk"})
     assert descriptor.api_modes == frozenset({"agent_runtime"})
+    assert "background_delivery_v1" in descriptor.required_host_capabilities
     assert "claude-fable-5".startswith(descriptor.model_prefixes[0])
     assert factory is plugin.create_runtime
     assert "claude_agent_sdk" not in sys.modules
@@ -173,5 +174,6 @@ def test_incompatible_host_manifest_is_reported_before_any_sdk_access(monkeypatc
 
     assert report["status"] == "incompatible"
     assert report["runtime_api"]["compatible"] is False
+    assert "background_delivery_v1" in report["capabilities"]["missing"]
     assert "host_approval_v1" in report["capabilities"]["missing"]
     assert "claude_agent_sdk" not in sys.modules
