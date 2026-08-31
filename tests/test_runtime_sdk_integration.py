@@ -944,10 +944,12 @@ def test_pre_set_interrupt_event_honored_then_next_turn_runs() -> None:
 def test_in_loop_cancellation_probe_failure_drains_projection_then_fails_closed() -> None:
     class _FailAfterContentHost(_Host):
         content_observed = False
+        probe_after_content = False
 
         def cancellation_requested(self) -> bool:
             self.cancel_checks += 1
             if self.content_observed:
+                self.probe_after_content = True
                 raise RuntimeError("synthetic cancellation probe failure")
             return False
 
@@ -961,14 +963,15 @@ def test_in_loop_cancellation_probe_failure_drains_projection_then_fails_closed(
             if event.kind.value == "content":
                 host.content_observed = True
         await runtime.close()
-        return events, clients[0]
+        return events, host, clients[0]
 
-    events, client = asyncio.run(scenario())
+    events, host, client = asyncio.run(scenario())
 
     assert [event.kind.value for event in events] == ["content", "failed"]
     assert events[0].text == "queued before probe failure"
     assert events[-1].failure.code == "claude_runtime_cancellation_unavailable"
     assert events[-1].failure.phase.value == "after_visible_output"
+    assert host.probe_after_content is True
     assert client.interrupted == 1
     assert client.disconnected == 1
 

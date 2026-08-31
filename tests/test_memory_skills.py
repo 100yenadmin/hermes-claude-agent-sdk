@@ -76,6 +76,22 @@ def test_non_string_mapping_keys_hash_without_comparing_opaque_values() -> None:
     assert len(stable_tool_schema_hash(schema)) == 64
 
 
+def test_heterogeneous_nested_mapping_values_do_not_abort_reference_build() -> None:
+    refs = build_memory_skill_references(
+        [
+            {
+                "name": "memory",
+                "parameters": {
+                    1: {"first": "opaque"},
+                    2: ["second", "opaque"],
+                },
+            }
+        ]
+    )
+
+    assert refs.tool_names == ("memory",)
+
+
 def test_unknown_and_malformed_schemas_are_ignored_without_raw_payload_capture() -> None:
     refs = build_memory_skill_references(
         [
