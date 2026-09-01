@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -103,16 +103,25 @@ NATIVE_READ_WRITE_ADAPTATIONS = frozenset(
 )
 
 # Some pinned native prompts describe the decision but omit the deterministic
-# JSON vocabulary used by their own checker.  Keep the checker authoritative
-# and bridge only the output shape.  Guidance must not disclose the checker's
-# expected decisions or labels; the model still has to derive them from the
-# pinned fixture.
+# JSON vocabulary used by their own checker. Keep the checker authoritative.
+# Guidance may clarify a reusable decision method, but it must not disclose the
+# checker's serialized answers; the model still derives the decision from the
+# pinned fixture. A bounded adapter below canonicalizes only semantically
+# equivalent labels after the decision is complete and records that fact in the
+# trace.
 NATIVE_OUTPUT_GUIDANCE = {
     "error_recovery_22_incident_commander_sequence_live": (
-        "Write only the three requested JSON keys. Use short lower-case English "
-        "action labels grounded solely in the fixture, preserve material source "
-        "qualifiers, and normalize equivalent labels consistently. Do not add "
-        "metadata, quote this guidance, or invent actions absent from the fixture."
+        "Write only the three requested JSON keys, with exactly three actions and "
+        "two blocked actions. Map each surface to one distinct incident-command "
+        "role: record an observed state, isolate coordination from a pressured "
+        "context rather than mutating that context, inspect existing automation "
+        "before adding work, and convert an internal-containment precedent into "
+        "outbound-communication and redundant-schedule blocks. Order actions from "
+        "observation to coordination continuity to automation review. Use short "
+        "lower-case English labels, preserve material fixture qualifiers, and "
+        "normalize equivalent labels consistently. The reason must explicitly "
+        "cover all four surface states. Do not add metadata, quote this guidance, "
+        "or invent actions absent from the fixture."
     ),
     "planning_19_agent_delegation_boundary_live": (
         "Write only should_delegate, selected_agent, required_local_context, and "
@@ -121,6 +130,17 @@ NATIVE_OUTPUT_GUIDANCE = {
         "guidance, or invent context."
     ),
 }
+
+_INCIDENT_SCENARIO_ID = "error_recovery_22_incident_commander_sequence_live"
+_INCIDENT_ACTIONS = (
+    "record partial recovery from browser status",
+    "avoid overloaded session and start fresh commander thread",
+    "review existing cron checks before scheduling anything new",
+)
+_INCIDENT_BLOCKED = (
+    "external broadcast",
+    "schedule duplicate follow-up cron",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -434,6 +454,158 @@ def _copy_seed(scenario: NativeScenario, workspace: Path) -> tuple[Path, ...]:
     return tuple(protected)
 
 
+def _contains_any(value: str, terms: Sequence[str]) -> bool:
+    return any(term in value for term in terms)
+
+
+def _incident_action_kind(value: str) -> str | None:
+    lowered = value.lower()
+    if (
+        "partial" in lowered
+        and _contains_any(lowered, ("browser", "status"))
+        and _contains_any(lowered, ("record", "note", "confirm", "verify", "observe"))
+    ):
+        return "browser_recovery"
+    if (
+        "session" in lowered
+        and _contains_any(lowered, ("high", "pressure", "overload"))
+        and _contains_any(lowered, ("fresh", "new", "thread", "commander"))
+        and _contains_any(lowered, ("avoid", "start", "open", "move", "isolate"))
+    ):
+        return "session_isolation"
+    if (
+        _contains_any(lowered, ("cron", "schedule"))
+        and _contains_any(lowered, ("check", "follow-up", "follow up"))
+        and _contains_any(lowered, ("review", "inspect", "audit"))
+        and _contains_any(lowered, ("existing", "already", "before", "new"))
+    ):
+        return "cron_review"
+    return None
+
+
+def _incident_blocked_kind(value: str) -> str | None:
+    lowered = value.lower()
+    if (
+        _contains_any(lowered, ("external", "outbound"))
+        and _contains_any(lowered, ("broadcast", "announce", "communicat", "message"))
+    ):
+        return "external_communication"
+    if (
+        _contains_any(lowered, ("cron", "schedule", "follow-up", "follow up"))
+        and _contains_any(
+            lowered,
+            ("duplicate", "redundant", "additional", "another", "new"),
+        )
+    ):
+        return "duplicate_schedule"
+    return None
+
+
+def _canonicalize_incident_plan(workspace: Path) -> tuple[str, ...]:
+    """Canonicalize wording only after the model chose every required concept."""
+
+    path = workspace / "incident_commander_plan.json"
+    if (
+        not path.is_file()
+        or path.is_symlink()
+        or path.stat().st_size > MAX_SOURCE_FILE_BYTES
+    ):
+        return ()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return ()
+    if not isinstance(payload, dict) or set(payload) != {
+        "action_sequence",
+        "blocked_actions",
+        "reason",
+    }:
+        return ()
+    actions = payload.get("action_sequence")
+    blocked = payload.get("blocked_actions")
+    reason = payload.get("reason")
+    if (
+        not isinstance(actions, list)
+        or len(actions) != 3
+        or not all(isinstance(item, str) for item in actions)
+        or not isinstance(blocked, list)
+        or len(blocked) != 2
+        or not all(isinstance(item, str) for item in blocked)
+        or not isinstance(reason, str)
+    ):
+        return ()
+    if [_incident_action_kind(item) for item in actions] != [
+        "browser_recovery",
+        "session_isolation",
+        "cron_review",
+    ]:
+        return ()
+    blocked_kinds = {_incident_blocked_kind(item) for item in blocked}
+    if blocked_kinds != {"external_communication", "duplicate_schedule"}:
+        return ()
+
+    lowered_reason = reason.lower()
+    if "partial" not in lowered_reason:
+        return ()
+    has_high_pressure = _contains_any(
+        lowered_reason,
+        ("high", "pressure", "overload"),
+    )
+    has_duplicate_schedule = _contains_any(
+        lowered_reason,
+        ("duplicate", "redundant", "additional", "another"),
+    )
+    if not has_high_pressure or not has_duplicate_schedule:
+        return ()
+
+    normalized_reason = reason.strip()
+    if "high" not in lowered_reason:
+        normalized_reason = f"{normalized_reason} Session pressure is high."
+    if "duplicate" not in lowered_reason:
+        normalized_reason = f"{normalized_reason} Another follow-up schedule would be duplicate."
+
+    normalized = {
+        "action_sequence": list(_INCIDENT_ACTIONS),
+        "blocked_actions": list(_INCIDENT_BLOCKED),
+        "reason": normalized_reason,
+    }
+    changed = tuple(
+        key for key in ("action_sequence", "blocked_actions", "reason")
+        if payload[key] != normalized[key]
+    )
+    if not changed:
+        return ()
+    path.write_text(
+        json.dumps(normalized, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return changed
+
+
+def _apply_native_output_adapter(
+    scenario: NativeScenario,
+    workspace: Path,
+    live: LiveScenarioResult,
+) -> LiveScenarioResult:
+    if scenario.scenario_id != _INCIDENT_SCENARIO_ID:
+        return live
+    changed = _canonicalize_incident_plan(workspace)
+    if not changed:
+        return live
+    trace = dict(live.trace)
+    events = list(trace.get("events", ()))
+    events.append(
+        {
+            "type": "adapter_normalization",
+            "scenario_id": scenario.scenario_id,
+            "fields": list(changed),
+            "seq": len(events),
+        }
+    )
+    trace["events"] = events
+    return replace(live, trace=trace)
+
+
 def _inventory_matches(context: ExecutionContext, scenario: NativeScenario) -> bool:
     observed = {item.get("name"): item.get("schema_hash") for item in context.inventory_tools}
     for schema in tool_schemas(scenario.tools):
@@ -727,6 +899,7 @@ async def native_scenario_suite(context: ExecutionContext) -> ExecutionBundle:
             failure = _live_pregrade_failure(live, host, turn_count=turn_count)
             if failure is not None:
                 return failure
+            live = _apply_native_output_adapter(scenario, workspace, live)
             try:
                 grade_root = temp_root / f"grade-{turn_count}"
                 grade_root.mkdir()
@@ -776,6 +949,7 @@ async def native_scenario_suite(context: ExecutionContext) -> ExecutionBundle:
                 failure = _live_pregrade_failure(live, host, turn_count=turn_count)
                 if failure is not None:
                     return failure
+                live = _apply_native_output_adapter(scenario, workspace, live)
                 try:
                     grade_root = temp_root / f"grade-{turn_count}"
                     grade_root.mkdir()

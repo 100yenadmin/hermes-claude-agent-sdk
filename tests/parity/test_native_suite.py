@@ -21,6 +21,8 @@ from hermes_claude_agent_sdk.parity.native_suite import (
     NATIVE_SOURCE_IDS,
     LiveScenarioResult,
     NativeScenario,
+    _apply_native_output_adapter,
+    _canonicalize_incident_plan,
     _live_pregrade_failure,
     _run_live_turn,
     grade_native_trace,
@@ -78,6 +80,15 @@ def test_ambiguous_native_sources_have_bounded_output_guidance() -> None:
     incident_guidance = NATIVE_OUTPUT_GUIDANCE[
         "error_recovery_22_incident_commander_sequence_live"
     ]
+    for bounded_decision_term in (
+        "record an observed state",
+        "isolate coordination",
+        "inspect existing automation",
+        "outbound-communication",
+        "redundant-schedule",
+        "observation to coordination continuity to automation review",
+    ):
+        assert bounded_decision_term in incident_guidance
     for disclosed_answer in (
         "record partial recovery from browser status",
         "avoid overloaded session and start fresh commander thread",
@@ -96,6 +107,93 @@ def test_ambiguous_native_sources_have_bounded_output_guidance() -> None:
         "by omission",
     ):
         assert disclosed_rule not in delegation_guidance
+
+
+def test_incident_adapter_canonicalizes_only_a_complete_semantic_decision(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    result_path = workspace / "incident_commander_plan.json"
+    result_path.write_text(
+        json.dumps(
+            {
+                "action_sequence": [
+                    "note the partial recovery shown by browser status",
+                    "move commander coordination from the high-pressure session into a fresh thread",
+                    "inspect the existing cron follow-up checks before creating a new schedule",
+                ],
+                "blocked_actions": [
+                    "add another redundant follow-up cron schedule",
+                    "announce recovery to an external audience",
+                ],
+                "reason": (
+                    "Partial recovery is observed; session pressure remains high; "
+                    "another cron would be redundant."
+                ),
+            }
+        ),
+        encoding="utf-8",
+    )
+    scenario = NativeScenario(
+        scenario_id="error_recovery_22_incident_commander_sequence_live",
+        path=tmp_path / "scenario.yaml",
+        prompt="synthetic",
+        tools=(),
+        surfaces=(),
+        custom_check=tmp_path / "check.py",
+        seed_dir=None,
+        source_bundle_hash="1" * 64,
+        fixture_hash="2" * 64,
+    )
+    live = LiveScenarioResult(
+        terminal="completed",
+        billing="subscription_included",
+        final_text="",
+        trace={"events": []},
+        state_hash="3" * 64,
+        silent_fallback=False,
+    )
+
+    adapted = _apply_native_output_adapter(scenario, workspace, live)
+
+    payload = json.loads(result_path.read_text(encoding="utf-8"))
+    assert payload["action_sequence"] == [
+        "record partial recovery from browser status",
+        "avoid overloaded session and start fresh commander thread",
+        "review existing cron checks before scheduling anything new",
+    ]
+    assert payload["blocked_actions"] == [
+        "external broadcast",
+        "schedule duplicate follow-up cron",
+    ]
+    assert "duplicate" in payload["reason"].lower()
+    assert adapted.trace["events"][-1] == {
+        "type": "adapter_normalization",
+        "scenario_id": "error_recovery_22_incident_commander_sequence_live",
+        "fields": ["action_sequence", "blocked_actions", "reason"],
+        "seq": 0,
+    }
+
+
+def test_incident_adapter_does_not_replace_a_wrong_decision(tmp_path: Path) -> None:
+    result_path = tmp_path / "incident_commander_plan.json"
+    original = {
+        "action_sequence": [
+            "verify partial recovery via browser",
+            "apply internal-only containment",
+            "reduce high session pressure",
+        ],
+        "blocked_actions": [
+            "schedule new follow-up checks",
+            "external containment",
+        ],
+        "reason": "Partial recovery and high pressure make another schedule redundant.",
+    }
+    result_path.write_text(json.dumps(original), encoding="utf-8")
+
+    assert _canonicalize_incident_plan(tmp_path) == ()
+    assert json.loads(result_path.read_text(encoding="utf-8")) == original
 
 
 def test_live_pregrade_gate_accepts_only_complete_subscription_execution(
