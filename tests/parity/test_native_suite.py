@@ -196,6 +196,26 @@ def test_incident_adapter_does_not_replace_a_wrong_decision(tmp_path: Path) -> N
     assert json.loads(result_path.read_text(encoding="utf-8")) == original
 
 
+def test_incident_adapter_rejects_a_negated_isolation_action(tmp_path: Path) -> None:
+    result_path = tmp_path / "incident_commander_plan.json"
+    original = {
+        "action_sequence": [
+            "record partial recovery from browser status",
+            "avoid starting a fresh commander thread in the high-pressure session",
+            "review existing cron checks before scheduling anything new",
+        ],
+        "blocked_actions": [
+            "external broadcast",
+            "schedule duplicate follow-up cron",
+        ],
+        "reason": "Partial recovery and high pressure make another schedule redundant.",
+    }
+    result_path.write_text(json.dumps(original), encoding="utf-8")
+
+    assert _canonicalize_incident_plan(tmp_path) == ()
+    assert json.loads(result_path.read_text(encoding="utf-8")) == original
+
+
 def test_live_pregrade_gate_accepts_only_complete_subscription_execution(
     tmp_path: Path,
 ) -> None:

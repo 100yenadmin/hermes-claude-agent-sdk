@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -458,6 +459,28 @@ def _contains_any(value: str, terms: Sequence[str]) -> bool:
     return any(term in value for term in terms)
 
 
+_INCIDENT_ISOLATION_VERB = re.compile(
+    r"\b(?:start(?:ing)?|open(?:ing)?|mov(?:e|ing)|isolat(?:e|ing)|separat(?:e|ing))\b"
+)
+
+
+def _has_unnegated_incident_isolation(value: str) -> bool:
+    """Require an affirmative isolation action, not keywords under negation."""
+
+    for match in _INCIDENT_ISOLATION_VERB.finditer(value):
+        prior_words = re.findall(r"[a-z]+(?:'[a-z]+)?", value[: match.start()])[-3:]
+        prior = " ".join(prior_words)
+        if (
+            any(word in {"avoid", "never", "not", "skip"} for word in prior_words)
+            or "don't" in prior_words
+            or "do not" in prior
+            or "refuse to" in prior
+        ):
+            continue
+        return True
+    return False
+
+
 def _incident_action_kind(value: str) -> str | None:
     lowered = value.lower()
     if (
@@ -473,7 +496,7 @@ def _incident_action_kind(value: str) -> str | None:
             _contains_any(lowered, ("fresh", "new", "thread", "commander"))
             or ("separate" in lowered and "coordination" in lowered)
         )
-        and _contains_any(lowered, ("avoid", "start", "open", "move", "isolate"))
+        and _has_unnegated_incident_isolation(lowered)
     ):
         return "session_isolation"
     if (

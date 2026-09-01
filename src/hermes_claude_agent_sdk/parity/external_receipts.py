@@ -30,6 +30,7 @@ _LEAN_FIELDS = frozenset(
         "threshold_ppm",
         "max_fable_turns",
         "total_native_claude_children",
+        "attributed_worker_jobs",
         "total_fable_input_tokens",
         "total_fable_output_tokens",
         "total_fable_cache_read_tokens",
@@ -192,6 +193,8 @@ def load_lean_orchestration_receipt(
         or raw["p95_fable_non_cache_share_ppm"] > raw["threshold_ppm"]
         or raw["max_fable_turns"] > 2
         or raw["total_native_claude_children"] != 0
+        or raw["attributed_worker_jobs"] != raw["sample_count"]
+        or raw["total_fable_input_tokens"] + raw["total_fable_output_tokens"] <= 0
         or raw["total_worker_input_tokens"] + raw["total_worker_output_tokens"] <= 0
         or raw["fallback_count"] != 0
         or raw["metered_count"] != 0
@@ -202,6 +205,7 @@ def load_lean_orchestration_receipt(
         or not isinstance(route_counts, Mapping)
         or set(route_counts) != {"codex-luna", "codex-sol"}
         or not all(_bounded_int(value, minimum=1) for value in route_counts.values())
+        or sum(route_counts.values()) != raw["sample_count"]
         or not isinstance(billing_modes, Mapping)
         or dict(billing_modes)
         != {

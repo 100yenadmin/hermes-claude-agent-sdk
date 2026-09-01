@@ -51,6 +51,7 @@ def _lean_payload() -> dict:
         "threshold_ppm": 250_000,
         "max_fable_turns": 2,
         "total_native_claude_children": 0,
+        "attributed_worker_jobs": 100,
         "total_fable_input_tokens": 1_000,
         "total_fable_output_tokens": 200,
         "total_fable_cache_read_tokens": 8_000,
@@ -115,6 +116,7 @@ def test_valid_lean_orchestration_receipt_is_exact_and_safe(tmp_path: Path) -> N
 
     assert receipt["sample_count"] == 100
     assert receipt["total_native_claude_children"] == 0
+    assert receipt["attributed_worker_jobs"] == 100
     assert receipt["route_counts"] == {"codex-luna": 50, "codex-sol": 50}
     assert not any("prompt" in key or "session" in key for key in receipt)
 
@@ -126,7 +128,10 @@ def test_lean_receipt_rejects_overuse_missing_attribution_and_short_window(
         (
             {"total_native_claude_children": 1},
             {"max_fable_turns": 3},
+            {"attributed_worker_jobs": 99},
+            {"total_fable_input_tokens": 0, "total_fable_output_tokens": 0},
             {"total_worker_input_tokens": 0, "total_worker_output_tokens": 0},
+            {"route_counts": {"codex-luna": 50, "codex-sol": 49}},
             {"window_seconds": 172_799},
             {"unknown_billing_count": 1},
         )
