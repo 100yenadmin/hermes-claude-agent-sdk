@@ -1,12 +1,37 @@
 from __future__ import annotations
 
+import asyncio
+import subprocess
 from pathlib import Path
 
+from hermes_claude_agent_sdk.parity import v2_suite
 from hermes_claude_agent_sdk.parity.v2_suite import (
     _V2_NODES,
     _executable_path,
+    v2_mapped_suite,
     v2_execution_ids,
 )
+from hermes_claude_agent_sdk.parity.results import ExecutionClassification
+from hermes_claude_agent_sdk.parity.runner import ExecutionContext
+
+
+def _context(catalog, capability_id: str) -> ExecutionContext:
+    return ExecutionContext(
+        capability=catalog.by_id[capability_id],
+        path="positive",
+        trial_index=1,
+        profile_id="fable-v3-isolated",
+        profile_hash="3" * 64,
+        plugin_sha="1" * 40,
+        host_sha="2" * 40,
+        sdk_version="0.2.144",
+        runner_version="3.0.0",
+        inventory_hash="4" * 64,
+        contract_hash=catalog.contract_hash,
+        catalog_hash=catalog.catalog_hash,
+        remaining_turn_budget=180,
+        repo_root="/synthetic/repo",
+    )
 
 
 def test_every_v2_non_soak_row_has_one_exact_mapping(catalog) -> None:
@@ -40,3 +65,45 @@ def test_virtualenv_python_path_is_not_resolved_to_its_base_interpreter(
 
     assert _executable_path(str(link)) == link
     assert _executable_path(str(link)) != link.resolve()
+
+
+def test_v2_successful_source_tests_do_not_fabricate_unexecuted_path_outcomes(
+    catalog,
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(v2_suite, "_exact_source_preflight", lambda *_: None)
+    monkeypatch.setattr(v2_suite, "_exact_git_checkout", lambda *_: True)
+    host_root = tmp_path / "host"
+    v2_root = tmp_path / "v2"
+    host_root.mkdir()
+    v2_root.mkdir()
+    host_python = host_root / "bin" / "python"
+    host_python.parent.mkdir()
+    host_python.write_text("synthetic", encoding="utf-8")
+    monkeypatch.setenv("HERMES_AGENT_HOST_ROOT", str(host_root))
+    monkeypatch.setenv("HERMES_PARITY_V2_ROOT", str(v2_root))
+    monkeypatch.setenv("HERMES_PARITY_HOST_PYTHON", str(host_python))
+    calls = []
+
+    def successful_run(*args, **kwargs):
+        calls.append((args, kwargs))
+        return subprocess.CompletedProcess(
+            args=("pytest",),
+            returncode=0,
+            stdout=b"1 passed",
+            stderr=b"",
+        )
+
+    monkeypatch.setattr(v2_suite, "_run_nodes", successful_run)
+
+    result = asyncio.run(v2_mapped_suite(_context(catalog, "v2:auth-02")))
+
+    assert len(calls) == 1
+    assert result.outcomes["positive"].classification is ExecutionClassification.COMPLETE
+    assert result.outcomes["denial"].classification is ExecutionClassification.PENDING
+    assert result.outcomes["recovery"].classification is ExecutionClassification.PENDING
+    assert result.outcomes["positive"].primary_proof_hash
+    assert result.outcomes["positive"].secondary_proof_hash
+    assert result.outcomes["denial"].primary_proof_hash is None
+    assert result.outcomes["recovery"].primary_proof_hash is None

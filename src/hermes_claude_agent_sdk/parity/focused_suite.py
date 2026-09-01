@@ -148,6 +148,16 @@ def _blocked(reason: str) -> ExecutionBundle:
     )
 
 
+def _pending_path(reason: str) -> ExecutionOutcome:
+    """Leave a path unqualified until it has its own executable evidence."""
+
+    return ExecutionOutcome(
+        classification=ExecutionClassification.PENDING,
+        billing_classification="none",
+        reason_code=reason,
+    )
+
+
 def _exact_source_preflight(context: ExecutionContext, root: Path) -> str | None:
     if (
         context.profile_id != "fable-v3-isolated"
@@ -223,62 +233,59 @@ async def boundary_focused_suite(context: ExecutionContext) -> ExecutionBundle:
         }
     )
     passed = completed.returncode == 0
-    outcomes: dict[str, ExecutionOutcome] = {}
-    for path in ("positive", "denial", "recovery"):
-        if not passed:
-            classification = ExecutionClassification.VERIFIED_FAILURE
-        elif path == "denial":
-            classification = ExecutionClassification.EXPECTED_NEGATIVE
-        else:
-            classification = ExecutionClassification.COMPLETE
-        proof = {
-            "capability_id": context.capability.capability_id,
-            "path": path,
-            "node_manifest_hash": node_manifest_hash,
-            "output_hash": output_hash,
-            "plugin_sha": context.plugin_sha,
-            "host_sha": context.host_sha,
-        }
-        outcomes[path] = ExecutionOutcome(
-            classification=classification,
+    positive_proof = {
+        "capability_id": context.capability.capability_id,
+        "path": "positive",
+        "node_manifest_hash": node_manifest_hash,
+        "output_hash": output_hash,
+        "plugin_sha": context.plugin_sha,
+        "host_sha": context.host_sha,
+    }
+    if passed:
+        positive = ExecutionOutcome(
+            classification=ExecutionClassification.COMPLETE,
             billing_classification="none",
-            normalized_events=(
-                normalized_path_events(
-                    context.capability.expected_trace,
-                    path=path,
-                    evidence_hash=sha256_value(
-                        {
-                            "node_manifest_hash": node_manifest_hash,
-                            "output_hash": output_hash,
-                        }
-                    ),
-                )
-                if passed
-                else (
+            normalized_events=normalized_path_events(
+                context.capability.expected_trace,
+                path="positive",
+                evidence_hash=sha256_value(
                     {
-                        "sequence": 1,
-                        "kind": "terminal",
-                        "status": "failed",
-                        "terminal_outcome": "failed",
-                    },
-                )
-            ),
-            primary_proof_hash=sha256_value(proof) if passed else None,
-            secondary_proof_hash=(
-                sha256_value(
-                    {
-                        "catalog_hash": context.catalog_hash,
-                        "inventory_hash": context.inventory_hash,
-                        "profile_hash": context.profile_hash,
-                        "path": path,
+                        "node_manifest_hash": node_manifest_hash,
+                        "output_hash": output_hash,
                     }
-                )
-                if passed
-                else None
+                ),
             ),
-            reason_code=None if passed else "focused_suite_failed",
+            primary_proof_hash=sha256_value(positive_proof),
+            secondary_proof_hash=sha256_value(
+                {
+                    "catalog_hash": context.catalog_hash,
+                    "inventory_hash": context.inventory_hash,
+                    "profile_hash": context.profile_hash,
+                    "path": "positive",
+                }
+            ),
             turn_count=0,
         )
+    else:
+        positive = ExecutionOutcome(
+            classification=ExecutionClassification.VERIFIED_FAILURE,
+            billing_classification="none",
+            normalized_events=(
+                {
+                    "sequence": 1,
+                    "kind": "terminal",
+                    "status": "failed",
+                    "terminal_outcome": "failed",
+                },
+            ),
+            reason_code="focused_suite_failed",
+            turn_count=0,
+        )
+    outcomes = {
+        "positive": positive,
+        "denial": _pending_path("focused_denial_path_not_executed"),
+        "recovery": _pending_path("focused_recovery_path_not_executed"),
+    }
     return ExecutionBundle(outcomes=outcomes, turn_count=0)
 
 
