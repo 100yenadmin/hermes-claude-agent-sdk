@@ -10,11 +10,11 @@ import pytest
 
 
 SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
-HOST_ROOT = Path(
-    os.environ.get(
-        "HERMES_AGENT_HOST_ROOT",
-        "/Users/m1/repos/hermes-agent-runtime-plugin-api",
-    )
+_HOST_ROOT_VALUE = os.environ.get("HERMES_AGENT_HOST_ROOT")
+HOST_ROOT = Path(_HOST_ROOT_VALUE) if _HOST_ROOT_VALUE else None
+requires_host_root = pytest.mark.skipif(
+    HOST_ROOT is None or not HOST_ROOT.is_dir(),
+    reason="HERMES_AGENT_HOST_ROOT is not configured as a directory",
 )
 
 
@@ -76,7 +76,9 @@ def test_package_import_is_safe_without_hermes_or_sdk() -> None:
     assert result.returncode == 0, result.stderr
 
 
+@requires_host_root
 def test_public_provider_discovery_loads_the_module_entry_point_without_sdk() -> None:
+    assert HOST_ROOT is not None
     result = subprocess.run(
         [
             sys.executable,
@@ -111,7 +113,9 @@ def test_public_provider_discovery_loads_the_module_entry_point_without_sdk() ->
     assert result.returncode == 0, result.stderr
 
 
+@requires_host_root
 def test_public_provider_discovery_keeps_the_entry_point_opt_in() -> None:
+    assert HOST_ROOT is not None
     result = subprocess.run(
         [
             sys.executable,

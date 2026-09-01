@@ -425,6 +425,26 @@ def test_result_and_freeze_root_identities_must_match_catalog() -> None:
             validate_result(result, freeze=freeze, catalog=_catalog())
 
 
+@pytest.mark.parametrize(
+    "case",
+    ("missing_capability_id", "non_mapping_capability", "unknown_partition_capability", "invalid_repeat_policy"),
+)
+def test_malformed_catalog_inputs_raise_typed_packet_errors(case: str) -> None:
+    catalog = _catalog()
+    if case == "missing_capability_id":
+        catalog["capabilities"][0].pop("id")
+    elif case == "non_mapping_capability":
+        catalog["capabilities"][0] = "not-a-capability"
+    elif case == "unknown_partition_capability":
+        catalog["scope_partitions"][0]["capability_ids"] = ["CAP-missing"]
+    else:
+        catalog["capabilities"][0]["repeat_policy"] = None
+    freeze, result = _bound_result()
+
+    with pytest.raises(PacketValidationError, match="catalog binding"):
+        validate_result(result, freeze=freeze, catalog=catalog)
+
+
 def test_verified_failure_trace_may_deviate_but_qualifies_fail() -> None:
     from hermes_claude_agent_sdk.parity import packets as packet_impl
 

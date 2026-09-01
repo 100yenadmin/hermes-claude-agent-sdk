@@ -4,6 +4,7 @@ import hashlib
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -17,6 +18,7 @@ from hermes_claude_agent_sdk.parity.inventory import (
     ObservedInventoryEntry,
     ToolInventoryEntry,
     build_declared_inventory,
+    build_declared_inventory_from_runtime_request,
     build_declared_inventory_from_tool_schemas,
     build_observed_inventory,
     compute_declared_inventory_sha256,
@@ -34,6 +36,90 @@ _B = "b" * 64
 _C = "c" * 64
 _D = "d" * 64
 _CANDIDATE = "e" * 64
+
+
+def _runtime_inventory_request(
+    *,
+    schema_version: int = 1,
+    surface: object = "delivered_request",
+    tool_names: tuple[str, ...] | None = None,
+    tool_digest_overrides: dict[str, str] | None = None,
+    tool_enabled: dict[str, bool] | None = None,
+    server_names: tuple[str, ...] | None = None,
+    server_digest_overrides: dict[str, str] | None = None,
+    server_enabled: dict[str, bool] | None = None,
+) -> SimpleNamespace:
+    schemas = (
+        {
+            "type": "function",
+            "function": {
+                "name": "terminal",
+                "description": "Synthetic terminal metadata",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"command": {"type": "string"}},
+                    "required": ["command"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "mcp__files__read",
+                "description": "Synthetic file metadata",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}},
+                    "required": ["path"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+    )
+    digests = {
+        item["function"]["name"]: compute_schema_sha256(item["function"]["parameters"])
+        for item in schemas
+    }
+    digests.update(tool_digest_overrides or {})
+    ownership = {"terminal": "host", "mcp__files__read": "plugin"}
+    selected_tools = tool_names or tuple(sorted(digests))
+    delivered = tuple(
+        SimpleNamespace(
+            name=name,
+            schema_sha256=digests.get(name, _D),
+            declared_by=ownership.get(name, "host"),
+            enabled=(tool_enabled or {}).get(name, True),
+        )
+        for name in sorted(selected_tools)
+    )
+    expected_server_digest = canonical_sha256(
+        [
+            {
+                "name": "mcp__files__read",
+                "schema_sha256": digests["mcp__files__read"],
+                "enabled": True,
+            }
+        ]
+    )
+    server_digests = {"files": expected_server_digest}
+    server_digests.update(server_digest_overrides or {})
+    selected_servers = server_names if server_names is not None else ("files",)
+    servers = tuple(
+        SimpleNamespace(
+            name=name,
+            schema_sha256=server_digests.get(name, _C),
+            enabled=(server_enabled or {}).get(name, True),
+        )
+        for name in sorted(selected_servers)
+    )
+    inventory = SimpleNamespace(
+        schema_version=schema_version,
+        surface=SimpleNamespace(value=surface) if isinstance(surface, str) else surface,
+        tools=delivered,
+        mcp_servers=servers,
+    )
+    return SimpleNamespace(tool_schemas=schemas, tool_inventory=inventory)
 
 
 def _declared() -> DeclaredInventory:
@@ -139,9 +225,9 @@ def test_observed_inventory_hash_excludes_derived_drift_lists() -> None:
         declared=declared,
     )
 
-    assert observed.unknown_names == ("omega",)
-    assert observed.missing_names == ("hermes", "zeta")
-    assert observed.schema_drift_names == ("alpha",)
+    assert observed.unknown_names == ("tool:omega",)
+    assert observed.missing_names == ("mcp_server:hermes", "tool:zeta")
+    assert observed.schema_drift_names == ("tool:alpha",)
     projection = {
         "candidate_sha256": _CANDIDATE,
         "tools": [item.to_dict() for item in observed.tools],
@@ -170,10 +256,23 @@ def test_observed_inventory_derives_enabled_and_server_schema_drift() -> None:
     )
 
     assert observed.unknown_names == ()
-    assert observed.missing_names == ("zeta",)
-    assert observed.schema_drift_names == ("hermes",)
+    assert observed.missing_names == ("tool:zeta",)
+    assert observed.schema_drift_names == ("mcp_server:hermes",)
     assert not inventory_exact(declared, observed)
-    assert derive_inventory_drift(declared, observed).schema_drift_names == ("hermes",)
+    assert derive_inventory_drift(declared, observed).schema_drift_names == (
+        "mcp_server:hermes",
+    )
+
+
+def test_inventory_drift_keeps_tool_and_mcp_server_namespaces_distinct() -> None:
+    declared = build_declared_inventory(
+        [ToolInventoryEntry("shared", _A, "host", True)],
+        [MCPServerInventoryEntry("shared", _B, True)],
+    )
+
+    observed = build_observed_inventory(_CANDIDATE, (), (), declared=declared)
+
+    assert observed.missing_names == ("mcp_server:shared", "tool:shared")
 
 
 def test_observed_exact_match_requires_names_digests_and_enabled_state() -> None:
@@ -248,6 +347,91 @@ def test_public_schema_normalization_is_lazy_and_metadata_only() -> None:
     assert inventory.tools[0].schema_sha256 == compute_schema_sha256(
         schema["function"]["parameters"]
     )
+
+
+def test_runtime_request_adapter_preserves_verified_ownership_and_mcp_projection() -> None:
+    request = _runtime_inventory_request()
+
+    inventory = build_declared_inventory_from_runtime_request(request)
+
+    assert [(item.name, item.declared_by, item.enabled) for item in inventory.tools] == [
+        ("mcp__files__read", "plugin", True),
+        ("terminal", "host", True),
+    ]
+    assert [item.name for item in inventory.mcp_servers] == ["files"]
+    expected_tools = {
+        item["function"]["name"]: compute_schema_sha256(item["function"]["parameters"])
+        for item in request.tool_schemas
+    }
+    assert {item.name: item.schema_sha256 for item in inventory.tools} == expected_tools
+    assert inventory.mcp_servers[0].schema_sha256 == canonical_sha256(
+        [
+            {
+                "name": "mcp__files__read",
+                "schema_sha256": expected_tools["mcp__files__read"],
+                "enabled": True,
+            }
+        ]
+    )
+
+
+@pytest.mark.parametrize(
+    ("runtime_request", "message"),
+    [
+        (SimpleNamespace(tool_schemas=(), tool_inventory=None), "tool_inventory"),
+        (_runtime_inventory_request(schema_version=2), "schema_version"),
+        (_runtime_inventory_request(surface="source_manifest"), "surface"),
+        (
+            _runtime_inventory_request(tool_enabled={"terminal": False}),
+            "delivered tool entries must be enabled",
+        ),
+        (
+            _runtime_inventory_request(server_enabled={"files": False}),
+            "delivered MCP server entries must be enabled",
+        ),
+    ],
+)
+def test_runtime_request_adapter_rejects_absent_or_incompatible_metadata(
+    runtime_request: object, message: str
+) -> None:
+    with pytest.raises(InventoryValidationError, match=message):
+        build_declared_inventory_from_runtime_request(runtime_request)
+
+
+@pytest.mark.parametrize(
+    ("runtime_request", "message"),
+    [
+        (
+            _runtime_inventory_request(tool_names=("terminal",)),
+            "tool names",
+        ),
+        (
+            _runtime_inventory_request(tool_names=("terminal", "mcp__files__read", "extra")),
+            "tool names",
+        ),
+        (
+            _runtime_inventory_request(tool_digest_overrides={"terminal": _D}),
+            "schema_sha256",
+        ),
+        (
+            _runtime_inventory_request(server_names=()),
+            "MCP server names",
+        ),
+        (
+            _runtime_inventory_request(server_names=("files", "other")),
+            "MCP server names",
+        ),
+        (
+            _runtime_inventory_request(server_digest_overrides={"files": _D}),
+            "MCP server schema_sha256",
+        ),
+    ],
+)
+def test_runtime_request_adapter_rejects_tool_or_mcp_projection_drift(
+    runtime_request: object, message: str
+) -> None:
+    with pytest.raises(InventoryValidationError, match=message):
+        build_declared_inventory_from_runtime_request(runtime_request)
 
 
 def test_parity_inventory_import_is_host_sdk_and_auth_lazy() -> None:

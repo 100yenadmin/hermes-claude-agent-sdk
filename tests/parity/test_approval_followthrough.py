@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pytest
+
 from hermes_claude_agent_sdk.parity.approval_followthrough import (
     EXPECTED_APPROVALS,
     EXPECTED_TOOL_OUTCOMES,
@@ -13,13 +15,16 @@ from hermes_claude_agent_sdk.parity.approval_followthrough import (
 
 
 def test_public_host_approval_followthrough() -> None:
-    host_root = Path(
-        os.environ.get(
-            "HERMES_AGENT_HOST_ROOT",
-            "/Users/m1/repos/hermes-agent-runtime-plugin-api",
-        )
-    )
-    assert host_root.is_dir()
+    host_root_value = os.environ.get("HERMES_AGENT_HOST_ROOT")
+    if not host_root_value:
+        pytest.skip("HERMES_AGENT_HOST_ROOT is not configured")
+    host_root = Path(host_root_value)
+    if not host_root.is_dir():
+        pytest.skip("HERMES_AGENT_HOST_ROOT is not a directory")
+    ambient = {
+        name: os.environ.get(name)
+        for name in ("PATH", "PYTHONNOUSERSITE", "LC_ALL")
+    }
     report = run_approval_followthrough(host_root=str(host_root))
 
     assert report["status"] == "passed"
@@ -57,3 +62,4 @@ def test_public_host_approval_followthrough() -> None:
     assert report["network_calls"] == 0
     assert report["raw_payloads"] == 0
     assert report["shared_state"] == "temporary_only"
+    assert {name: os.environ.get(name) for name in ambient} == ambient

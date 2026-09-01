@@ -8,19 +8,17 @@ import sys
 from pathlib import Path
 
 
-def _fail() -> None:
-    raise SystemExit("installed approval-followthrough proof failed")
+def _fail(reason: str = "installed approval-followthrough proof failed") -> None:
+    raise SystemExit(reason)
 
 
 def main() -> None:
-    host_root = Path(
-        os.environ.get(
-            "HERMES_AGENT_HOST_ROOT",
-            "/Users/m1/repos/hermes-agent-runtime-plugin-api",
-        )
-    )
+    host_root_value = os.environ.get("HERMES_AGENT_HOST_ROOT")
+    if not host_root_value:
+        _fail("HERMES_AGENT_HOST_ROOT is not configured")
+    host_root = Path(host_root_value)
     if not host_root.is_dir():
-        _fail()
+        _fail("HERMES_AGENT_HOST_ROOT is not a directory")
 
     entries = importlib.metadata.entry_points(
         group="hermes_agent.plugins", name="claude-agent-sdk"

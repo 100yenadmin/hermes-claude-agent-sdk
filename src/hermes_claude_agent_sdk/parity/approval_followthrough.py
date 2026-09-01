@@ -206,7 +206,10 @@ def _hermetic_environment() -> Iterator[Path]:
             "ANTHROPIC_API_KEY",
             "ANTHROPIC_AUTH_TOKEN",
             "OPENAI_API_KEY",
+            "PATH",
+            "PYTHONNOUSERSITE",
             "PYTHONPYCACHEPREFIX",
+            "LC_ALL",
             "TIRITH_ENABLED",
         )
         prior = {name: os.environ.get(name) for name in names}

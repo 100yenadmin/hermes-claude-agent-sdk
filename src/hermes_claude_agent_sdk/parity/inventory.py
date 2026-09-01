@@ -301,9 +301,9 @@ def derive_inventory_drift(declared: DeclaredInventory | Mapping[str, Any],
     left = validate_declared_inventory(declared)
     right = observed if isinstance(observed, ObservedInventory) else ObservedInventory.from_mapping(observed)
     expected, actual = _index(left.tools, left.mcp_servers), _index(right.tools, right.mcp_servers)
-    unknown = sorted(name for kind, name in actual if (kind, name) not in expected)
-    missing = sorted(name for kind, name in expected if (kind, name) not in actual)
-    drift = sorted(key[1] for key, item in expected.items()
+    unknown = sorted(f"{kind}:{name}" for kind, name in actual if (kind, name) not in expected)
+    missing = sorted(f"{kind}:{name}" for kind, name in expected if (kind, name) not in actual)
+    drift = sorted(f"{key[0]}:{key[1]}" for key, item in expected.items()
                    if key in actual and (item.schema_sha256 != actual[key].schema_sha256
                                          or item.enabled != actual[key].enabled))
     return InventoryDrift(tuple(unknown), tuple(missing), tuple(drift))
@@ -351,6 +351,127 @@ def compute_schema_sha256(schema: Any) -> str:
         raise InventoryValidationError("tool schema is not canonical JSON") from exc
 
 
+def _public_field(value: Any, name: str, context: str) -> Any:
+    if isinstance(value, Mapping):
+        if name not in value:
+            raise InventoryValidationError(f"{context} is missing {name}")
+        return value[name]
+    try:
+        return getattr(value, name)
+    except (AttributeError, TypeError) as exc:
+        raise InventoryValidationError(f"{context} is missing {name}") from exc
+
+
+def _runtime_tool_entry(value: Any) -> ToolInventoryEntry:
+    enabled = _bool(_public_field(value, "enabled", "runtime tool entry"))
+    if not enabled:
+        raise InventoryValidationError("delivered tool entries must be enabled")
+    return ToolInventoryEntry(
+        _public_field(value, "name", "runtime tool entry"),
+        _public_field(value, "schema_sha256", "runtime tool entry"),
+        _public_field(value, "declared_by", "runtime tool entry"),
+        enabled,
+    )
+
+
+def _runtime_server_entry(value: Any) -> MCPServerInventoryEntry:
+    enabled = _bool(_public_field(value, "enabled", "runtime MCP server entry"))
+    if not enabled:
+        raise InventoryValidationError("delivered MCP server entries must be enabled")
+    return MCPServerInventoryEntry(
+        _public_field(value, "name", "runtime MCP server entry"),
+        _public_field(value, "schema_sha256", "runtime MCP server entry"),
+        enabled,
+    )
+
+
+def _delivered_mcp_projection(tools: Sequence[ToolInventoryEntry]) -> dict[str, str]:
+    buckets: dict[str, list[dict[str, object]]] = {}
+    for item in tools:
+        if not item.name.startswith("mcp__"):
+            continue
+        server_name, separator, tool_name = item.name[5:].partition("__")
+        if server_name and separator and tool_name:
+            buckets.setdefault(server_name, []).append(
+                {
+                    "name": item.name,
+                    "schema_sha256": item.schema_sha256,
+                    "enabled": item.enabled,
+                }
+            )
+    return {
+        name: canonical_sha256(sorted(entries, key=lambda entry: str(entry["name"])))
+        for name, entries in buckets.items()
+    }
+
+
+def build_declared_inventory_from_runtime_request(request: Any) -> DeclaredInventory:
+    """Verify one host-delivered request inventory without host imports.
+
+    This claims only delivered schemas, never omitted tools, source manifests,
+    candidate identity, provenance, or observed runtime inventory.
+    """
+    raw_inventory = _public_field(request, "tool_inventory", "runtime request")
+    if raw_inventory is None:
+        raise InventoryValidationError("runtime request tool_inventory is required")
+    schema_version = _public_field(raw_inventory, "schema_version", "runtime tool_inventory")
+    if type(schema_version) is not int or schema_version != 1:
+        raise InventoryValidationError("runtime tool_inventory schema_version must be 1")
+    surface = _public_field(raw_inventory, "surface", "runtime tool_inventory")
+    surface_value = surface if isinstance(surface, str) else _public_field(
+        surface, "value", "runtime tool_inventory surface"
+    )
+    if surface_value != "delivered_request":
+        raise InventoryValidationError("runtime tool_inventory surface must be delivered_request")
+
+    from ..tool_bridge import ToolBridgeConfigurationError, normalize_tool_schemas
+
+    try:
+        definitions = normalize_tool_schemas(
+            _public_field(request, "tool_schemas", "runtime request")
+        )
+    except ToolBridgeConfigurationError as exc:
+        raise InventoryValidationError("public tool schema normalization failed") from exc
+    expected_digests = {item.name: compute_schema_sha256(item.input_schema) for item in definitions}
+    tools = tuple(
+        _runtime_tool_entry(item)
+        for item in _array(
+            _public_field(raw_inventory, "tools", "runtime tool_inventory"),
+            "runtime tool inventory tools",
+        )
+    )
+    if len({item.name for item in tools}) != len(tools):
+        raise InventoryValidationError("runtime tool inventory contains duplicate tool names")
+    if set(expected_digests) != {item.name for item in tools}:
+        raise InventoryValidationError("runtime tool inventory tool names do not match tool_schemas")
+    for item in tools:
+        if item.schema_sha256 != expected_digests[item.name]:
+            raise InventoryValidationError(
+                f"runtime tool inventory schema_sha256 does not match tool_schemas: {item.name}"
+            )
+
+    servers = tuple(
+        _runtime_server_entry(item)
+        for item in _array(
+            _public_field(raw_inventory, "mcp_servers", "runtime tool_inventory"),
+            "runtime tool inventory MCP servers",
+        )
+    )
+    if len({item.name for item in servers}) != len(servers):
+        raise InventoryValidationError("runtime tool inventory contains duplicate MCP server names")
+    expected_servers = _delivered_mcp_projection(tools)
+    if set(expected_servers) != {item.name for item in servers}:
+        raise InventoryValidationError(
+            "runtime tool inventory MCP server names do not match delivered tool projection"
+        )
+    for item in servers:
+        if item.schema_sha256 != expected_servers[item.name]:
+            raise InventoryValidationError(
+                f"runtime tool inventory MCP server schema_sha256 does not match projection: {item.name}"
+            )
+    return build_declared_inventory(tools, servers, schema_version=schema_version)
+
+
 def build_declared_inventory_from_tool_schemas(
     tool_schemas: Sequence[Any], *, declared_by: str = "host", enabled: bool = True,
     mcp_servers: Sequence[MCPServerInventoryEntry | Mapping[str, Any]] = (),
@@ -358,10 +479,11 @@ def build_declared_inventory_from_tool_schemas(
     if not isinstance(declared_by, str) or declared_by not in _SIDES:
         raise InventoryValidationError("declared_by must be host or plugin")
     active = _bool(enabled)
+    from ..tool_bridge import ToolBridgeConfigurationError, normalize_tool_schemas
+
     try:
-        from ..tool_bridge import normalize_tool_schemas
         definitions = normalize_tool_schemas(tool_schemas)
-    except Exception as exc:
+    except ToolBridgeConfigurationError as exc:
         raise InventoryValidationError("public tool schema normalization failed") from exc
     tools = tuple(ToolInventoryEntry(item.name, compute_schema_sha256(item.input_schema), declared_by, active)
                   for item in definitions)
@@ -372,6 +494,7 @@ __all__ = [
     "DeclaredInventory", "InventoryDrift", "InventoryValidationError",
     "MCPServerInventoryEntry", "ObservedInventory", "ObservedInventoryEntry",
     "ToolInventoryEntry", "build_declared_inventory",
+    "build_declared_inventory_from_runtime_request",
     "build_declared_inventory_from_tool_schemas", "build_observed_inventory",
     "compute_declared_inventory_sha256", "compute_observed_inventory_sha256",
     "compute_schema_sha256", "derive_inventory_drift", "inventory_exact",

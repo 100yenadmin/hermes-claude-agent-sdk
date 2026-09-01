@@ -6,8 +6,7 @@ from .canonical import CanonicalizationError, SDK_EVENT_CODES, TRACE_REGISTRY, c
 class PacketValidationError(CanonicalizationError):
     pass
 
-PATHS = ("positive", "denial", "recovery")
-EXPECTED = frozenset(("PASS", "EXPECTED_NEGATIVE", "NOT_APPLICABLE"))
+PATHS, EXPECTED = ("positive", "denial", "recovery"), frozenset(("PASS", "EXPECTED_NEGATIVE", "NOT_APPLICABLE"))
 OBSERVED = frozenset(("PASS", "EXPECTED_NEGATIVE", "VERIFIED_FAILURE", "ENVIRONMENT_BLOCKED", "PENDING", "NOT_APPLICABLE"))
 QUALIFICATIONS = frozenset(("PASS", "EXPECTED_NEGATIVE", "FAIL", "BLOCKED", "PENDING", "NOT_APPLICABLE"))
 SCOPES = frozenset(("isolated_cell", "one_logical_session"))
@@ -325,7 +324,7 @@ def validate_freeze(value: Any) -> dict[str, Any]:
     if not result["frozen"] or result["freeze_sha256"] != canonical_sha256(_omit(result, "freeze_sha256")): _fail("freeze hash is invalid")
     return result
 
-def validate_result(value: Any, *, freeze: Mapping[str, Any] | None = None, catalog: Mapping[str, Any] | None = None) -> dict[str, Any]:
+def _validate_result(value: Any, *, freeze: Mapping[str, Any] | None = None, catalog: Mapping[str, Any] | None = None) -> dict[str, Any]:
     keys = {"result_schema_version", "freeze_sha256", "contract_sha256", "catalog_sha256", "source_map_sha256", "fixture_manifest_sha256", "result_sha256", "candidate", "inventory", "run", "cells", "grade", "redaction"}
     result = _obj(value, keys, "result")
     if result["result_schema_version"] != "3.0.0": _fail("result schema version is invalid")
@@ -346,9 +345,8 @@ def validate_result(value: Any, *, freeze: Mapping[str, Any] | None = None, cata
         _pref(cap_id, "CAP-", "capability_id"); ids.append(cap_id); _pref(item["scenario_id"], "SCN-", "scenario_id"); _source_rows(item["source_rows"], "cell.source_rows"); _enum(item["session_scope"], SCOPES, "cell.session_scope"); _bool(item["required"], "cell.required")
         if item["session_scope"] != run["session_scope"]: _fail("cell scope differs from run")
         attempts = _arr(item["attempts"], "cell.attempts", 3); cap = catalog_caps.get(cap_id); expected_paths = None
-        if catalog is not None:
-            if cap is None or item["scenario_id"] != cap["scenario_id"] or item["source_rows"] != cap["source_rows"] or item["required"] != cap["required"]: _fail("cell does not copy catalog")
-            expected_paths = {name: cap[f"{name}_path"] for name in PATHS}
+        if cap is None or item["scenario_id"] != cap["scenario_id"] or item["source_rows"] != cap["source_rows"] or item["required"] != cap["required"]: _fail("cell does not copy catalog")
+        expected_paths = {name: cap[f"{name}_path"] for name in PATHS}
         if cap is not None and cap.get("repeat_policy", {"mode": "once"}).get("mode") == "once" and len(attempts) != 1: _fail("once cell must have one attempt")
         if cap is not None and cap.get("repeat_policy", {"mode": "once"}).get("mode") == "consecutive_3" and not 1 <= len(attempts) <= 3: _fail("repeat cell has invalid attempt count")
         previous = None; validated_attempts: list[Mapping[str, Any]] = []
@@ -371,11 +369,14 @@ def validate_result(value: Any, *, freeze: Mapping[str, Any] | None = None, cata
     if freeze is None: _fail("freeze is required to bind result")
     _grade(result["grade"], cells, statuses, inventory, billing_safe, isolation_safe, catalog, records, terminal_exact, resume_safe, True); validate_redaction(result["redaction"])
     if result["result_sha256"] != canonical_sha256(_omit(result, "result_sha256")): _fail("result hash is invalid")
-    if freeze is not None:
-        frozen = validate_freeze(freeze)
-        if frozen["capability_set_sha256"] != canonical_sha256(sorted(ids)) or result["freeze_sha256"] != frozen["freeze_sha256"] or candidate["candidate_sha256"] != frozen["candidate_sha256"] or any(result[key] != frozen[key] for key in ("contract_sha256", "catalog_sha256", "source_map_sha256", "fixture_manifest_sha256")) or inventory["declared_inventory_sha256"] != frozen["declared_inventory_sha256"] or inventory["observed_inventory_sha256"] != frozen["observed_inventory_sha256"] or run["scenario_sha256"] != frozen["scenario_sha256"] or run["scope_partition_id"] != frozen["scope_partition_id"] or run["session_scope"] != frozen["session_scope"] or frozen["sdk_ledger_sha256"] != catalog["sdk_ledger"]["ledger_sha256"]: _fail("capability_set_sha256 is not bound" if frozen["capability_set_sha256"] != canonical_sha256(sorted(ids)) else "result freeze/candidate binding is invalid")
+    frozen = validate_freeze(freeze)
+    if frozen["capability_set_sha256"] != canonical_sha256(sorted(ids)) or result["freeze_sha256"] != frozen["freeze_sha256"] or candidate["candidate_sha256"] != frozen["candidate_sha256"] or any(result[key] != frozen[key] for key in ("contract_sha256", "catalog_sha256", "source_map_sha256", "fixture_manifest_sha256")) or inventory["declared_inventory_sha256"] != frozen["declared_inventory_sha256"] or inventory["observed_inventory_sha256"] != frozen["observed_inventory_sha256"] or run["scenario_sha256"] != frozen["scenario_sha256"] or run["scope_partition_id"] != frozen["scope_partition_id"] or run["session_scope"] != frozen["session_scope"] or frozen["sdk_ledger_sha256"] != catalog["sdk_ledger"]["ledger_sha256"]: _fail("capability_set_sha256 is not bound" if frozen["capability_set_sha256"] != canonical_sha256(sorted(ids)) else "result freeze/candidate binding is invalid")
     if catalog is not None and any(result[key] != catalog.get(key) for key in ("catalog_sha256", "contract_sha256", "source_map_sha256")): _fail("result catalog binding is invalid")
     return result
+
+def validate_result(value: Any, *, freeze: Mapping[str, Any] | None = None, catalog: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    try: return _validate_result(value, freeze=freeze, catalog=catalog)
+    except (KeyError, TypeError, AttributeError) as exc: raise PacketValidationError("result catalog binding is invalid") from exc
 
 def _aggregate_projection(value: Mapping[str, Any], full: bool = False) -> Any:
     if full:

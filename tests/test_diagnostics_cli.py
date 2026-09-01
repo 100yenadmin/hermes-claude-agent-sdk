@@ -8,20 +8,24 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
-HOST_ROOT = Path(
-    os.environ.get(
-        "HERMES_AGENT_HOST_ROOT",
-        "/Users/m1/repos/hermes-agent-runtime-plugin-api",
-    )
+_HOST_ROOT_VALUE = os.environ.get("HERMES_AGENT_HOST_ROOT")
+HOST_ROOT = Path(_HOST_ROOT_VALUE) if _HOST_ROOT_VALUE else None
+requires_host_root = pytest.mark.skipif(
+    HOST_ROOT is None or not HOST_ROOT.is_dir(),
+    reason="HERMES_AGENT_HOST_ROOT is not configured as a directory",
 )
 
 
 def _run_doctor(*args: str, host: bool = False) -> subprocess.CompletedProcess[str]:
     pythonpath = [str(SRC)]
     if host:
+        if HOST_ROOT is None:
+            raise RuntimeError("HERMES_AGENT_HOST_ROOT is not configured")
         pythonpath.append(str(HOST_ROOT))
     env = {
         "PATH": os.environ.get("PATH", os.defpath),
@@ -59,6 +63,7 @@ def test_missing_host_is_nonzero_json_and_does_not_import_sdk() -> None:
     assert "Traceback" not in result.stdout
 
 
+@requires_host_root
 def test_exact_host_is_zero_json_with_api_capabilities_and_sdk_metadata() -> None:
     result = _run_doctor("doctor", "--json", host=True)
 
@@ -82,6 +87,7 @@ def test_exact_host_is_zero_json_with_api_capabilities_and_sdk_metadata() -> Non
     assert "Traceback" not in result.stdout
 
 
+@requires_host_root
 def test_json_is_stable_and_console_entry_point_is_declared() -> None:
     first = _run_doctor("--json", host=True)
     second = _run_doctor("doctor", "--json", host=True)
