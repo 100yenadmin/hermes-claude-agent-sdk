@@ -36,7 +36,7 @@ class ToolUseBlock:
 @dataclass
 class AssistantMessage:
     content: list[object]
-    model: str = "claude-fable-synthetic"
+    model: str | None = "claude-fable-synthetic"
 
 
 @dataclass
@@ -51,6 +51,8 @@ class ResultMessage:
     num_turns: int = 1
     duration_ms: int = 1
     duration_api_ms: int = 1
+    model: str | None = None
+    model_usage: object | None = None
 
 
 _END = object()
@@ -108,7 +110,16 @@ class _Client:
             return
         if self.mode not in {"unknown", "tool_failure"}:
             await self._messages.put(SystemMessage("init", {"apiKeySource": "none"}))
-            await self._messages.put(AssistantMessage([TextBlock("hello")]))
+            assistant_model = (
+                None
+                if self.mode == "missing_model"
+                else "claude-fable-5"
+                if self.mode == "model_canonical"
+                else "claude-fable-synthetic"
+            )
+            await self._messages.put(
+                AssistantMessage([TextBlock("hello")], model=assistant_model)
+            )
         if self.mode in {"compaction", "compaction_tool_success"}:
             await self._messages.put(
                 SystemMessage(
@@ -121,6 +132,18 @@ class _Client:
                 result="hello",
                 usage={"input_tokens": 2, "output_tokens": 3},
                 is_error=self.mode == "compaction_failure",
+                model="claude-fable-5" if self.mode == "model_canonical" else None,
+                model_usage=(
+                    {
+                        "claude-fable-5": {
+                            "canonicalModel": "claude-fable-5-1",
+                            "inputTokens": 2,
+                            "outputTokens": 3,
+                        }
+                    }
+                    if self.mode == "model_canonical"
+                    else None
+                ),
             )
         )
         if self.mode == "success_with_background":
@@ -531,7 +554,7 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
         ) == (
             RUNTIME_ID,
             "claude-agent-sdk",
-            "claude-fable-5",
+            "claude-fable-synthetic",
             "subscription_included",
             "included",
             "synthetic-correlation",
@@ -547,7 +570,11 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
         assert terminal_result["error"] is None
         assert terminal_result["api_calls"] == 1
         assert terminal_result["provider"] == "claude-agent-sdk"
-        assert terminal_result["model"] == "claude-fable-5"
+        assert terminal_result["model"] == "claude-fable-synthetic"
+        assert terminal_result["selected_model"] == "claude-fable-5"
+        assert terminal_result["effective_model"] == "claude-fable-synthetic"
+        assert terminal_result["canonical_model"] == "unknown"
+        assert terminal_result["model_resolution"] == "mismatch"
         assert terminal_result["messages"][-1] == {
             "role": "assistant",
             "content": "hello",
@@ -559,6 +586,48 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
         assert fields["mcp_servers"]["hermes-tools"]["tools"] == []
         assert clients[0].queries == ["hello runtime"]
         assert clients[0].disconnected == 1
+
+    asyncio.run(scenario())
+
+
+def test_runtime_preserves_canonical_sdk_model_in_usage_and_terminal_result() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("model_canonical", clients)
+        events = await _collect(runtime, _request(), _Host())
+        await runtime.close()
+
+        receipt = next(event.receipt for event in events if event.kind.value == "usage")
+        assert receipt.model == "claude-fable-5-1"
+        terminal_result = next(
+            event.result for event in events if event.kind.value == "completed"
+        )
+        assert terminal_result["model"] == "claude-fable-5-1"
+        assert terminal_result["selected_model"] == "claude-fable-5"
+        assert terminal_result["effective_model"] == "claude-fable-5"
+        assert terminal_result["canonical_model"] == "claude-fable-5-1"
+        assert terminal_result["model_resolution"] == "canonicalized"
+
+    asyncio.run(scenario())
+
+
+def test_runtime_does_not_use_selected_model_when_sdk_reports_no_model() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("missing_model", clients)
+        events = await _collect(runtime, _request(), _Host())
+        await runtime.close()
+
+        receipt = next(event.receipt for event in events if event.kind.value == "usage")
+        assert receipt.model == "unknown"
+        terminal_result = next(
+            event.result for event in events if event.kind.value == "completed"
+        )
+        assert terminal_result["model"] == "unknown"
+        assert terminal_result["selected_model"] == "claude-fable-5"
+        assert terminal_result["effective_model"] == "unknown"
+        assert terminal_result["canonical_model"] == "unknown"
+        assert terminal_result["model_resolution"] == "unknown"
 
     asyncio.run(scenario())
 

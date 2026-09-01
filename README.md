@@ -25,9 +25,10 @@ chooses a Hermes session or gateway route, never performs a latest-session
 lookup, and never adds a provider-specific queue or retry path.
 
 The descriptor owns the provider id `claude-agent-sdk` and the generic
-`agent_runtime` mode. Claude model ids are selected by the declared `claude-`
-and `anthropic/claude-` prefixes; the host's `anthropic_messages` provider
-remains a separate transport and is not routed to this plugin.
+`agent_runtime` mode. It accepts bounded direct Claude model ids beginning
+with `claude-`; provider-qualified OpenRouter or Nous slugs are rejected before
+auth or SDK startup. The host's `anthropic_messages` provider remains a
+separate transport and is not routed to this plugin.
 
 ## Compatibility target
 
@@ -96,6 +97,12 @@ root, and the pinned ClawProBench root. The v2 source map also requires the
 immutable `33fe73a` reference checkout and a test-capable exact-host interpreter
 via `HERMES_PARITY_HOST_PYTHON` when that checkout does not own a `.venv`.
 These are execution inputs, not values written into result packets.
+
+That command is the immutable Fable 5 evidence contract. Anthropic's newer
+direct model id `claude-fable-5-1` is descriptor-compatible, but it requires a
+separately versioned installed-Hermes subscription proof before it can replace
+the fallback or parity input. Do not substitute the distinct OpenRouter/Nous
+catalog slug `anthropic/claude-fable-5.1` into this subscription-only lane.
 
 The runtime lane has a stricter barrier. It accepts only a persistent
 `local_profile` manifest and requires an immutable wheel, its SHA-256 digest,

@@ -101,6 +101,68 @@ def test_factory_and_preflight_reject_incompatible_selection_before_sdk_import(
     assert "claude_agent_sdk" not in sys.modules
 
 
+def test_fable_5_1_direct_model_preflight_is_sdk_lazy(monkeypatch):
+    monkeypatch.delitem(sys.modules, "claude_agent_sdk", raising=False)
+    imports = []
+
+    def forbidden_import(name, *args, **kwargs):
+        imports.append(name)
+        raise AssertionError("compatible preflight must not import the SDK")
+
+    class AuthResult:
+        allowed = True
+        category = "subscription_oauth"
+
+    monkeypatch.setattr(runtime_module.importlib, "import_module", forbidden_import)
+    runtime = runtime_module.ClaudeAgentSDKRuntime(auth_probe=lambda: AuthResult())
+    request = _request()
+    request = replace(
+        request,
+        selection=replace(request.selection, model="claude-fable-5-1"),
+    )
+
+    assert runtime.preflight(request) is None
+    assert imports == []
+    assert "claude_agent_sdk" not in sys.modules
+
+
+@pytest.mark.parametrize(
+    "model",
+    (
+        "fable",
+        "anthropic/claude-fable-5.1",
+        "claude-fable 5.1",
+        "Claude-fable-5-1",
+        "claude-",
+    ),
+)
+def test_non_direct_fable_ids_are_rejected_before_auth_or_sdk(monkeypatch, model):
+    monkeypatch.delitem(sys.modules, "claude_agent_sdk", raising=False)
+    auth_calls = []
+    imports = []
+
+    def forbidden_import(name, *args, **kwargs):
+        imports.append(name)
+        raise AssertionError("incompatible preflight must not import the SDK")
+
+    def auth_probe():
+        auth_calls.append(True)
+        raise AssertionError("incompatible selection must not inspect auth")
+
+    monkeypatch.setattr(runtime_module.importlib, "import_module", forbidden_import)
+    runtime = runtime_module.ClaudeAgentSDKRuntime(auth_probe=auth_probe)
+    request = _request()
+    request = replace(request, selection=replace(request.selection, model=model))
+
+    failure = runtime.preflight(request)
+
+    assert failure is not None
+    assert failure.code == "claude_runtime_selection_unsupported"
+    assert auth_calls == []
+    assert imports == []
+    assert "claude_agent_sdk" not in sys.modules
+
+
 def test_public_host_rejects_incompatible_descriptor_before_factory_or_sdk(monkeypatch):
     monkeypatch.delitem(sys.modules, "claude_agent_sdk", raising=False)
     context = _Context()

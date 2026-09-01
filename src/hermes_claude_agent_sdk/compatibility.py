@@ -8,6 +8,7 @@ therefore safe in a clean Python environment and never imports the Claude SDK.
 from __future__ import annotations
 
 import json
+import re
 from importlib import metadata
 from typing import Any, Mapping, TYPE_CHECKING
 
@@ -43,7 +44,17 @@ REQUIRED_HOST_CAPABILITIES = frozenset(
 # runtime mode rather than a transport-specific Messages mode.
 PROVIDER_IDS = frozenset({"claude-agent-sdk"})
 API_MODES = frozenset({"agent_runtime"})
-MODEL_PREFIXES = ("claude-", "anthropic/claude-")
+MODEL_PREFIXES = ("claude-",)
+_DIRECT_MODEL_ID = re.compile(r"^claude-[A-Za-z0-9][A-Za-z0-9_.:-]*$")
+
+
+def is_supported_model_id(model: Any) -> bool:
+    """Accept only bounded direct Claude ids, never provider-route slugs."""
+    return (
+        isinstance(model, str)
+        and len(model) <= 128
+        and _DIRECT_MODEL_ID.fullmatch(model) is not None
+    )
 
 
 def build_runtime_descriptor() -> "RuntimeDescriptor":

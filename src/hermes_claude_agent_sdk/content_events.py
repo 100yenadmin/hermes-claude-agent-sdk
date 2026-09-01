@@ -49,7 +49,9 @@ _MAX_USAGE_TOKENS = 10**12
 _UNAVAILABLE = "[unavailable]"
 _UNAVAILABLE_TOOL_INPUT = "[unavailable tool input]"
 _UNAVAILABLE_TOOL_RESULT = "[unavailable tool result]"
+_UNKNOWN_MODEL = "unknown"
 _SAFE_IDENTIFIER = re.compile(r"[^A-Za-z0-9_.:-]+")
+_SAFE_MODEL_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/-]*$")
 
 
 def _sdk_type_name(obj: Any) -> str:
@@ -78,6 +80,23 @@ def _safe_identifier(value: Any, *, default: str) -> str:
         return default
     text = _SAFE_IDENTIFIER.sub("_", text)
     return text or default
+
+
+def _safe_model_identifier(value: Any) -> str | None:
+    """Read an SDK model identifier without normalizing it into a guess."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text or len(text) > _MAX_IDENTIFIER_CHARS or any(
+        ord(character) < 32 or ord(character) == 127 for character in text
+    ):
+        return None
+    if (
+        text.casefold() == _UNKNOWN_MODEL
+        or _SAFE_MODEL_IDENTIFIER.fullmatch(text) is None
+    ):
+        return None
+    return text
 
 
 def _safe_json_value(value: Any, *, depth: int = 0, seen: set[int] | None = None) -> Any:
@@ -245,6 +264,10 @@ class ProjectionResult:
     final_text: str | None = None
     is_result: bool = False
     model: str | None = None
+    selected_model: str | None = None
+    effective_model: str | None = None
+    canonical_model: str | None = None
+    model_resolution: str = "unknown"
 
     @property
     def tool_result_metadata(self) -> tuple[ToolResultMetadata, ...]:
@@ -256,9 +279,9 @@ class ClaudeSdkEventProjector:
     """Stateful projector consuming SDK messages in arrival order.
 
     ``model`` and billing settings are host-provided configuration, not read
-    from credentials or environment.  A caller can pass a model-less
-    projector and the projector will use a safe model id reported by a message
-    when present.
+    from credentials or environment.  The configured model is retained as
+    ``selected_model`` only; effective model identity is read exclusively from
+    SDK message/model_usage evidence.
     """
 
     def __init__(
@@ -274,7 +297,11 @@ class ClaudeSdkEventProjector:
             runtime_id, default="hermes-claude-agent-sdk"
         )
         self._provider = _safe_identifier(provider, default="claude-agent-sdk")
-        self._model = _safe_text(model, limit=_MAX_IDENTIFIER_CHARS) or None
+        self._selected_model = _safe_model_identifier(model)
+        self._reported_models: set[str] = set()
+        self._usage_models: set[str] = set()
+        self._canonical_models: set[str] = set()
+        self._usage_malformed = False
         self._billing_mode = (
             billing_mode
             if isinstance(billing_mode, str)
@@ -297,15 +324,88 @@ class ClaudeSdkEventProjector:
         # display/bookkeeping only and never enter the public event stream.
         return ProjectionResult()
 
-    def _message_model(self, message: Any) -> str | None:
-        reported = _safe_text(
-            _safe_attr(message, "model"), limit=_MAX_IDENTIFIER_CHARS
-        )
+    def _observe_model_evidence(self, message: Any) -> None:
+        reported = _safe_model_identifier(_safe_attr(message, "model"))
         if reported:
-            self._model = reported
-        return self._model
+            self._reported_models.add(reported)
+
+        model_usage = _safe_attr(message, "model_usage")
+        if model_usage is None:
+            return
+        if not isinstance(model_usage, Mapping):
+            self._usage_malformed = True
+            return
+        try:
+            entries = list(model_usage.items())
+        except Exception:
+            self._usage_malformed = True
+            return
+        if not entries:
+            self._usage_malformed = True
+            return
+        for model, usage in entries:
+            safe_model = _safe_model_identifier(model)
+            if safe_model is None or not isinstance(usage, Mapping):
+                self._usage_malformed = True
+                continue
+            self._usage_models.add(safe_model)
+            canonical = _known_value(usage, "canonicalModel")
+            if canonical is None:
+                continue
+            if (
+                isinstance(canonical, str)
+                and canonical.strip().casefold() == _UNKNOWN_MODEL
+            ):
+                # The SDK sentinel carries no canonical identity. Preserve any
+                # independently reported effective model instead.
+                continue
+            safe_canonical = _safe_model_identifier(canonical)
+            if safe_canonical is None:
+                self._usage_malformed = True
+                continue
+            self._canonical_models.add(safe_canonical)
+
+    def _model_provenance(self) -> tuple[str | None, str | None, str]:
+        """Return effective/canonical identity and a fail-closed resolution."""
+        if self._usage_malformed or len(self._canonical_models) > 1:
+            return None, None, "ambiguous"
+
+        usage_models = self._usage_models
+        canonical = next(iter(self._canonical_models), None)
+        if len(usage_models) > 1:
+            # Multiple model_usage keys do not identify one effective model.
+            # A unique canonicalModel remains useful and is retained as such.
+            return None, canonical, "ambiguous"
+
+        usage_model = next(iter(usage_models), None)
+        reported_models = self._reported_models
+        if usage_model is not None:
+            allowed_reported = {usage_model}
+            if canonical is not None:
+                allowed_reported.add(canonical)
+            if not reported_models.issubset(allowed_reported):
+                return None, None, "ambiguous"
+            effective = usage_model
+        elif len(reported_models) == 1:
+            effective = next(iter(reported_models))
+        elif len(reported_models) > 1:
+            return None, None, "ambiguous"
+        else:
+            effective = None
+
+        if effective is None:
+            return None, canonical, "unknown"
+        if canonical is not None and canonical != effective:
+            return effective, canonical, "canonicalized"
+        if (
+            self._selected_model is not None
+            and self._selected_model != effective
+        ):
+            return effective, canonical, "mismatch"
+        return effective, canonical, "exact" if self._selected_model else "reported"
 
     def _project_assistant(self, message: Any) -> ProjectionResult:
+        self._observe_model_evidence(message)
         text_parts: list[str] = []
         tool_events: list[RuntimeToolRequestEvent] = []
         for block in _safe_attr(message, "content") or ():
@@ -336,10 +436,15 @@ class ClaudeSdkEventProjector:
         if text:
             events.append(RuntimeContentEvent(text=text))
         events.extend(tool_events)
+        effective, canonical, resolution = self._model_provenance()
         return ProjectionResult(
             events=tuple(events),
             final_text=text,
-            model=self._message_model(message),
+            model=effective,
+            selected_model=self._selected_model,
+            effective_model=effective,
+            canonical_model=canonical,
+            model_resolution=resolution,
         )
 
     def _project_user(self, message: Any) -> ProjectionResult:
@@ -372,8 +477,11 @@ class ClaudeSdkEventProjector:
         )
 
     def _project_result(self, message: Any) -> ProjectionResult:
+        self._observe_model_evidence(message)
         final = _safe_text(_safe_attr(message, "result")) or None
-        model = self._message_model(message)
+        effective, canonical, resolution = self._model_provenance()
+        model = effective
+        receipt_model = canonical or effective or _UNKNOWN_MODEL
         events: list[RuntimeEvent] = []
         if final:
             # ResultMessage.result is authoritative over preceding text blocks.
@@ -384,7 +492,7 @@ class ClaudeSdkEventProjector:
             receipt = RuntimeUsageReceipt(
                 runtime_id=self._runtime_id,
                 provider=self._provider,
-                model=model or "unknown",
+                model=receipt_model,
                 billing_mode=self._billing_mode,
                 cost_status=_safe_cost_status(
                     billing_mode=self._billing_mode,
@@ -415,8 +523,13 @@ class ClaudeSdkEventProjector:
         completion: dict[str, Any] = {}
         if final:
             completion["text"] = final
-        if model:
-            completion["model"] = model
+        # ``model`` is the legacy effective-identity alias.  It must never
+        # contain the selected request when the SDK supplied no evidence.
+        completion["model"] = receipt_model
+        completion["selected_model"] = self._selected_model or _UNKNOWN_MODEL
+        completion["effective_model"] = effective or _UNKNOWN_MODEL
+        completion["canonical_model"] = canonical or _UNKNOWN_MODEL
+        completion["model_resolution"] = resolution
         is_error = _safe_attr(message, "is_error")
         if isinstance(is_error, bool) and is_error:
             completion["is_error"] = True
@@ -433,4 +546,8 @@ class ClaudeSdkEventProjector:
             final_text=final,
             is_result=True,
             model=model,
+            selected_model=self._selected_model,
+            effective_model=effective,
+            canonical_model=canonical,
+            model_resolution=resolution,
         )

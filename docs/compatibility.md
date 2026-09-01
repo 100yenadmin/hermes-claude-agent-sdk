@@ -29,6 +29,26 @@ resume state only and are never background-delivery metadata.
 
 The descriptor accepts only the plugin-owned provider id
 `claude-agent-sdk`, the provider-neutral `agent_runtime` API mode, and model
-ids beginning with `claude-` or `anthropic/claude-`. The host's `anthropic`
-Messages provider is a separate transport and is never silently redirected to
-this whole-turn runtime. Claude/Fable policy remains in this standalone plugin.
+ids matching a bounded direct `claude-*` identifier. Provider-qualified model
+slugs are rejected before auth or SDK startup. The host's `anthropic` Messages
+provider is a separate transport and is never silently redirected to this
+whole-turn runtime. Claude/Fable policy remains in this standalone plugin.
+
+## Fable model identifiers
+
+The frozen RC evidence was produced with the direct Claude model identifier
+`claude-fable-5`. Anthropic now also lists the direct identifier
+`claude-fable-5-1` as active. The runtime descriptor and preflight accept that
+new direct identifier without importing the SDK and pass it through unchanged,
+but live subscription compatibility is a separate gate and is not inferred
+from prefix matching.
+
+Hermes upstream also exposes `anthropic/claude-fable-5.1` in its OpenRouter and
+Nous Portal catalogs. That dotted provider-qualified slug is a different route
+contract. It is not evidence for the Claude Agent SDK subscription path and
+must not be substituted into this plugin's subscription-only proof.
+
+Existing Fable 5 receipts and parity contracts remain immutable. Until an
+exact installed-Hermes subscription probe for `claude-fable-5-1` is frozen,
+the plugin keeps `claude-fable-5` as its advertised fallback and the current
+parity commands retain their exact Fable 5 model input.

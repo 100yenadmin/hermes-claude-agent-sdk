@@ -152,11 +152,13 @@ class ResultMessage:
         result: Any = None,
         usage: Any = None,
         model: str = "claude-test",
+        model_usage: Any = None,
         is_error: bool = False,
     ):
         self.result = result
         self.usage = usage
         self.model = model
+        self.model_usage = model_usage
         self.is_error = is_error
 
 
@@ -283,7 +285,14 @@ def test_result_maps_authoritative_text_usage_and_completion() -> None:
     assert result.events[1].receipt.runtime_id == "hermes-claude-agent-sdk"
     assert result.events[1].receipt.correlation_id == "turn-test-1"
     assert result.events[2] == RuntimeCompletedEvent(
-        result={"text": "authoritative final", "model": "claude-test"}
+        result={
+            "text": "authoritative final",
+            "model": "claude-test",
+            "selected_model": "unknown",
+            "effective_model": "claude-test",
+            "canonical_model": "unknown",
+            "model_resolution": "reported",
+        }
     )
 
 
@@ -294,9 +303,146 @@ def test_result_without_usage_still_completes_and_error_is_bounded() -> None:
 
     assert result.events[0] == RuntimeContentEvent(text="done")
     assert result.events[-1] == RuntimeCompletedEvent(
-        result={"text": "done", "model": "claude-test", "is_error": True}
+        result={
+            "text": "done",
+            "model": "claude-test",
+            "selected_model": "unknown",
+            "effective_model": "claude-test",
+            "canonical_model": "unknown",
+            "model_resolution": "reported",
+            "is_error": True,
+        }
     )
     assert all("ResultMessage" not in repr(event) for event in result.events)
+
+
+def test_model_provenance_preserves_selected_and_exact_sdk_model() -> None:
+    result = ClaudeSdkEventProjector(model="claude-fable-5").project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 1, "output_tokens": 1},
+            model="claude-fable-5",
+        )
+    )
+
+    assert result.selected_model == "claude-fable-5"
+    assert result.effective_model == "claude-fable-5"
+    assert result.canonical_model is None
+    assert result.model_resolution == "exact"
+    assert result.events[1].receipt.model == "claude-fable-5"
+    assert result.events[-1].result == {
+        "text": "done",
+        "model": "claude-fable-5",
+        "selected_model": "claude-fable-5",
+        "effective_model": "claude-fable-5",
+        "canonical_model": "unknown",
+        "model_resolution": "exact",
+    }
+
+
+def test_model_provenance_preserves_unique_canonical_model_on_mismatch() -> None:
+    result = ClaudeSdkEventProjector(model="claude-fable-5-1").project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 1, "output_tokens": 1},
+            model="claude-fable-5",
+            model_usage={
+                "claude-fable-5": {
+                    "canonicalModel": "claude-fable-5-1",
+                    "inputTokens": 1,
+                    "outputTokens": 1,
+                }
+            },
+        )
+    )
+
+    assert result.effective_model == "claude-fable-5"
+    assert result.canonical_model == "claude-fable-5-1"
+    assert result.model_resolution == "canonicalized"
+    assert result.events[1].receipt.model == "claude-fable-5-1"
+    assert result.events[-1].result["selected_model"] == "claude-fable-5-1"
+    assert result.events[-1].result["effective_model"] == "claude-fable-5"
+    assert result.events[-1].result["canonical_model"] == "claude-fable-5-1"
+
+
+def test_model_provenance_missing_sdk_evidence_does_not_use_selected_model() -> None:
+    result = ClaudeSdkEventProjector(model="claude-fable-5-1").project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 1, "output_tokens": 1},
+            model=None,
+            model_usage=None,
+        )
+    )
+
+    assert result.model is None
+    assert result.effective_model is None
+    assert result.canonical_model is None
+    assert result.model_resolution == "unknown"
+    assert result.events[1].receipt.model == "unknown"
+    assert result.events[-1].result == {
+        "text": "done",
+        "model": "unknown",
+        "selected_model": "claude-fable-5-1",
+        "effective_model": "unknown",
+        "canonical_model": "unknown",
+        "model_resolution": "unknown",
+    }
+
+
+def test_model_provenance_malformed_or_ambiguous_usage_fails_closed() -> None:
+    malformed = ClaudeSdkEventProjector(model="claude-fable-5-1").project(
+        ResultMessage(
+            result="malformed",
+            usage={"input_tokens": 1},
+            model="claude-fable-5-1",
+            model_usage={"claude-fable-5-1": {"canonicalModel": object()}},
+        )
+    )
+    ambiguous = ClaudeSdkEventProjector(model="claude-fable-5-1").project(
+        ResultMessage(
+            result="ambiguous",
+            usage={"input_tokens": 1},
+            model=None,
+            model_usage={
+                "claude-fable-5": {"canonicalModel": "claude-fable-5"},
+                "claude-fable-5-1": {"canonicalModel": "claude-fable-5-1"},
+            },
+        )
+    )
+
+    for result in (malformed, ambiguous):
+        assert result.effective_model is None
+        assert result.canonical_model is None
+        assert result.model_resolution == "ambiguous"
+        assert result.events[1].receipt.model == "unknown"
+        assert result.events[-1].result["effective_model"] == "unknown"
+        assert result.events[-1].result["canonical_model"] == "unknown"
+        assert result.events[-1].result["model_resolution"] == "ambiguous"
+
+
+def test_literal_unknown_canonical_model_is_absent_not_an_identity() -> None:
+    result = ClaudeSdkEventProjector(model="claude-fable-5").project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 1, "output_tokens": 1},
+            model="claude-fable-5",
+            model_usage={
+                "claude-fable-5": {
+                    "canonicalModel": "unknown",
+                    "inputTokens": 1,
+                    "outputTokens": 1,
+                }
+            },
+        )
+    )
+
+    assert result.effective_model == "claude-fable-5"
+    assert result.canonical_model is None
+    assert result.model_resolution == "exact"
+    assert result.events[1].receipt.model == "claude-fable-5"
+    assert result.events[-1].result["model"] == "claude-fable-5"
+    assert result.events[-1].result["canonical_model"] == "unknown"
 
 
 def test_thinking_only_and_lifecycle_messages_do_not_leak_or_emit_events() -> None:

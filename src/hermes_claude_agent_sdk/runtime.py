@@ -9,7 +9,12 @@ from collections.abc import Callable, Mapping
 from dataclasses import replace
 from typing import Any
 
-from .compatibility import API_MODES, MODEL_PREFIXES, PROVIDER_IDS, RUNTIME_ID
+from .compatibility import (
+    API_MODES,
+    PROVIDER_IDS,
+    RUNTIME_ID,
+    is_supported_model_id,
+)
 from .configuration import SDKSessionConfiguration
 from .prompt_context import build_sdk_prompt_context
 from .tool_bridge import HostToolBridge
@@ -136,7 +141,7 @@ class ClaudeAgentSDKRuntime:
         if not (
             selection.provider in PROVIDER_IDS
             and selection.api_mode in API_MODES
-            and any(selection.model.startswith(prefix) for prefix in MODEL_PREFIXES)
+            and is_supported_model_id(selection.model)
         ):
             return _failure(
                 "claude_runtime_selection_unsupported",
@@ -318,6 +323,10 @@ class ClaudeAgentSDKRuntime:
             projector = ClaudeSdkEventProjector(
                 runtime_id=RUNTIME_ID,
                 provider=request.selection.provider,
+                # The request model is selection metadata only.  The
+                # projector uses it to classify exact/mismatch; effective
+                # identity still comes only from SDK message/model_usage
+                # evidence and never falls back to this value.
                 model=request.selection.model,
                 billing_mode="subscription_included",
                 correlation_id=request.correlation_id,
@@ -363,6 +372,11 @@ class ClaudeAgentSDKRuntime:
             cancellation_poll_interval = 0.05
             loop = asyncio.get_running_loop()
             next_cancellation_poll = loop.time() + cancellation_poll_interval
+            terminal_model_provenance = {
+                "effective_model": "unknown",
+                "canonical_model": "unknown",
+                "model_resolution": "unknown",
+            }
             while not task.done() or not queue.empty():
                 now = loop.time()
                 if not cancel_sent and now >= next_cancellation_poll:
@@ -388,6 +402,12 @@ class ClaudeAgentSDKRuntime:
                     projection = await asyncio.wait_for(queue.get(), wait_timeout)
                 except asyncio.TimeoutError:
                     continue
+                if projection.is_result:
+                    terminal_model_provenance = {
+                        "effective_model": projection.effective_model or "unknown",
+                        "canonical_model": projection.canonical_model or "unknown",
+                        "model_resolution": projection.model_resolution,
+                    }
                 for event in projection.events:
                     if isinstance(event, RuntimeCompletedEvent):
                         continue
@@ -397,7 +417,7 @@ class ClaudeAgentSDKRuntime:
                             receipt=RuntimeUsageReceipt(
                                 runtime_id=RUNTIME_ID,
                                 provider=request.selection.provider,
-                                model=request.selection.model,
+                                model=receipt.model,
                                 billing_mode="subscription_included",
                                 cost_status="included",
                                 input_tokens=receipt.input_tokens,
@@ -463,7 +483,15 @@ class ClaudeAgentSDKRuntime:
                         "error": None,
                         "api_calls": 1,
                         "provider": request.selection.provider,
-                        "model": request.selection.model,
+                        # Keep the legacy model key as the safe effective /
+                        # canonical identity, never as selected request data.
+                        "model": (
+                            terminal_model_provenance["canonical_model"]
+                            if terminal_model_provenance["canonical_model"] != "unknown"
+                            else terminal_model_provenance["effective_model"]
+                        ),
+                        "selected_model": request.selection.model,
+                        **terminal_model_provenance,
                     }
                 )
                 await session.release_background_results()
