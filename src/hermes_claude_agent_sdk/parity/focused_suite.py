@@ -6,7 +6,8 @@ import hashlib
 import os
 import subprocess
 import sys
-from collections.abc import Sequence
+import tempfile
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from .catalog import load_catalog
 from .hashing import sha256_value
@@ -93,7 +94,7 @@ _BOUNDARY_NODES: dict[str, tuple[str, ...]] = {
 }
 
 
-def _safe_environment() -> dict[str, str]:
+def _safe_environment(*, home: Path | None = None) -> dict[str, str]:
     allowed = (
         "PATH",
         "PYTHONPATH",
@@ -113,6 +114,13 @@ def _safe_environment() -> dict[str, str]:
             "PYTHONHASHSEED": "0",
         }
     )
+    if home is not None:
+        environment.update(
+            {
+                "HOME": str(home),
+                "HERMES_HOME": str(home / ".hermes"),
+            }
+        )
     return environment
 
 
@@ -121,11 +129,12 @@ def _run(
     *,
     cwd: Path,
     timeout: float,
+    environment: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     return subprocess.run(
         list(argv),
         cwd=cwd,
-        env=_safe_environment(),
+        env=dict(environment) if environment is not None else _safe_environment(),
         shell=False,
         check=False,
         capture_output=True,
@@ -158,7 +167,11 @@ def _pending_path(reason: str) -> ExecutionOutcome:
     )
 
 
-def _exact_source_preflight(context: ExecutionContext, root: Path) -> str | None:
+def _exact_source_preflight(
+    context: ExecutionContext,
+    root: Path,
+    environment: Mapping[str, str] | None = None,
+) -> str | None:
     if (
         context.profile_id != "fable-v3-isolated"
         or context.sdk_version != "0.2.144"
@@ -180,11 +193,17 @@ def _exact_source_preflight(context: ExecutionContext, root: Path) -> str | None
     ):
         return "focused_suite_catalog_mismatch"
     try:
-        head = _run(("git", "rev-parse", "HEAD"), cwd=root, timeout=10.0)
+        head = _run(
+            ("git", "rev-parse", "HEAD"),
+            cwd=root,
+            timeout=10.0,
+            environment=environment,
+        )
         status = _run(
             ("git", "status", "--porcelain", "--untracked-files=all"),
             cwd=root,
             timeout=10.0,
+            environment=environment,
         )
     except (OSError, subprocess.TimeoutExpired):
         return "focused_suite_git_unavailable"
@@ -202,25 +221,31 @@ async def boundary_focused_suite(context: ExecutionContext) -> ExecutionBundle:
     if nodes is None:
         return _blocked("boundary_evidence_mapping_missing")
     root = Path(context.repo_root).expanduser().resolve()
-    blocked = _exact_source_preflight(context, root)
-    if blocked is not None:
-        return _blocked(blocked)
     node_manifest_hash = sha256_value(nodes)
     try:
-        completed = _run(
-            (
-                sys.executable,
-                "-m",
-                "pytest",
-                "-q",
-                "-p",
-                "no:cacheprovider",
-                "--disable-warnings",
-                *nodes,
-            ),
-            cwd=root,
-            timeout=300.0,
-        )
+        with tempfile.TemporaryDirectory(prefix="hermes-parity-v3-focused-") as home_name:
+            home = Path(home_name)
+            hermes_home = home / ".hermes"
+            hermes_home.mkdir()
+            environment = _safe_environment(home=home)
+            blocked = _exact_source_preflight(context, root, environment)
+            if blocked is not None:
+                return _blocked(blocked)
+            completed = _run(
+                (
+                    sys.executable,
+                    "-m",
+                    "pytest",
+                    "-q",
+                    "-p",
+                    "no:cacheprovider",
+                    "--disable-warnings",
+                    *nodes,
+                ),
+                cwd=root,
+                timeout=300.0,
+                environment=environment,
+            )
     except (OSError, subprocess.TimeoutExpired):
         return _blocked("focused_suite_runner_unavailable")
     stdout_hash = hashlib.sha256(completed.stdout[: 256 * 1024]).hexdigest()
