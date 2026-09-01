@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import copy
+import json
 
 import pytest
 import yaml
 
-from hermes_claude_agent_sdk.parity.inventory import InventoryViolation, load_tool_inventory
+from hermes_claude_agent_sdk.parity.inventory import (
+    InventoryViolation,
+    capture_tool_inventory,
+    load_tool_inventory,
+)
+from hermes_claude_agent_sdk.parity.tool_inventory import declared_tool_schemas
 
 
 def _document() -> dict:
@@ -83,3 +89,34 @@ def test_inventory_rejects_profile_manifest_hash_mismatch(tmp_path) -> None:
             _write(tmp_path, document),
             expected_profile_hash="4" * 64,
         )
+
+
+def test_capture_observes_complete_surface_through_host_bridge(tmp_path) -> None:
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "profile_id": "fable-v3-isolated",
+                "isolation_kind": "in_process_fixture",
+                "persistent": False,
+                "shared_state": False,
+                "customer_data": False,
+                "configuration_hash": "9" * 64,
+            }
+        ),
+        encoding="utf-8",
+    )
+    document = capture_tool_inventory(
+        profile_path,
+        expected_profile="fable-v3-isolated",
+    )
+    assert document["declared_tools"] == document["observed_tools"]
+    assert [item["name"] for item in document["observed_tools"]] == [
+        "cron",
+        "exec",
+        "parity_harmless_tool",
+        "read",
+        "write",
+    ]
+    assert len(declared_tool_schemas()) == 5

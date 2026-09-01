@@ -68,12 +68,50 @@ hard-capped at one 100-turn campaign. A combined executor may return all three
 path outcomes from one scenario execution, so positive, denial, and recovery
 evidence does not imply three redundant campaigns.
 
+The active-12 executor uses live, isolated subscription turns for source/docs,
+image input, native Agent handoff/fanout, memory recall and thread isolation,
+restart/tool continuity, and repository-instruction followthrough. Model-switch
+fencing, native compaction/exact-once mutation, and stale-background settlement
+use exact-source deterministic integration tests because forcing those failure
+boundaries against the operator subscription would be unsafe or nondeterministic.
+The approval behavior remains the installed-plugin thin gate through the real
+host tool bridge.
+
+The frozen-v2 map runs focused evidence at immutable v2 SHA `33fe73a`, the exact
+current plugin SHA, and the exact provider-neutral host SHA. The native-36 map
+runs each pinned ClawProBench grader in an isolated subprocess against a real
+Claude SDK turn and synthetic host tools. Neither adapter calls Telegram,
+shared Eva, customer state, a browser, a scheduler, or an external messaging
+surface.
+
 Each result binds the contract hash, complete catalog hash, exact plugin and
 host SHAs, SDK version, sanitized profile identity hash, runner version, and
 tool inventory hash. Passing packets require exactly one terminal event plus
 both primary and secondary proof hashes. Consequential, initially failing, or
 unstable paths require three consecutive passes with one unchanged candidate
 identity. The grader reports `pass@3` and strict `pass^3` separately.
+For every successful positive or recovery packet, normalized event kinds must
+exactly match the catalog's `expected_trace`; a proof hash attached to the wrong
+trace grades as a verified failure. Expected denials must end in one explicit
+denied terminal.
+
+## Runtime release-ready receipt
+
+The runtime executor will not start from a branch name, editable install, or
+unverified artifact. `HERMES_PARITY_RELEASE_READY_RECEIPT` must point to a
+sanitized JSON document conforming to
+`runtime-release-ready-receipt.schema.json`; `HERMES_PARITY_IMMUTABLE_WHEEL`
+and `HERMES_PARITY_WHEEL_SHA256` must identify the same regular wheel file.
+The receipt binds issue #9, exact plugin/host SHAs, SDK version, contract and
+catalog hashes, and the immutable wheel digest. It contains no credentials,
+prompts, sessions, or customer data.
+
+The campaign performs 100 main-session turns, injects and recovers from a host
+tool denial, checks memory and cross-runtime state fencing, uses one image,
+executes exact-once synthetic write and cron mutations, starts one native Agent
+background task, closes and resumes at turn 50, and verifies process teardown.
+Only the 100 main-session turns count against the runtime budget; fail-closed
+state and teardown probes do not reach the provider.
 
 `result-packet-v3.schema.json` is the portable shape. Python validation is
 intentionally stricter: it recalculates trace, candidate, and packet hashes;

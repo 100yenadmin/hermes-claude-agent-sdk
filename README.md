@@ -55,9 +55,15 @@ The release-candidate quality gate is the repo-owned
 boundary set (`23/23`), and the ClawProBench native slice (`36/36`). The
 separate runtime lane contains the active 100-turn same-session campaign.
 
-The installed console entry point exposes three fail-closed commands:
+The installed console entry point exposes three fail-closed commands. Capture
+the isolated profile's complete tool surface through the real host bridge
+before validating or running it:
 
 ```sh
+hermes-claude-agent-sdk-parity inventory --catalog qa/parity-contract-v3.yaml \
+  --capture --lane rc --profile fable-v3-isolated \
+  --profile-manifest ./profile.json --output ./tool-inventory.yaml
+
 hermes-claude-agent-sdk-parity inventory --catalog qa/parity-contract-v3.yaml \
   --lane rc --profile fable-v3-isolated --profile-manifest ./profile.json \
   --tool-inventory ./tool-inventory.yaml
@@ -81,6 +87,20 @@ blocked. Unknown tools, changed schemas, missing executors, missing terminal
 events, unsafe billing evidence, proofless passes, and candidate drift never
 degrade to a pass. See [`qa/README.md`](qa/README.md) for the packet and runner
 contract.
+
+The active executors fail closed unless the plugin and host checkouts are clean
+at the supplied SHAs. Live RC execution additionally requires
+`HERMES_PARITY_LIVE=1`, `HERMES_PARITY_MODEL=claude-fable-5`, the exact host
+root, and the pinned ClawProBench root. The v2 source map also requires the
+immutable `33fe73a` reference checkout. These are execution inputs, not values
+written into result packets.
+
+The runtime lane has a stricter barrier. It accepts only a persistent
+`local_profile` manifest and requires an immutable wheel, its SHA-256 digest,
+and a sanitized issue-9 `release_ready` receipt matching
+[`qa/runtime-release-ready-receipt.schema.json`](qa/runtime-release-ready-receipt.schema.json).
+The executing package must byte-match that wheel. A successful bundle must
+bind exactly 100 turns; a 99-turn or partial campaign cannot grade as passed.
 
 ## Installation and activation
 

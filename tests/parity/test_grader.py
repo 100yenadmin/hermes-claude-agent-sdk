@@ -3,8 +3,10 @@ from __future__ import annotations
 import pytest
 
 from hermes_claude_agent_sdk.parity.grader import grade_packets
+from hermes_claude_agent_sdk.parity.hashing import sha256_value
 from hermes_claude_agent_sdk.parity.results import (
     ExecutionClassification,
+    ResultPacket,
     ResultViolation,
 )
 
@@ -128,3 +130,32 @@ def test_grade_rejects_duplicate_trial_receipt(catalog, candidate_fields) -> Non
     packet = make_packet(catalog, "v2:parent-01", "positive", 1, candidate_fields)
     with pytest.raises(ResultViolation, match="duplicate result"):
         grade_packets(catalog, [packet, packet], lane="rc")
+
+
+def test_grade_treats_a_proof_hash_with_the_wrong_trace_as_failure(
+    catalog, candidate_fields
+) -> None:
+    packet = make_packet(catalog, "v2:parent-01", "positive", 1, candidate_fields)
+    raw = packet.to_dict()
+    raw["normalized_events"] = [
+        {"sequence": 1, "kind": "start", "status": "started"},
+        {
+            "sequence": 2,
+            "kind": "terminal",
+            "status": "completed",
+            "terminal_outcome": "completed",
+        },
+    ]
+    raw["trace_hash"] = sha256_value(raw["normalized_events"])
+    raw.pop("packet_hash")
+    raw["packet_hash"] = sha256_value(raw)
+    mismatched = ResultPacket.from_dict(raw)
+
+    report = grade_packets(catalog, [mismatched], lane="rc")
+    grade = next(
+        item
+        for item in report.path_grades
+        if item.capability_id == "v2:parent-01" and item.path == "positive"
+    )
+    assert grade.status == "VERIFIED_FAILURE"
+    assert "trace mismatch" in grade.reason

@@ -40,6 +40,8 @@ class ExecutionContext:
     remaining_turn_budget: int
     repo_root: str = ""
     inventory_tools: tuple[Mapping[str, str], ...] = ()
+    profile_isolation_kind: str = ""
+    profile_persistent: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,6 +195,28 @@ def _validate_executor_result(result: ExecutorResult, remaining: int) -> None:
         raise ResultViolation("combined executor turn_count must equal its path turn counts")
     if result.turn_count > remaining:
         raise ResultViolation("combined executor exceeded the remaining authorized turn budget")
+
+
+def _validate_runtime_campaign(
+    result: ExecutorResult,
+    *,
+    lane: str,
+    execution_id: str,
+) -> None:
+    if lane != "runtime" or execution_id != "runtime-active-100-turn":
+        return
+    if not isinstance(result, ExecutionBundle):
+        raise ResultViolation("runtime qualification requires one combined campaign")
+    passing = (
+        result.outcomes["positive"].classification
+        is ExecutionClassification.COMPLETE
+        and result.outcomes["denial"].classification
+        is ExecutionClassification.EXPECTED_NEGATIVE
+        and result.outcomes["recovery"].classification
+        is ExecutionClassification.COMPLETE
+    )
+    if passing and result.turn_count != _TURN_BUDGETS["runtime"]:
+        raise ResultViolation("passing runtime qualification must bind exactly 100 turns")
 
 
 def _execution_receipt(
@@ -384,6 +408,8 @@ async def run_catalog_async(
     inventory_tools: Sequence[Mapping[str, str]] = (),
     capability_ids: Sequence[str] = (),
     max_trials_per_path: int = 6,
+    profile_isolation_kind: str = "",
+    profile_persistent: bool = False,
 ) -> tuple[tuple[ResultPacket, ...], GradeReport]:
     """Execute required paths and return packets plus the deterministic grade."""
 
@@ -487,9 +513,16 @@ async def run_catalog_async(
                             remaining_turn_budget=remaining_turn_budget,
                             repo_root=str(catalog.path.parent.parent),
                             inventory_tools=tuple(inventory_tools),
+                            profile_isolation_kind=profile_isolation_kind,
+                            profile_persistent=profile_persistent,
                         )
                         executor_result = await _call_executor(executor, context)
                         _validate_executor_result(executor_result, remaining_turn_budget)
+                        _validate_runtime_campaign(
+                            executor_result,
+                            lane=lane,
+                            execution_id=capability.execution_id,
+                        )
                         execution_receipts.append(
                             _execution_receipt(
                                 exact_candidate=exact_candidate,

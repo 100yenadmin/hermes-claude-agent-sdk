@@ -80,13 +80,35 @@ def _is_pass(packet: ResultPacket, path: str) -> bool:
     return packet.classification is ExecutionClassification.COMPLETE
 
 
-def _three_consecutive(packets: Sequence[ResultPacket]) -> bool:
+def _trace_matches(packet: ResultPacket, expected_trace: Sequence[str]) -> bool:
+    kinds = tuple(event["kind"] for event in packet.normalized_events)
+    if packet.path == "denial":
+        return bool(
+            kinds
+            and kinds[-1] == "terminal"
+            and packet.normalized_events[-1].get("terminal_outcome") == "denied"
+            and (not expected_trace or expected_trace[0] != "start" or kinds[0] == "start")
+        )
+    return bool(
+        kinds == tuple(expected_trace)
+        and kinds
+        and kinds[-1] == "terminal"
+        and packet.normalized_events[-1].get("terminal_outcome") == "completed"
+    )
+
+
+def _three_consecutive(
+    packets: Sequence[ResultPacket], expected_trace: Sequence[str]
+) -> bool:
     if len(packets) < 3:
         return False
     ordered = sorted(packets, key=lambda item: item.trial_index)
     for start in range(len(ordered) - 2):
         window = ordered[start : start + 3]
-        if not all(_is_pass(item, item.path) for item in window):
+        if not all(
+            _is_pass(item, item.path) and _trace_matches(item, expected_trace)
+            for item in window
+        ):
             continue
         if len({item.candidate_hash for item in window}) != 1:
             continue
@@ -148,16 +170,36 @@ def grade_packets(
                 grouped.get((capability.capability_id, path), ()),
                 key=lambda item: item.trial_index,
             )
-            passes = [packet for packet in observed if _is_pass(packet, path)]
+            passes = [
+                packet
+                for packet in observed
+                if _is_pass(packet, path)
+                and _trace_matches(packet, capability.expected_trace)
+            ]
             first_three = observed[:3]
-            pass_at_3 = any(_is_pass(packet, path) for packet in first_three)
-            pass_power_3 = _three_consecutive(observed)
+            pass_at_3 = any(
+                _is_pass(packet, path)
+                and _trace_matches(packet, capability.expected_trace)
+                for packet in first_three
+            )
+            pass_power_3 = _three_consecutive(observed, capability.expected_trace)
             triggers = set(capability.repeat_policy["triggers"])
             had_failure = any(
                 packet.classification is ExecutionClassification.VERIFIED_FAILURE
                 for packet in observed
+            ) or any(
+                _is_pass(packet, path)
+                and not _trace_matches(packet, capability.expected_trace)
+                for packet in observed
             )
-            unstable = len({packet.classification for packet in observed}) > 1
+            observed_states = {
+                (
+                    packet.classification,
+                    _trace_matches(packet, capability.expected_trace),
+                )
+                for packet in observed
+            }
+            unstable = len(observed_states) > 1
             required_consecutive = int(capability.repeat_policy["consecutive_passes"])
             if triggers & {"consequential", "unstable"} or had_failure or unstable:
                 required_consecutive = max(required_consecutive, 3)
@@ -165,14 +207,14 @@ def grade_packets(
             if not required:
                 status = "NOT_REQUIRED"
                 reason = "catalog path is explicitly not required"
-            elif any(
-                packet.classification is ExecutionClassification.VERIFIED_FAILURE
-                for packet in observed
-            ) and not (
+            elif had_failure and not (
                 required_consecutive == 3 and pass_power_3
             ):
                 status = "VERIFIED_FAILURE"
-                reason = "a verified failure has not been followed by strict 3/3 evidence"
+                reason = (
+                    "a verified failure or trace mismatch has not been followed "
+                    "by strict 3/3 evidence"
+                )
             elif required_consecutive >= 3 and pass_power_3:
                 status = "COMPLETE"
                 reason = "three consecutive passes share one unchanged candidate identity"

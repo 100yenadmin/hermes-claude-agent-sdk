@@ -27,6 +27,7 @@ from .native_sandbox import (
 )
 from .results import ExecutionClassification
 from .runner import ExecutionBundle, ExecutionContext, ExecutionOutcome
+from .trace import normalized_path_events
 
 
 CLAWPROBENCH_SHA = "c4b8395854fe0752eef435b44f140366efd44d8e"
@@ -501,93 +502,22 @@ def grade_native_trace(
 
 def _normalized_events(
     *,
+    expected_trace: Sequence[str],
     path: str,
     trace_hash: str,
     state_hash: str,
     usage_hash: str,
 ) -> tuple[dict[str, Any], ...]:
-    if path == "denial":
-        return (
-            {"sequence": 1, "kind": "start", "status": "started"},
+    return normalized_path_events(
+        expected_trace,
+        path=path,
+        evidence_hash=sha256_value(
             {
-                "sequence": 2,
-                "kind": "tool_requested",
-                "status": "injected_denial",
-                "request_hash": trace_hash,
-            },
-            {
-                "sequence": 3,
-                "kind": "tool_result",
-                "status": "denied_once",
+                "trace_hash": trace_hash,
                 "state_hash": state_hash,
-            },
-            {
-                "sequence": 4,
-                "kind": "terminal",
-                "status": "denied",
-                "terminal_outcome": "denied",
-            },
-        )
-    if path == "recovery":
-        return (
-            {"sequence": 1, "kind": "start", "status": "started"},
-            {
-                "sequence": 2,
-                "kind": "tool_result",
-                "status": "denied_once",
-                "state_hash": state_hash,
-            },
-            {
-                "sequence": 3,
-                "kind": "tool_requested",
-                "status": "retry_admitted",
-                "request_hash": trace_hash,
-            },
-            {
-                "sequence": 4,
-                "kind": "tool_result",
-                "status": "recovered",
-                "state_hash": state_hash,
-            },
-            {
-                "sequence": 5,
-                "kind": "usage",
-                "status": "subscription_included",
                 "usage_hash": usage_hash,
-            },
-            {
-                "sequence": 6,
-                "kind": "terminal",
-                "status": "completed",
-                "terminal_outcome": "completed",
-            },
-        )
-    return (
-        {"sequence": 1, "kind": "start", "status": "started"},
-        {
-            "sequence": 2,
-            "kind": "tool_requested",
-            "status": "admitted",
-            "request_hash": trace_hash,
-        },
-        {
-            "sequence": 3,
-            "kind": "tool_result",
-            "status": "executed_once",
-            "state_hash": state_hash,
-        },
-        {
-            "sequence": 4,
-            "kind": "usage",
-            "status": "subscription_included",
-            "usage_hash": usage_hash,
-        },
-        {
-            "sequence": 5,
-            "kind": "terminal",
-            "status": "completed",
-            "terminal_outcome": "completed",
-        },
+            }
+        ),
     )
 
 
@@ -735,6 +665,7 @@ async def native_scenario_suite(context: ExecutionContext) -> ExecutionBundle:
                 classification=classification,
                 billing_classification=live.billing,
                 normalized_events=_normalized_events(
+                    expected_trace=context.capability.expected_trace,
                     path=path,
                     trace_hash=trace_hash,
                     state_hash=live.state_hash,

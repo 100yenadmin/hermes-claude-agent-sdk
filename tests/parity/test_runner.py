@@ -18,13 +18,13 @@ from hermes_claude_agent_sdk.parity.runner import (
     ExecutorRegistry,
     run_catalog,
 )
+from hermes_claude_agent_sdk.parity.trace import normalized_path_events
 
 from .conftest import CATALOG_PATH
 
 
 def _outcome(context):
     denial = context.path == "denial"
-    terminal = "denied" if denial else "completed"
     return ExecutionOutcome(
         classification=(
             ExecutionClassification.EXPECTED_NEGATIVE
@@ -32,14 +32,10 @@ def _outcome(context):
             else ExecutionClassification.COMPLETE
         ),
         billing_classification="subscription_included",
-        normalized_events=(
-            {"sequence": 1, "kind": "start", "status": "started"},
-            {
-                "sequence": 2,
-                "kind": "terminal",
-                "status": terminal,
-                "terminal_outcome": terminal,
-            },
+        normalized_events=normalized_path_events(
+            context.capability.expected_trace,
+            path=context.path,
+            evidence_hash="f" * 64,
         ),
         primary_proof_hash="a" * 64,
         secondary_proof_hash="b" * 64,
@@ -213,13 +209,18 @@ def test_runtime_bundle_enforces_one_100_turn_campaign(
     capability = catalog.by_id["runtime:active-100-turn"]
 
     def campaign(_context):
+        def events(path):
+            return normalized_path_events(
+                capability.expected_trace,
+                path=path,
+                evidence_hash="f" * 64,
+            )
+
         outcomes = {
             "positive": ExecutionOutcome(
                 classification=ExecutionClassification.COMPLETE,
                 billing_classification="subscription_included",
-                normalized_events=(
-                    {"sequence": 1, "kind": "terminal", "terminal_outcome": "completed"},
-                ),
+                normalized_events=events("positive"),
                 primary_proof_hash="a" * 64,
                 secondary_proof_hash="b" * 64,
                 turn_count=98,
@@ -227,9 +228,7 @@ def test_runtime_bundle_enforces_one_100_turn_campaign(
             "denial": ExecutionOutcome(
                 classification=ExecutionClassification.EXPECTED_NEGATIVE,
                 billing_classification="subscription_included",
-                normalized_events=(
-                    {"sequence": 1, "kind": "terminal", "terminal_outcome": "denied"},
-                ),
+                normalized_events=events("denial"),
                 primary_proof_hash="c" * 64,
                 secondary_proof_hash="d" * 64,
                 turn_count=1,
@@ -237,9 +236,7 @@ def test_runtime_bundle_enforces_one_100_turn_campaign(
             "recovery": ExecutionOutcome(
                 classification=ExecutionClassification.COMPLETE,
                 billing_classification="subscription_included",
-                normalized_events=(
-                    {"sequence": 1, "kind": "terminal", "terminal_outcome": "completed"},
-                ),
+                normalized_events=events("recovery"),
                 primary_proof_hash="e" * 64,
                 secondary_proof_hash="f" * 64,
                 turn_count=1,
@@ -263,6 +260,46 @@ def test_runtime_bundle_enforces_one_100_turn_campaign(
     manifest = json.loads((tmp_path / "run-manifest.json").read_text(encoding="utf-8"))
     assert manifest["turn_budget"] == 100
     assert sum(item["turn_count"] for item in manifest["executions"]) == 100
+
+
+def test_passing_runtime_campaign_cannot_claim_fewer_than_100_turns(
+    catalog, candidate_fields, tmp_path
+) -> None:
+    capability = catalog.by_id["runtime:active-100-turn"]
+
+    def short_campaign(_context):
+        outcomes = {}
+        for path in ("positive", "denial", "recovery"):
+            outcomes[path] = ExecutionOutcome(
+                classification=(
+                    ExecutionClassification.EXPECTED_NEGATIVE
+                    if path == "denial"
+                    else ExecutionClassification.COMPLETE
+                ),
+                billing_classification="subscription_included",
+                normalized_events=normalized_path_events(
+                    capability.expected_trace,
+                    path=path,
+                    evidence_hash="f" * 64,
+                ),
+                primary_proof_hash="a" * 64,
+                secondary_proof_hash="b" * 64,
+                turn_count=99 if path == "positive" else 0,
+            )
+        return ExecutionBundle(outcomes=outcomes, turn_count=99)
+
+    registry = ExecutorRegistry()
+    registry.register(capability.execution_id, short_campaign)
+    fields = _run_fields(tmp_path, candidate_fields)
+    fields["lane"] = "runtime"
+    with pytest.raises(ResultViolation, match="exactly 100 turns"):
+        run_catalog(
+            catalog,
+            registry=registry,
+            resume=False,
+            capability_ids=(capability.capability_id,),
+            **fields,
+        )
 
 
 def test_executor_cannot_report_turns_beyond_lane_budget(

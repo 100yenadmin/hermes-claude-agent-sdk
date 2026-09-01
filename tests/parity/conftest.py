@@ -6,6 +6,7 @@ import pytest
 
 from hermes_claude_agent_sdk.parity.catalog import Catalog, load_catalog
 from hermes_claude_agent_sdk.parity.results import ExecutionClassification, ResultPacket
+from hermes_claude_agent_sdk.parity.trace import normalized_path_events
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -52,14 +53,22 @@ def make_packet(
         ExecutionClassification.VERIFIED_FAILURE: "failed",
     }.get(classification)
     events = ()
-    if outcome is not None:
+    if classification in {
+        ExecutionClassification.COMPLETE,
+        ExecutionClassification.EXPECTED_NEGATIVE,
+    }:
+        events = normalized_path_events(
+            capability.expected_trace,
+            path=path,
+            evidence_hash="f" * 64,
+        )
+    elif classification is ExecutionClassification.VERIFIED_FAILURE:
         events = (
-            {"sequence": 1, "kind": "start", "status": "started"},
             {
-                "sequence": 2,
+                "sequence": 1,
                 "kind": "terminal",
-                "status": outcome,
-                "terminal_outcome": outcome,
+                "status": "failed",
+                "terminal_outcome": "failed",
             },
         )
     passing = classification in {

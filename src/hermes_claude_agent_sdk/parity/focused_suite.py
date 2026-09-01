@@ -8,12 +8,11 @@ import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
-
 from .catalog import load_catalog
 from .hashing import sha256_value
 from .results import ExecutionClassification
 from .runner import ExecutionBundle, ExecutionContext, ExecutionOutcome
+from .trace import normalized_path_events
 
 
 _BOUNDARY_NODES: dict[str, tuple[str, ...]] = {
@@ -149,37 +148,6 @@ def _blocked(reason: str) -> ExecutionBundle:
     )
 
 
-def _terminal_events(
-    *,
-    path: str,
-    passed: bool,
-    node_manifest_hash: str,
-    output_hash: str,
-) -> tuple[dict[str, Any], ...]:
-    terminal = "denied" if passed and path == "denial" else "completed" if passed else "failed"
-    evidence_hash = sha256_value(
-        {
-            "node_manifest_hash": node_manifest_hash,
-            "output_hash": output_hash,
-        }
-    )
-    return (
-        {"sequence": 1, "kind": "start", "status": "started"},
-        {
-            "sequence": 2,
-            "kind": "state",
-            "status": "focused_test_passed" if passed else "focused_test_failed",
-            "metadata_hash": evidence_hash,
-        },
-        {
-            "sequence": 3,
-            "kind": "terminal",
-            "status": terminal,
-            "terminal_outcome": terminal,
-        },
-    )
-
-
 def _exact_source_preflight(context: ExecutionContext, root: Path) -> str | None:
     if (
         context.profile_id != "fable-v3-isolated"
@@ -274,11 +242,26 @@ async def boundary_focused_suite(context: ExecutionContext) -> ExecutionBundle:
         outcomes[path] = ExecutionOutcome(
             classification=classification,
             billing_classification="none",
-            normalized_events=_terminal_events(
-                path=path,
-                passed=passed,
-                node_manifest_hash=node_manifest_hash,
-                output_hash=output_hash,
+            normalized_events=(
+                normalized_path_events(
+                    context.capability.expected_trace,
+                    path=path,
+                    evidence_hash=sha256_value(
+                        {
+                            "node_manifest_hash": node_manifest_hash,
+                            "output_hash": output_hash,
+                        }
+                    ),
+                )
+                if passed
+                else (
+                    {
+                        "sequence": 1,
+                        "kind": "terminal",
+                        "status": "failed",
+                        "terminal_outcome": "failed",
+                    },
+                )
             ),
             primary_proof_hash=sha256_value(proof) if passed else None,
             secondary_proof_hash=(

@@ -12,6 +12,12 @@ from typing import Any
 import yaml
 
 from .hashing import json_compatible, sha256_value
+from .profile import load_profile_manifest
+from .tool_inventory import (
+    capture_observed_tool_rows,
+    declared_tool_schemas,
+    inventory_rows_from_schemas,
+)
 
 
 class InventoryViolation(ValueError):
@@ -141,4 +147,31 @@ def load_tool_inventory(
     )
 
 
-__all__ = ["InventoryViolation", "ToolInventory", "load_tool_inventory"]
+def capture_tool_inventory(
+    profile_manifest_path: str | Path,
+    *,
+    expected_profile: str,
+) -> dict[str, Any]:
+    """Capture declared and bridge-observed schemas for one isolated profile."""
+
+    profile = load_profile_manifest(
+        profile_manifest_path,
+        expected_profile=expected_profile,
+    )
+    declared = inventory_rows_from_schemas(declared_tool_schemas())
+    observed = capture_observed_tool_rows()
+    return {
+        "schema_version": 1,
+        "profile_id": profile.profile_id,
+        "profile_hash": profile.manifest_hash,
+        "declared_tools": list(declared),
+        "observed_tools": list(observed),
+    }
+
+
+__all__ = [
+    "InventoryViolation",
+    "ToolInventory",
+    "capture_tool_inventory",
+    "load_tool_inventory",
+]

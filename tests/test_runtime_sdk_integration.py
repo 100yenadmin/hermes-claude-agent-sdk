@@ -83,10 +83,15 @@ class _Client:
 
     async def query(self, prompt: str) -> None:
         self.queries.append(prompt)
-        if self.mode in {"compaction", "compaction_failure", "compaction_watchdog"}:
+        if self.mode in {
+            "compaction",
+            "compaction_failure",
+            "compaction_watchdog",
+            "compaction_tool_success",
+        }:
             callback = self.options.fields["hooks"]["PreCompact"][0].hooks[0]
             await callback({"trigger": "auto"}, None, None)
-        if self.mode in {"tool_success", "tool_failure"}:
+        if self.mode in {"tool_success", "tool_failure", "compaction_tool_success"}:
             server = self.options.fields["mcp_servers"]["hermes-tools"]
             handler = server["tools"][0]["handler"]
             await handler({"path": "."})
@@ -104,7 +109,7 @@ class _Client:
         if self.mode not in {"unknown", "tool_failure"}:
             await self._messages.put(SystemMessage("init", {"apiKeySource": "none"}))
             await self._messages.put(AssistantMessage([TextBlock("hello")]))
-        if self.mode == "compaction":
+        if self.mode in {"compaction", "compaction_tool_success"}:
             await self._messages.put(
                 SystemMessage(
                     "compact_boundary",
@@ -1107,6 +1112,76 @@ def test_runtime_rejects_prompt_or_tool_contract_change_before_second_query() ->
 
         assert [event.kind.value for event in events] == ["failed"]
         assert events[0].failure.code == "claude_runtime_session_contract_changed"
+        assert clients[0].queries == ["hello runtime"]
+
+    asyncio.run(scenario())
+
+
+def test_model_switch_requires_a_new_runtime_and_preserves_tool_schema() -> None:
+    async def scenario():
+        first_clients: list[_Client] = []
+        first_runtime = _runtime("success", first_clients)
+        host = _Host()
+        schemas = (_tool_schema(),)
+
+        first = await _collect(first_runtime, _request(tools=schemas), host)
+        switched_request = build_runtime_turn_request(
+            provider="claude-agent-sdk",
+            model="claude-fable-synthetic-switched",
+            api_mode="agent_runtime",
+            messages=({"role": "user", "content": "hello runtime"},),
+            prompt_snapshot="stable system prompt",
+            tool_schemas=schemas,
+            correlation_id="synthetic-model-switch",
+        )
+        fenced = await _collect(first_runtime, switched_request, host)
+        await first_runtime.close()
+
+        second_clients: list[_Client] = []
+        second_runtime = _runtime("success", second_clients)
+        recovered = await _collect(second_runtime, switched_request, _Host())
+        await second_runtime.close()
+
+        assert first[-1].kind.value == "completed"
+        assert [event.kind.value for event in fenced] == ["failed"]
+        assert fenced[0].failure.code == "claude_runtime_session_contract_changed"
+        assert recovered[-1].kind.value == "completed"
+        assert first_clients[0].queries == ["hello runtime"]
+        assert second_clients[0].queries == ["hello runtime"]
+        assert first_clients[0].options.fields["model"] == "claude-fable-5"
+        assert (
+            second_clients[0].options.fields["model"]
+            == "claude-fable-synthetic-switched"
+        )
+        assert (
+            first_clients[0].options.fields["allowed_tools"]
+            == second_clients[0].options.fields["allowed_tools"]
+            == ["mcp__hermes-tools__pwd"]
+        )
+
+    asyncio.run(scenario())
+
+
+def test_compaction_retry_keeps_mutation_exactly_once() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("compaction_tool_success", clients)
+        host = _Host()
+
+        result = await _collect_runtime_turn(
+            runtime,
+            _request(tools=(_tool_schema(),)),
+            host,
+            descriptor=build_runtime_descriptor(),
+        )
+        await runtime.close()
+
+        assert [event.phase for event in host.compaction] == [
+            RuntimeCompactionPhase.STARTED,
+            RuntimeCompactionPhase.COMPLETED,
+        ]
+        assert result.terminal.kind.value == "completed"
+        assert host.calls == [("pwd", {"path": "."})]
         assert clients[0].queries == ["hello runtime"]
 
     asyncio.run(scenario())

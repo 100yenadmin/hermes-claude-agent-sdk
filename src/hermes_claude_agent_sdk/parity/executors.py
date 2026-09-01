@@ -7,29 +7,19 @@ import os
 from collections.abc import Mapping
 from typing import Any
 
+from .active_suite import active_agentic_suite, active_execution_ids
 from .hashing import sha256_value
 from .focused_suite import boundary_execution_ids, boundary_focused_suite
 from .native_suite import native_execution_ids, native_scenario_suite
 from .results import ExecutionClassification
 from .runner import ExecutionBundle, ExecutionContext, ExecutionOutcome
+from .runtime_suite import active_runtime_100_turn, runtime_execution_ids
+from .tool_inventory import APPROVAL_TOOL_NAME, APPROVAL_TOOL_SCHEMA
+from .v2_suite import v2_execution_ids, v2_mapped_suite
 
 
-_TOOL_NAME = "parity_harmless_tool"
-_TOOL_SCHEMA = {
-    "type": "function",
-    "function": {
-        "name": _TOOL_NAME,
-        "description": "Record one in-memory parity marker after approval",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "marker": {"type": "string", "enum": ["feature-parity-v3"]},
-            },
-            "required": ["marker"],
-            "additionalProperties": False,
-        },
-    },
-}
+_TOOL_NAME = APPROVAL_TOOL_NAME
+_TOOL_SCHEMA = APPROVAL_TOOL_SCHEMA
 
 
 def _blocked_bundle(reason: str) -> ExecutionBundle:
@@ -102,12 +92,17 @@ def _events(path: str, *, approved: bool, state: Mapping[str, Any]) -> tuple[dic
     events: list[dict[str, Any]] = [
         {
             "sequence": 1,
+            "kind": "start",
+            "status": "started",
+        },
+        {
+            "sequence": 2,
             "kind": "approval_requested",
             "status": "requested",
             "name_hash": _event_hash(_TOOL_NAME),
         },
         {
-            "sequence": 2,
+            "sequence": 3,
             "kind": "approval_decision",
             "status": "approved" if approved else "denied",
             "metadata_hash": _event_hash({"path": path, "approved": approved}),
@@ -117,19 +112,19 @@ def _events(path: str, *, approved: bool, state: Mapping[str, Any]) -> tuple[dic
         events.extend(
             [
                 {
-                    "sequence": 3,
+                    "sequence": 4,
                     "kind": "tool_requested",
                     "status": "admitted",
                     "tool_hash": _event_hash(_TOOL_SCHEMA),
                 },
                 {
-                    "sequence": 4,
+                    "sequence": 5,
                     "kind": "tool_result",
                     "status": "executed_once",
                     "state_hash": _event_hash(state),
                 },
                 {
-                    "sequence": 5,
+                    "sequence": 6,
                     "kind": "terminal",
                     "status": "completed",
                     "terminal_outcome": "completed",
@@ -139,7 +134,7 @@ def _events(path: str, *, approved: bool, state: Mapping[str, Any]) -> tuple[dic
     else:
         events.append(
             {
-                "sequence": 3,
+                "sequence": 4,
                 "kind": "terminal",
                 "status": "denied",
                 "terminal_outcome": "denied",
@@ -240,12 +235,24 @@ async def approval_followthrough(context: ExecutionContext) -> ExecutionBundle:
 EXECUTORS = {
     "active-approval-turn-tool-followthrough": approval_followthrough,
     **{
+        execution_id: active_agentic_suite
+        for execution_id in active_execution_ids()
+    },
+    **{
+        execution_id: v2_mapped_suite
+        for execution_id in v2_execution_ids()
+    },
+    **{
         execution_id: boundary_focused_suite
         for execution_id in boundary_execution_ids()
     },
     **{
         execution_id: native_scenario_suite
         for execution_id in native_execution_ids()
+    },
+    **{
+        execution_id: active_runtime_100_turn
+        for execution_id in runtime_execution_ids()
     },
 }
 

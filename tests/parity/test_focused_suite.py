@@ -79,7 +79,11 @@ def test_focused_suite_builds_three_sanitized_path_outcomes(
     )
     assert all(
         [event["kind"] for event in outcome.normalized_events]
-        == ["start", "state", "terminal"]
+        == list(
+            catalog.by_id[
+                "boundary:terminal-error-warm-query-reuse"
+            ].expected_trace
+        )
         for outcome in result.outcomes.values()
     )
 

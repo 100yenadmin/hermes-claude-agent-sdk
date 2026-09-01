@@ -8,9 +8,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from .catalog import CatalogViolation, load_catalog
 from .grader import grade_packets
-from .inventory import InventoryViolation, load_tool_inventory
+from .inventory import InventoryViolation, capture_tool_inventory, load_tool_inventory
 from .profile import ProfileViolation, load_profile_manifest
 from .results import ResultViolation, candidate_hash, read_result_packet
 from .runner import load_entrypoint_executors, run_catalog, validate_run_manifest
@@ -39,6 +41,12 @@ def _parser() -> argparse.ArgumentParser:
         command.add_argument("--sdk-version", default="0.2.144")
         command.add_argument("--runner-version", default=RUNNER_VERSION)
         command.add_argument("--capability-id", action="append", default=[])
+        if name == "inventory":
+            command.add_argument(
+                "--capture",
+                action="store_true",
+                help="capture the repo-owned isolated tool surface through HostToolBridge",
+            )
     return parser
 
 
@@ -95,6 +103,26 @@ def _inventory(args: argparse.Namespace) -> int:
         "proof_boundary": "Source coverage and inventory only; no scenario is executed or passed.",
     }
     exit_code = 75
+    if args.capture:
+        if not args.profile or not args.profile_manifest or not args.output:
+            raise ResultViolation(
+                "inventory --capture requires --profile, --profile-manifest, and --output"
+            )
+        _validate_profile(catalog, args.profile)
+        document = capture_tool_inventory(
+            args.profile_manifest,
+            expected_profile=args.profile,
+        )
+        output = Path(args.output).expanduser().resolve()
+        target = output if output.suffix in {".yaml", ".yml"} else output / "tool-inventory.yaml"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_name(f".{target.name}.tmp")
+        temporary.write_text(
+            yaml.safe_dump(document, sort_keys=False),
+            encoding="utf-8",
+        )
+        temporary.replace(target)
+        args.tool_inventory = str(target)
     if args.tool_inventory:
         if not args.profile or not args.profile_manifest:
             raise ResultViolation(
@@ -145,6 +173,8 @@ def _run(args: argparse.Namespace) -> int:
         registry=load_entrypoint_executors(),
         inventory_tools=inventory.observed_tools,
         capability_ids=tuple(args.capability_id),
+        profile_isolation_kind=profile.isolation_kind,
+        profile_persistent=profile.persistent,
     )
     exact_candidate = candidate_hash(
         catalog_hash=catalog.catalog_hash,
