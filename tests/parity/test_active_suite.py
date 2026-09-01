@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 
 from hermes_claude_agent_sdk.parity import active_suite as active_suite_module
 from hermes_claude_agent_sdk.parity.active_suite import (
     ACTIVE_SOURCE_IDS,
     LiveTurn,
     _normalize_event_tool_name,
+    _inventory_matches,
     _source_docs_contract,
     _subagent_contract,
     active_execution_ids,
@@ -68,6 +70,34 @@ def test_event_tool_names_normalize_one_provider_namespace_only() -> None:
         _normalize_event_tool_name("mcp__hermes-tools__mcp__server__tool")
         == "mcp__server__tool"
     )
+
+
+def test_inventory_matches_requires_an_exact_unique_well_formed_inventory() -> None:
+    parameters = {
+        "type": "object",
+        "properties": {"path": {"type": "string"}},
+        "required": ["path"],
+    }
+    schema = {
+        "type": "function",
+        "function": {"name": "read", "parameters": parameters},
+    }
+    exact_row = {"name": "read", "schema_hash": sha256_value(parameters)}
+
+    def matches(rows, requested=(schema,)) -> bool:
+        return _inventory_matches(
+            SimpleNamespace(inventory_tools=tuple(rows)), requested
+        )
+
+    assert matches((exact_row,)) is True
+    assert matches((exact_row, {"name": "extra", "schema_hash": "a" * 64})) is False
+    assert matches(()) is False
+    assert matches((exact_row, exact_row)) is False
+    assert matches(({"name": "read"},)) is False
+    assert matches(({"name": "read", "schema_hash": "b" * 64},)) is False
+    assert matches(("malformed",)) is False
+    assert matches((exact_row,), requested=(schema, schema)) is False
+    assert matches((exact_row,), requested=({"function": {"name": "read"}},)) is False
 
 
 def test_live_case_timeout_is_environment_blocked_and_cancels(

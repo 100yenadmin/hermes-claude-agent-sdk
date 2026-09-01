@@ -161,18 +161,41 @@ def _safe_environment() -> dict[str, str]:
 def _inventory_matches(
     context: ExecutionContext, schemas: Sequence[Mapping[str, Any]]
 ) -> bool:
-    observed = {item.get("name"): item.get("schema_hash") for item in context.inventory_tools}
+    observed: dict[str, str] = {}
+    for item in context.inventory_tools:
+        if not isinstance(item, Mapping) or set(item) != {"name", "schema_hash"}:
+            return False
+        name = item.get("name")
+        schema_hash = item.get("schema_hash")
+        if (
+            not isinstance(name, str)
+            or not name.strip()
+            or not isinstance(schema_hash, str)
+            or len(schema_hash) != 64
+            or any(character not in "0123456789abcdef" for character in schema_hash)
+            or name in observed
+        ):
+            return False
+        observed[name] = schema_hash
+
+    expected: dict[str, str] = {}
     for schema in schemas:
+        if not isinstance(schema, Mapping):
+            return False
         function = schema.get("function")
         if not isinstance(function, Mapping):
             return False
         name = function.get("name")
         parameters = function.get("parameters")
-        if not isinstance(name, str) or not isinstance(parameters, Mapping):
+        if not isinstance(name, str) or not name.strip() or not isinstance(parameters, Mapping):
             return False
-        if observed.get(name) != sha256_value(parameters):
+        if name in expected:
             return False
-    return True
+        try:
+            expected[name] = sha256_value(json_compatible(parameters))
+        except (TypeError, ValueError, RecursionError):
+            return False
+    return observed == expected
 
 
 def _complete_bundle(
