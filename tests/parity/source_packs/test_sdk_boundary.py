@@ -16,9 +16,9 @@ LEDGER_PATH = ROOT / "qa/parity/v3/sdk-ledger.json"
 PACK_SHA256 = "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
 SOURCE_FRAGMENT_SHA256 = "5ceeb81dfd51d947f5c669c61abdcc788687abed8225c5c9ba04ce1057c4fb6c"
 PROVENANCE_SHA256 = "0cecf675e9c96cbc29d26794e235fe690b6e62cc8a91030ba009f3d60bd6638a"
-SOURCE_COMMIT = "ea806575e6450e4d1efdfc72c19f04be982a1b9b9"
+SOURCE_COMMIT = "ea806575e6450e4d1efdfc72c19f04be982a1b9b"
 SOURCE_REF = (
-    "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:"
+    "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:"
     "extensions/anthropic/agent-sdk.runtime.test.ts"
 )
 LEDGER_CLASSIFICATIONS = {
@@ -246,6 +246,18 @@ def test_sdk_pack_has_exact_23_rows_and_pinned_source() -> None:
     assert pack["source_fragment"]["sha256"] == SOURCE_FRAGMENT_SHA256
     assert pack["provenance"]["evidence_sha256"] == PROVENANCE_SHA256
     assert pack["pack_sha256"] == _sha256({key: value for key, value in pack.items() if key != "pack_sha256"})
+
+
+def test_sdk_source_identity_is_exact_and_uniform() -> None:
+    pack = _load(PACK_PATH)
+    ledger = _load(LEDGER_PATH)
+    assert len(SOURCE_COMMIT) == 40
+    assert SOURCE_COMMIT == pack["source"]["commit_sha"]
+    assert pack["source"]["source_ref"] == SOURCE_REF
+    assert all(row["proof"]["ref"] == SOURCE_REF for row in pack["rows"])
+    assert all(row["proof"]["ref"] == SOURCE_REF for row in ledger["rows"])
+    assert f"{SOURCE_COMMIT}9" not in PACK_PATH.read_text(encoding="utf-8")
+    assert f"{SOURCE_COMMIT}9" not in LEDGER_PATH.read_text(encoding="utf-8")
 
 
 def test_sdk_pack_classifications_and_executable_policy_are_source_backed() -> None:

@@ -11,6 +11,7 @@ from hermes_claude_agent_sdk.parity.canonical import TRACE_REGISTRY, canonical_s
 
 
 PACK_PATH = Path(__file__).resolve().parents[3] / "qa/parity/v3/source-packs/openclaw-active.json"
+SOURCE_COMMIT = "ea806575e6450e4d1efdfc72c19f04be982a1b9b"
 EXPECTED_ROWS = [f"OPENCLAW-ACTIVE-{index:02d}" for index in range(1, 13)]
 EXPECTED_PATH_KEYS = {
     "required",
@@ -97,15 +98,30 @@ def test_openclaw_pack_has_exact_pinned_source_accounting(pack: dict[str, Any]) 
     assert source_pack["source"] == {
         "kind": "git_commit",
         "repo_id": "openclaw",
-        "commit_sha": "ea806575e6450e4d1efdfc72c19f04be982a1b9b9",
-        "source_ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts",
+        "commit_sha": "ea806575e6450e4d1efdfc72c19f04be982a1b9b",
+        "source_ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts",
         "artifact_sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136",
     }
     assert source_pack["provenance"] == {
         "origin_id": "openclaw-v2026-8-1",
         "license_id": "MIT",
-        "attribution_ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:LICENSE",
+        "attribution_ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:LICENSE",
     }
+
+
+def test_openclaw_source_identity_is_exact_and_uniform(pack: dict[str, Any]) -> None:
+    assert len(SOURCE_COMMIT) == 40
+    assert re.fullmatch(r"[0-9a-f]{40}", SOURCE_COMMIT)
+    serialized = json.dumps(pack, sort_keys=True)
+    assert f"{SOURCE_COMMIT}9" not in serialized
+    refs = [
+        pack["source_pack"]["source"]["source_ref"],
+        pack["source_pack"]["provenance"]["attribution_ref"],
+        *(row["source_location"] for row in pack["rows"]),
+        *(proof["ref"] for row in pack["rows"] for proof in [row["primary_proof"], *row["secondary_proof"]]),
+    ]
+    assert refs
+    assert all(ref.startswith(f"src:openclaw@{SOURCE_COMMIT}:") for ref in refs)
 
 
 def test_openclaw_rows_are_bijective_and_v4_closed(pack: dict[str, Any]) -> None:

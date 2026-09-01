@@ -11,14 +11,14 @@
   "source": {
     "kind": "git_commit",
     "repo_id": "openclaw",
-    "commit_sha": "ea806575e6450e4d1efdfc72c19f04be982a1b9b9",
-    "source_ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+    "commit_sha": "ea806575e6450e4d1efdfc72c19f04be982a1b9b",
+    "source_ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
     "artifact_sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
   },
   "provenance": {
     "origin_id": "openclaw-v2026-8-1",
     "license_id": "MIT",
-    "attribution_ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:LICENSE",
+    "attribution_ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:LICENSE",
     "evidence_ref": "evidence:hermes-agent-sdk-parity-v3/drafts/source-pack-provenance.json",
     "evidence_sha256": "0cecf675e9c96cbc29d26794e235fe690b6e62cc8a91030ba009f3d60bd6638a",
     "corrected_source_map_projection_sha256": "88e846f92b33c6824df3e4a5ac63062bb53c8b6a0bf3f7b2c5089ac9182dfe69"
@@ -77,7 +77,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -216,7 +216,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -286,7 +286,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -356,7 +356,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -495,7 +495,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -634,7 +634,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -704,7 +704,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -846,7 +846,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -988,7 +988,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -1127,7 +1127,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -1269,7 +1269,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -1410,7 +1410,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -1551,7 +1551,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -1690,7 +1690,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -1829,7 +1829,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -1970,7 +1970,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -2111,7 +2111,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -2252,7 +2252,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -2394,7 +2394,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -2464,7 +2464,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -2603,7 +2603,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -2745,7 +2745,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -2886,7 +2886,7 @@
         "reason": "stable"
       },
       "proof": {
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/anthropic/agent-sdk.runtime.test.ts",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts",
         "sha256": "2f6a7652eb2f3a8e82cb14925b50190b7c9a34a0354b34c880187742ed7547b5"
       },
       "expected_paths": {
@@ -3004,7 +3004,7 @@
       }
     }
   ],
-  "pack_sha256": "faa4b04a46c1c5fc759ecb773fa583d0cc52a3fbda603e3cae23e5ca67e5d021",
+  "pack_sha256": "0ee03c73b44f9928e77869001f0d353e1ff409dd2f069e711918876ea66d4fb1",
   "sdk_distribution": "claude-agent-sdk",
   "sdk_version": "0.2.144"
 }

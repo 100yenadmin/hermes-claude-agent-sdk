@@ -24,14 +24,14 @@
     "source": {
       "kind": "git_commit",
       "repo_id": "openclaw",
-      "commit_sha": "ea806575e6450e4d1efdfc72c19f04be982a1b9b9",
-      "source_ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts",
+      "commit_sha": "ea806575e6450e4d1efdfc72c19f04be982a1b9b",
+      "source_ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts",
       "artifact_sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
     },
     "provenance": {
       "origin_id": "openclaw-v2026-8-1",
       "license_id": "MIT",
-      "attribution_ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:LICENSE"
+      "attribution_ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:LICENSE"
     }
   },
   "source_accounting": {
@@ -186,7 +186,7 @@
         }
       ],
       "scenario_id": "SCN-OPENCLAW-01",
-      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L6-11",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L6-11",
       "lane": "openclaw",
       "surface": "approval",
       "owner": "exact_pair",
@@ -343,13 +343,13 @@
       "terminal_role": "plugin",
       "primary_proof": {
         "kind": "focused_test",
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:qa/scenarios/runtime/approval-turn-tool-followthrough.yaml#L10-14",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/runtime/approval-turn-tool-followthrough.yaml#L10-14",
         "sha256": "ec46f647caaf288b17b711d36931eec492f05eb96257d36cb5f12fd9c6d30a26"
       },
       "secondary_proof": [
         {
           "kind": "deterministic",
-          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L6-11",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L6-11",
           "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
         }
       ],
@@ -390,7 +390,7 @@
         }
       ],
       "scenario_id": "SCN-OPENCLAW-02",
-      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L12-16",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L12-16",
       "lane": "openclaw",
       "surface": "selection",
       "owner": "exact_pair",
@@ -545,13 +545,13 @@
       "terminal_role": "plugin",
       "primary_proof": {
         "kind": "focused_test",
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:qa/scenarios/models/model-switch-tool-continuity.yaml#L12-16",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/models/model-switch-tool-continuity.yaml#L12-16",
         "sha256": "76d421f03e575c6d29bb57c19fe4ec7977d2008b882b32e764af2382f7730a03"
       },
       "secondary_proof": [
         {
           "kind": "deterministic",
-          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L12-16",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L12-16",
           "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
         }
       ],
@@ -592,7 +592,7 @@
         }
       ],
       "scenario_id": "SCN-OPENCLAW-03",
-      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L18-21",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L18-21",
       "lane": "openclaw",
       "surface": "tool",
       "owner": "exact_pair",
@@ -742,13 +742,13 @@
       "terminal_role": "plugin",
       "primary_proof": {
         "kind": "focused_test",
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:qa/scenarios/workspace/source-docs-discovery-report.yaml#L12-16",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/workspace/source-docs-discovery-report.yaml#L12-16",
         "sha256": "cd428226e5991e21b9d6046ca52cb92a3691991f4680dee7ea300b40f926ace5"
       },
       "secondary_proof": [
         {
           "kind": "deterministic",
-          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L18-21",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L18-21",
           "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
         }
       ],
@@ -789,7 +789,7 @@
         }
       ],
       "scenario_id": "SCN-OPENCLAW-04",
-      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L22-26",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L22-26",
       "lane": "openclaw",
       "surface": "tool",
       "owner": "exact_pair",
@@ -939,13 +939,13 @@
       "terminal_role": "plugin",
       "primary_proof": {
         "kind": "focused_test",
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:qa/scenarios/media/image-understanding-attachment.yaml#L12-16",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/media/image-understanding-attachment.yaml#L12-16",
         "sha256": "2c53c86375748a03ac9d1808bb5c0c55a145e65ce0df385a26fd055d76d91d16"
       },
       "secondary_proof": [
         {
           "kind": "deterministic",
-          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L22-26",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L22-26",
           "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
         }
       ],
@@ -988,7 +988,7 @@
         }
       ],
       "scenario_id": "SCN-OPENCLAW-05",
-      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L27-31",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L27-31",
       "lane": "openclaw",
       "surface": "compaction",
       "owner": "exact_pair",
@@ -1146,13 +1146,13 @@
       "terminal_role": "plugin",
       "primary_proof": {
         "kind": "focused_test",
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:qa/scenarios/runtime/compaction-retry-mutating-tool.yaml#L12-18",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/runtime/compaction-retry-mutating-tool.yaml#L12-18",
         "sha256": "a8588c75d31c02cff8880da8a89b1d05c2d619b1dce6ab04e5ea983463088715"
       },
       "secondary_proof": [
         {
           "kind": "deterministic",
-          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L27-31",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L27-31",
           "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
         }
       ],
@@ -1193,7 +1193,7 @@
         }
       ],
       "scenario_id": "SCN-OPENCLAW-06",
-      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L32-36",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L32-36",
       "lane": "openclaw",
       "surface": "recovery",
       "owner": "exact_pair",
@@ -1343,13 +1343,13 @@
       "terminal_role": "plugin",
       "primary_proof": {
         "kind": "focused_test",
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:qa/scenarios/agents/subagent-handoff.yaml#L10-14",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/agents/subagent-handoff.yaml#L10-14",
         "sha256": "eb2f1f012baf85c9e7315ba7fbd85fbca70490b276dfc5a71645ce8b4dd52439"
       },
       "secondary_proof": [
         {
           "kind": "deterministic",
-          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L32-36",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L32-36",
           "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
         }
       ],
@@ -1392,7 +1392,7 @@
         }
       ],
       "scenario_id": "SCN-OPENCLAW-07",
-      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L37-41",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L37-41",
       "lane": "openclaw",
       "surface": "recovery",
       "owner": "exact_pair",
@@ -1546,13 +1546,13 @@
       "terminal_role": "plugin",
       "primary_proof": {
         "kind": "focused_test",
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:qa/scenarios/agents/subagent-fanout-synthesis.yaml#L12-16",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/agents/subagent-fanout-synthesis.yaml#L12-16",
         "sha256": "10530a410b992f3e0a91a16d768cada88b65ed0f6b89a5bd13bde2397b3da523"
       },
       "secondary_proof": [
         {
           "kind": "deterministic",
-          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L37-41",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L37-41",
           "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
         }
       ],
@@ -1593,7 +1593,7 @@
         }
       ],
       "scenario_id": "SCN-OPENCLAW-08",
-      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L42-46",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L42-46",
       "lane": "openclaw",
       "surface": "isolation",
       "owner": "exact_pair",
@@ -1743,13 +1743,13 @@
       "terminal_role": "plugin",
       "primary_proof": {
         "kind": "focused_test",
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:qa/scenarios/agents/subagent-stale-child-links.yaml#L11-16",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/agents/subagent-stale-child-links.yaml#L11-16",
         "sha256": "1c190d81182d2195c8385ba227107d47a84b1b3279c55d58f93e05f3b177de53"
       },
       "secondary_proof": [
         {
           "kind": "deterministic",
-          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L42-46",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L42-46",
           "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
         }
       ],
@@ -1790,7 +1790,7 @@
         }
       ],
       "scenario_id": "SCN-OPENCLAW-09",
-      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L47-51",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L47-51",
       "lane": "openclaw",
       "surface": "resume",
       "owner": "exact_pair",
@@ -1944,13 +1944,13 @@
       "terminal_role": "plugin",
       "primary_proof": {
         "kind": "focused_test",
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:qa/scenarios/memory/memory-recall.yaml#L3-30",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/memory/memory-recall.yaml#L3-30",
         "sha256": "ffef855249cc48096a563105d5c99d7ef1be0e32183cb9f51b848ed96af2213c"
       },
       "secondary_proof": [
         {
           "kind": "deterministic",
-          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L47-51",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L47-51",
           "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
         }
       ],
@@ -1991,7 +1991,7 @@
         }
       ],
       "scenario_id": "SCN-OPENCLAW-10",
-      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L52-56",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L52-56",
       "lane": "openclaw",
       "surface": "isolation",
       "owner": "exact_pair",
@@ -2143,13 +2143,13 @@
       "terminal_role": "plugin",
       "primary_proof": {
         "kind": "focused_test",
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:qa/scenarios/memory/thread-memory-isolation.yaml#L12-16",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/memory/thread-memory-isolation.yaml#L12-16",
         "sha256": "e0a9413ce93397740b1ac042d888118e35bbab91c9bb18a6e5dc8374c1e6187d"
       },
       "secondary_proof": [
         {
           "kind": "deterministic",
-          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L52-56",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L52-56",
           "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
         }
       ],
@@ -2190,7 +2190,7 @@
         }
       ],
       "scenario_id": "SCN-OPENCLAW-11",
-      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L57-61",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L57-61",
       "lane": "openclaw",
       "surface": "recovery",
       "owner": "exact_pair",
@@ -2350,13 +2350,13 @@
       "terminal_role": "plugin",
       "primary_proof": {
         "kind": "focused_test",
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:qa/scenarios/config/config-restart-capability-flip.yaml#L12-16",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/config/config-restart-capability-flip.yaml#L12-16",
         "sha256": "1c5f8632d514777124f3951393c91080038048c3a2306d7c82085d78bf9835c8"
       },
       "secondary_proof": [
         {
           "kind": "deterministic",
-          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L57-61",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L57-61",
           "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
         }
       ],
@@ -2397,7 +2397,7 @@
         }
       ],
       "scenario_id": "SCN-OPENCLAW-12",
-      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L62-66",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L62-66",
       "lane": "openclaw",
       "surface": "tool",
       "owner": "exact_pair",
@@ -2559,13 +2559,13 @@
       "terminal_role": "plugin",
       "primary_proof": {
         "kind": "focused_test",
-        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:qa/scenarios/agents/instruction-followthrough-repo-contract.yaml#L12-17",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/agents/instruction-followthrough-repo-contract.yaml#L12-17",
         "sha256": "46a0f72c65434bccc988eaae1e09a4dffa3ef64fefcf524400ae3878525d52c2"
       },
       "secondary_proof": [
         {
           "kind": "deterministic",
-          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b9:extensions/qa-lab/src/agentic-parity.ts#L62-66",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L62-66",
           "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
         }
       ],
