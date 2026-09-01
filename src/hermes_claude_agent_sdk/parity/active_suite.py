@@ -66,6 +66,7 @@ _ACTIVE_SYSTEM_PROMPT = (
     "requested marker."
 )
 _ACTIVE_CASE_TIMEOUT_SECONDS = 300.0
+_MCP_EVENT_PREFIX = "mcp__hermes-tools__"
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,6 +83,13 @@ class LiveTurn:
     background_hashes: tuple[str, ...]
     event_hash: str
     silent_fallback: bool
+
+
+def _normalize_event_tool_name(name: Any) -> str:
+    value = str(name)
+    if value.startswith(_MCP_EVENT_PREFIX):
+        return value[len(_MCP_EVENT_PREFIX) :]
+    return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -369,7 +377,7 @@ async def _run_turn(
     state = states[-1] if states else None
     state_values = [dict(item.state) for item in states]
     tool_names = tuple(
-        str(event.name)
+        _normalize_event_tool_name(event.name)
         for event in events
         if getattr(getattr(event, "kind", None), "value", None) == "tool_request"
     )

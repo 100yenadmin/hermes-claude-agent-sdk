@@ -6,6 +6,7 @@ from hermes_claude_agent_sdk.parity import active_suite as active_suite_module
 from hermes_claude_agent_sdk.parity.active_suite import (
     ACTIVE_SOURCE_IDS,
     LiveTurn,
+    _normalize_event_tool_name,
     _source_docs_contract,
     active_execution_ids,
 )
@@ -57,6 +58,15 @@ def test_native_sandbox_can_disable_injected_denial(tmp_path) -> None:
     assert result == "safe"
     assert host.denial_observed is False
     assert host.successful_calls == 1
+
+
+def test_event_tool_names_normalize_one_provider_namespace_only() -> None:
+    assert _normalize_event_tool_name("mcp__hermes-tools__read") == "read"
+    assert _normalize_event_tool_name("Agent") == "Agent"
+    assert (
+        _normalize_event_tool_name("mcp__hermes-tools__mcp__server__tool")
+        == "mcp__server__tool"
+    )
 
 
 def test_live_case_timeout_is_environment_blocked_and_cancels(
