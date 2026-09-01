@@ -471,27 +471,51 @@ async def _run_live_case(
             host = NativeSandboxHost(workspace, (readme, docs))
             runtime = ClaudeAgentSDKRuntime(cwd=str(workspace), parent_env=os.environ)
             try:
-                turn = await _run_turn(
+                source_turn = await _run_turn(
                     runtime,
                     host,
                     model=model,
                     content=(
-                        "Read README.md and CONTRACT.md. The first read is denied; retry it "
-                        "once. Report both exact uppercase markers and end SOURCE_DOCS_PASS."
+                        "Read README.md. The first read is denied; retry it once. Report the "
+                        "exact uppercase marker from the file and end SOURCE_STAGE_PASS."
                     ),
                     schemas=schemas,
-                    correlation_id="active-source-docs",
+                    correlation_id="active-source-stage",
+                )
+                docs_turn = await _run_turn(
+                    runtime,
+                    host,
+                    model=model,
+                    content=(
+                        "Read CONTRACT.md. Report its exact uppercase marker, restate the "
+                        "marker learned in the prior turn, and end SOURCE_DOCS_PASS."
+                    ),
+                    schemas=schemas,
+                    correlation_id="active-docs-stage",
+                    session_state=source_turn.state,
                 )
             finally:
                 await runtime.close()
-            turns.append(turn)
+            turns.extend((source_turn, docs_turn))
             ok = (
-                _live_ok(turn, markers=("SOURCE_OK", "DOCS_OK", "SOURCE_DOCS_PASS"))
-                and "read" in turn.tool_names
+                _live_ok(source_turn, markers=("SOURCE_OK", "SOURCE_STAGE_PASS"))
+                and _live_ok(
+                    docs_turn,
+                    markers=("SOURCE_OK", "DOCS_OK", "SOURCE_DOCS_PASS"),
+                )
+                and sum(
+                    name == "read"
+                    for name in (*source_turn.tool_names, *docs_turn.tool_names)
+                )
+                >= 3
                 and host.denial_observed
                 and host.recovery_observed
             )
-            extra = {"denial": host.denial_observed, "recovery": host.recovery_observed}
+            extra = {
+                "denial": host.denial_observed,
+                "recovery": host.recovery_observed,
+                "source_state_stable": source_turn.state_hash == docs_turn.state_hash,
+            }
 
         elif source_id == "image-understanding-attachment":
             schemas: tuple[dict[str, Any], ...] = ()
@@ -882,7 +906,7 @@ async def active_agentic_suite(context: ExecutionContext) -> ExecutionBundle:
         if not _inventory_matches(context, required_schemas):
             return _blocked("active_tool_inventory_drift")
         minimum_turns = {
-            "source-docs-discovery-report": 1,
+            "source-docs-discovery-report": 2,
             "image-understanding-attachment": 1,
             "subagent-handoff": 1,
             "subagent-fanout-synthesis": 1,
