@@ -13,8 +13,12 @@
   exact `53 + 12 + 23 + 36` source union plus dynamic tool/schema inventory.
   Runtime qualification is the separate active 100-turn same-session row.
 - Difference evidence: every v3 source item is independently addressable,
-  trace-graded, candidate-bound, and required to produce positive, denial, and
-  recovery evidence. Missing executors or evidence remain `PENDING`.
+  trace-graded, candidate-bound, and required to produce its applicable source
+  proof. Active-12, native-36, and runtime scenarios require positive, denial,
+  and recovery evidence. Each frozen-v2 row and focused boundary row remains a
+  mandatory single invariant; its synthetic secondary paths are explicit
+  `NOT_REQUIRED` entries and never count as passes. Missing required executors
+  or evidence remain `PENDING`.
 - Rollback identity: restore the v2 gate definition by its frozen SHA without
   altering its evidence. This does not retroactively turn the historical soak
   aggregate into a pass.

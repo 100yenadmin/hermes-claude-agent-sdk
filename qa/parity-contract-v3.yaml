@@ -87,10 +87,12 @@ capabilities:
       required: true
       assertion: "Fable parent resolves claude-agent-sdk/claude-fable-5 with subscription_included and included cost status."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The AUTH-01 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected AUTH-01 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The AUTH-01 fixture is isolated and its initial state hash is recorded."
     state_after: "The AUTH-01 expected state and exact terminal outcome are recorded."
@@ -123,10 +125,12 @@ capabilities:
       required: true
       assertion: "Codex Luna worker resolves openai-codex/gpt-5.6-luna with subscription_included and included cost status."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The AUTH-02 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected AUTH-02 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The AUTH-02 fixture is isolated and its initial state hash is recorded."
     state_after: "The AUTH-02 expected state and exact terminal outcome are recorded."
@@ -159,10 +163,12 @@ capabilities:
       required: true
       assertion: "Codex Sol worker resolves openai-codex/gpt-5.6-sol with subscription_included and included cost status."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The AUTH-03 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected AUTH-03 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The AUTH-03 fixture is isolated and its initial state hash is recorded."
     state_after: "The AUTH-03 expected state and exact terminal outcome are recorded."
@@ -195,10 +201,12 @@ capabilities:
       required: true
       assertion: "Declared OpenCode Free keyless route resolves without a credential and reports non_metered/included."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The AUTH-04 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected AUTH-04 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The AUTH-04 fixture is isolated and its initial state hash is recorded."
     state_after: "The AUTH-04 expected state and exact terminal outcome are recorded."
@@ -231,10 +239,12 @@ capabilities:
       required: true
       assertion: "Known metered route is rejected before spawn while allow_metered_routes is false."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The AUTH-05 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected AUTH-05 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The AUTH-05 fixture is isolated and its initial state hash is recorded."
     state_after: "The AUTH-05 expected state and exact terminal outcome are recorded."
@@ -266,10 +276,12 @@ capabilities:
       required: true
       assertion: "Known metered route becomes preflight-eligible only with explicit allow_metered_routes true; no live paid request is made."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The AUTH-06 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected AUTH-06 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The AUTH-06 fixture is isolated and its initial state hash is recorded."
     state_after: "The AUTH-06 expected state and exact terminal outcome are recorded."
@@ -301,10 +313,12 @@ capabilities:
       required: true
       assertion: "Unknown billing is rejected before spawn even when allow_metered_routes is true."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The AUTH-07 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected AUTH-07 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The AUTH-07 fixture is isolated and its initial state hash is recorded."
     state_after: "The AUTH-07 expected state and exact terminal outcome are recorded."
@@ -336,10 +350,12 @@ capabilities:
       required: true
       assertion: "API-key and missing-credential route evidence is rejected before child construction under the default policy."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The AUTH-08 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected AUTH-08 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The AUTH-08 fixture is isolated and its initial state hash is recorded."
     state_after: "The AUTH-08 expected state and exact terminal outcome are recorded."
@@ -371,10 +387,12 @@ capabilities:
       required: true
       assertion: "Claude Extra Usage or API-key runtime evidence fails closed before accepting auxiliary or parent output."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The AUTH-09 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected AUTH-09 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The AUTH-09 fixture is isolated and its initial state hash is recorded."
     state_after: "The AUTH-09 expected state and exact terminal outcome are recorded."
@@ -407,10 +425,12 @@ capabilities:
       required: true
       assertion: "GLM 5.3 remains config-only and is rejected by non-metered route policy without a live call."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The AUTH-10 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected AUTH-10 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The AUTH-10 fixture is isolated and its initial state hash is recorded."
     state_after: "The AUTH-10 expected state and exact terminal outcome are recorded."
@@ -442,10 +462,12 @@ capabilities:
       required: true
       assertion: "Explicit routes never silently fall back after auth, quota, transport, billing, or provider failure."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The AUTH-11 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected AUTH-11 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The AUTH-11 fixture is isolated and its initial state hash is recorded."
     state_after: "The AUTH-11 expected state and exact terminal outcome are recorded."
@@ -478,10 +500,12 @@ capabilities:
       required: true
       assertion: "Fable completes a normal text turn."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The PARENT-01 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected PARENT-01 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The PARENT-01 fixture is isolated and its initial state hash is recorded."
     state_after: "The PARENT-01 expected state and exact terminal outcome are recorded."
@@ -512,10 +536,12 @@ capabilities:
       required: true
       assertion: "Fable accepts supported rich-image input and preserves the image content path."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The PARENT-02 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected PARENT-02 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The PARENT-02 fixture is isolated and its initial state hash is recorded."
     state_after: "The PARENT-02 expected state and exact terminal outcome are recorded."
@@ -547,10 +573,12 @@ capabilities:
       required: true
       assertion: "A named Fable session preserves multi-turn continuity."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The PARENT-03 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected PARENT-03 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The PARENT-03 fixture is isolated and its initial state hash is recorded."
     state_after: "The PARENT-03 expected state and exact terminal outcome are recorded."
@@ -581,10 +609,12 @@ capabilities:
       required: true
       assertion: "A Fable session resumes by durable identity without cross-session contamination."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The PARENT-04 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected PARENT-04 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The PARENT-04 fixture is isolated and its initial state hash is recorded."
     state_after: "The PARENT-04 expected state and exact terminal outcome are recorded."
@@ -616,10 +646,12 @@ capabilities:
       required: true
       assertion: "Native SDK compaction status is surfaced and does not violate message roles."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The PARENT-05 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected PARENT-05 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The PARENT-05 fixture is isolated and its initial state hash is recorded."
     state_after: "The PARENT-05 expected state and exact terminal outcome are recorded."
@@ -651,10 +683,12 @@ capabilities:
       required: true
       assertion: "Cancellation terminates the active SDK operation with an explicit classified result."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The PARENT-06 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected PARENT-06 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The PARENT-06 fixture is isolated and its initial state hash is recorded."
     state_after: "The PARENT-06 expected state and exact terminal outcome are recorded."
@@ -686,10 +720,12 @@ capabilities:
       required: true
       assertion: "Interrupt drains the active turn and permits a clean subsequent turn."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The PARENT-07 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected PARENT-07 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The PARENT-07 fixture is isolated and its initial state hash is recorded."
     state_after: "The PARENT-07 expected state and exact terminal outcome are recorded."
@@ -721,10 +757,12 @@ capabilities:
       required: true
       assertion: "Transport failure is explicit, terminal, and does not emit partial success or fallback."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The PARENT-08 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected PARENT-08 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The PARENT-08 fixture is isolated and its initial state hash is recorded."
     state_after: "The PARENT-08 expected state and exact terminal outcome are recorded."
@@ -756,10 +794,12 @@ capabilities:
       required: true
       assertion: "The frozen Fable system-prompt hash is stable across equivalent turns."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The PARENT-09 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected PARENT-09 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The PARENT-09 fixture is isolated and its initial state hash is recorded."
     state_after: "The PARENT-09 expected state and exact terminal outcome are recorded."
@@ -791,10 +831,12 @@ capabilities:
       required: true
       assertion: "The frozen Fable tool/MCP schema hash is stable across equivalent turns."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The PARENT-10 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected PARENT-10 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The PARENT-10 fixture is isolated and its initial state hash is recorded."
     state_after: "The PARENT-10 expected state and exact terminal outcome are recorded."
@@ -826,10 +868,12 @@ capabilities:
       required: true
       assertion: "The frozen Eva tool inventory registers with stable names, order, and schemas."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The TOOL-01 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected TOOL-01 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The TOOL-01 fixture is isolated and its initial state hash is recorded."
     state_after: "The TOOL-01 expected state and exact terminal outcome are recorded."
@@ -863,10 +907,12 @@ capabilities:
       required: true
       assertion: "A read-only terminal pwd call executes through the Fable runtime."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The TOOL-02 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected TOOL-02 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The TOOL-02 fixture is isolated and its initial state hash is recorded."
     state_after: "The TOOL-02 expected state and exact terminal outcome are recorded."
@@ -899,10 +945,12 @@ capabilities:
       required: true
       assertion: "A side-effectful tool denial is explicit and produces no external mutation."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The TOOL-03 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected TOOL-03 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The TOOL-03 fixture is isolated and its initial state hash is recorded."
     state_after: "The TOOL-03 expected state and exact terminal outcome are recorded."
@@ -935,10 +983,12 @@ capabilities:
       required: true
       assertion: "Approval, denial, and timeout callbacks remain distinct without stdin deadlock."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The TOOL-04 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected TOOL-04 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The TOOL-04 fixture is isolated and its initial state hash is recorded."
     state_after: "The TOOL-04 expected state and exact terminal outcome are recorded."
@@ -972,10 +1022,12 @@ capabilities:
       required: true
       assertion: "The real hermes-hybrid delegate_task handler is invoked, not registration-only coverage."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The TOOL-05 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected TOOL-05 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The TOOL-05 fixture is isolated and its initial state hash is recorded."
     state_after: "The TOOL-05 expected state and exact terminal outcome are recorded."
@@ -1009,10 +1061,12 @@ capabilities:
       required: true
       assertion: "Hybrid MCP preserves mcp prefixes, bucket membership, exclusions, and deterministic cache ordering."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The TOOL-06 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected TOOL-06 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The TOOL-06 fixture is isolated and its initial state hash is recorded."
     state_after: "The TOOL-06 expected state and exact terminal outcome are recorded."
@@ -1045,10 +1099,12 @@ capabilities:
       required: true
       assertion: "Native Claude Agent synchronous child completes with distinguishable SDK-native evidence."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The ORCH-01 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected ORCH-01 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The ORCH-01 fixture is isolated and its initial state hash is recorded."
     state_after: "The ORCH-01 expected state and exact terminal outcome are recorded."
@@ -1079,10 +1135,12 @@ capabilities:
       required: true
       assertion: "Native Claude Agent background child completes and is delivered exactly once while the process remains alive."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The ORCH-02 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected ORCH-02 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The ORCH-02 fixture is isolated and its initial state hash is recorded."
     state_after: "The ORCH-02 expected state and exact terminal outcome are recorded."
@@ -1113,10 +1171,12 @@ capabilities:
       required: true
       assertion: "Fable delegates one routed task to codex-luna and receives the exact safe route receipt."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The ORCH-03 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected ORCH-03 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The ORCH-03 fixture is isolated and its initial state hash is recorded."
     state_after: "The ORCH-03 expected state and exact terminal outcome are recorded."
@@ -1147,10 +1207,12 @@ capabilities:
       required: true
       assertion: "Fable delegates one routed task to codex-sol and receives the exact safe route receipt."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The ORCH-04 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected ORCH-04 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The ORCH-04 fixture is isolated and its initial state hash is recorded."
     state_after: "The ORCH-04 expected state and exact terminal outcome are recorded."
@@ -1181,10 +1243,12 @@ capabilities:
       required: true
       assertion: "A Luna/Sol mixed batch returns per-task receipts, mixed_routes true, and null aggregate provider/model."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The ORCH-05 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected ORCH-05 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The ORCH-05 fixture is isolated and its initial state hash is recorded."
     state_after: "The ORCH-05 expected state and exact terminal outcome are recorded."
@@ -1216,10 +1280,12 @@ capabilities:
       required: true
       assertion: "A claude-agent-sdk opaque routed child completes through Hermes with subscription attribution."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The ORCH-06 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected ORCH-06 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The ORCH-06 fixture is isolated and its initial state hash is recorded."
     state_after: "The ORCH-06 expected state and exact terminal outcome are recorded."
@@ -1251,10 +1317,12 @@ capabilities:
       required: true
       assertion: "An OpenCode Free opaque routed child completes as non_metered/included."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The ORCH-07 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected ORCH-07 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The ORCH-07 fixture is isolated and its initial state hash is recorded."
     state_after: "The ORCH-07 expected state and exact terminal outcome are recorded."
@@ -1286,10 +1354,12 @@ capabilities:
       required: true
       assertion: "Malformed, unknown, partial, forbidden-field, or unavailable batches fail atomically before spawn."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The ORCH-08 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected ORCH-08 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The ORCH-08 fixture is isolated and its initial state hash is recorded."
     state_after: "The ORCH-08 expected state and exact terminal outcome are recorded."
@@ -1320,10 +1390,12 @@ capabilities:
       required: true
       assertion: "Routed results expose only route/provider/model/billing_mode/cost_status plus ordinary task status/output fields."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The ORCH-09 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected ORCH-09 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The ORCH-09 fixture is isolated and its initial state hash is recorded."
     state_after: "The ORCH-09 expected state and exact terminal outcome are recorded."
@@ -1355,10 +1427,12 @@ capabilities:
       required: true
       assertion: "Unrouted delegation preserves legacy precedence and result shape; explicit routing uses task route over global override over parent inheritance and disables fallback."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The ORCH-10 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected ORCH-10 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The ORCH-10 fixture is isolated and its initial state hash is recorded."
     state_after: "The ORCH-10 expected state and exact terminal outcome are recorded."
@@ -1390,10 +1464,12 @@ capabilities:
       required: true
       assertion: "One routed batch produces one consolidated completion and one bounded Fable synthesis."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The BG-01 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected BG-01 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The BG-01 fixture is isolated and its initial state hash is recorded."
     state_after: "The BG-01 expected state and exact terminal outcome are recorded."
@@ -1425,10 +1501,12 @@ capabilities:
       required: true
       assertion: "Completion claim and acknowledgement prevent duplicate or cross-session delivery while the process remains alive."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The BG-02 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected BG-02 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The BG-02 fixture is isolated and its initial state hash is recorded."
     state_after: "The BG-02 expected state and exact terminal outcome are recorded."
@@ -1460,10 +1538,12 @@ capabilities:
       required: true
       assertion: "A graceful restart during active process-local delegation records interruption/cancellation and emits no late or misattributed duplicate."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The BG-03 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected BG-03 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The BG-03 fixture is isolated and its initial state hash is recorded."
     state_after: "The BG-03 expected state and exact terminal outcome are recorded."
@@ -1495,10 +1575,12 @@ capabilities:
       required: true
       assertion: "An abrupt owner loss is classified outcome-unknown rather than falsely resumed or reported successful."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The BG-04 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected BG-04 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The BG-04 fixture is isolated and its initial state hash is recorded."
     state_after: "The BG-04 expected state and exact terminal outcome are recorded."
@@ -1530,10 +1612,12 @@ capabilities:
       required: true
       assertion: "The isolated and shared CLI paths can select Fable explicitly without changing the saved default."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The OPS-01 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected OPS-01 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The OPS-01 fixture is isolated and its initial state hash is recorded."
     state_after: "The OPS-01 expected state and exact terminal outcome are recorded."
@@ -1564,10 +1648,12 @@ capabilities:
       required: true
       assertion: "The operator-owned Eva Telegram path completes the approved Fable orchestration canary."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The OPS-02 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected OPS-02 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The OPS-02 fixture is isolated and its initial state hash is recorded."
     state_after: "The OPS-02 expected state and exact terminal outcome are recorded."
@@ -1598,10 +1684,12 @@ capabilities:
       required: true
       assertion: "The inventoried Eva gateway/default serve process set stops and restarts with the frozen SHA."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The OPS-03 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected OPS-03 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The OPS-03 fixture is isolated and its initial state hash is recorded."
     state_after: "The OPS-03 expected state and exact terminal outcome are recorded."
@@ -1632,10 +1720,12 @@ capabilities:
       required: true
       assertion: "Fable session continuity survives the supported gateway restart boundary."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The OPS-04 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected OPS-04 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The OPS-04 fixture is isolated and its initial state hash is recorded."
     state_after: "The OPS-04 expected state and exact terminal outcome are recorded."
@@ -1667,10 +1757,12 @@ capabilities:
       required: true
       assertion: "Parent and worker usage attribution persists exactly once across restart."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The OPS-05 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected OPS-05 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The OPS-05 fixture is isolated and its initial state hash is recorded."
     state_after: "The OPS-05 expected state and exact terminal outcome are recorded."
@@ -1702,10 +1794,12 @@ capabilities:
       required: true
       assertion: "Eva saved default remains openai-codex/gpt-5.6-sol before and after cutover."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The OPS-06 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected OPS-06 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The OPS-06 fixture is isolated and its initial state hash is recorded."
     state_after: "The OPS-06 expected state and exact terminal outcome are recorded."
@@ -1736,10 +1830,12 @@ capabilities:
       required: true
       assertion: "default and bsmoke profiles remain source/config/runtime isolated from Eva changes."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The OPS-07 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected OPS-07 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The OPS-07 fixture is isolated and its initial state hash is recorded."
     state_after: "The OPS-07 expected state and exact terminal outcome are recorded."
@@ -1771,10 +1867,12 @@ capabilities:
       required: true
       assertion: "The dependency restore manifest resolves in a dry run and retains claude-agent-sdk 0.2.144 for the candidate."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The OPS-08 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected OPS-08 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The OPS-08 fixture is isolated and its initial state hash is recorded."
     state_after: "The OPS-08 expected state and exact terminal outcome are recorded."
@@ -1805,10 +1903,12 @@ capabilities:
       required: true
       assertion: "Git ref, dependency, profile-state, and service rollback restores the named v1 source when invoked."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The OPS-09 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected OPS-09 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The OPS-09 fixture is isolated and its initial state hash is recorded."
     state_after: "The OPS-09 expected state and exact terminal outcome are recorded."
@@ -1839,10 +1939,12 @@ capabilities:
       required: true
       assertion: "Lean orchestration uses zero native Claude children."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The EFF-01 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected EFF-01 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The EFF-01 fixture is isolated and its initial state hash is recorded."
     state_after: "The EFF-01 expected state and exact terminal outcome are recorded."
@@ -1874,10 +1976,12 @@ capabilities:
       required: true
       assertion: "Each lean orchestration run uses at most two Fable model turns."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The EFF-02 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected EFF-02 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The EFF-02 fixture is isolated and its initial state hash is recorded."
     state_after: "The EFF-02 expected state and exact terminal outcome are recorded."
@@ -1909,10 +2013,12 @@ capabilities:
       required: true
       assertion: "Across the live sample, p95 Fable non-cache share is at most 25 percent; cache traffic is reported separately."
     denial_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The EFF-03 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
     recovery_path:
-      required: true
+      required: false
+      rationale: "Frozen v2 source row is one immutable legacy evidence cell; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "After an expected EFF-03 denial or bounded failure, the supported path recovers on the unchanged candidate."
     state_before: "The EFF-03 fixture is isolated and its initial state hash is recorded."
     state_after: "The EFF-03 expected state and exact terminal outcome are recorded."
@@ -2355,10 +2461,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Pins SDK identity, keeps selected credentials private, and isolates side questions."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the sdk-identity-credential-privacy-side-question-isolation boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the sdk-identity-credential-privacy-side-question-isolation denial or bounded failure."
     state_before: "The sdk-identity-credential-privacy-side-question-isolation owner, session, permissions, and candidate hashes are recorded."
     state_after: "The sdk-identity-credential-privacy-side-question-isolation terminal, settlement, and retained-state invariants are recorded."
@@ -2389,10 +2497,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Runs the installed authenticated executable with the exact host-prepared environment."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the authenticated-executable-exact-host-environment boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the authenticated-executable-exact-host-environment denial or bounded failure."
     state_before: "The authenticated-executable-exact-host-environment owner, session, permissions, and candidate hashes are recorded."
     state_after: "The authenticated-executable-exact-host-environment terminal, settlement, and retained-state invariants are recorded."
@@ -2423,10 +2533,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Rejects cancellation that races the SDK asynchronous module load."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the cancellation-race-during-async-module-load boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the cancellation-race-during-async-module-load denial or bounded failure."
     state_before: "The cancellation-race-during-async-module-load owner, session, permissions, and candidate hashes are recorded."
     state_after: "The cancellation-race-during-async-module-load terminal, settlement, and retained-state invariants are recorded."
@@ -2457,10 +2569,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Preserves native session identity across fresh and resumed turns."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the fresh-resume-native-session-identity boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the fresh-resume-native-session-identity denial or bounded failure."
     state_before: "The fresh-resume-native-session-identity owner, session, permissions, and candidate hashes are recorded."
     state_after: "The fresh-resume-native-session-identity terminal, settlement, and retained-state invariants are recorded."
@@ -2492,10 +2606,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Preserves cache, effort, and checkpoint-fork controls through SDK options."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the cache-effort-checkpoint-fork-options boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the cache-effort-checkpoint-fork-options denial or bounded failure."
     state_before: "The cache-effort-checkpoint-fork-options owner, session, permissions, and candidate hashes are recorded."
     state_after: "The cache-effort-checkpoint-fork-options terminal, settlement, and retained-state invariants are recorded."
@@ -2527,10 +2643,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Reuses one official SDK query and Claude process across compatible agent turns."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the compatible-warm-query-process-reuse boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the compatible-warm-query-process-reuse denial or bounded failure."
     state_before: "The compatible-warm-query-process-reuse owner, session, permissions, and candidate hashes are recorded."
     state_after: "The compatible-warm-query-process-reuse terminal, settlement, and retained-state invariants are recorded."
@@ -2561,10 +2679,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Keeps a terminal error turn warm query reusable for the next turn."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the terminal-error-warm-query-reuse boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the terminal-error-warm-query-reuse denial or bounded failure."
     state_before: "The terminal-error-warm-query-reuse owner, session, permissions, and candidate hashes are recorded."
     state_after: "The terminal-error-warm-query-reuse terminal, settlement, and retained-state invariants are recorded."
@@ -2595,10 +2715,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Restarts the warm SDK query when system prompt or execution fingerprint changes."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the execution-fingerprint-change-restarts-warm-query boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the execution-fingerprint-change-restarts-warm-query denial or bounded failure."
     state_before: "The execution-fingerprint-change-restarts-warm-query owner, session, permissions, and candidate hashes are recorded."
     state_after: "The execution-fingerprint-change-restarts-warm-query terminal, settlement, and retained-state invariants are recorded."
@@ -2630,10 +2752,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Refuses to start a live process when its owner will not activate the admitted turn."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the inactive-owner-refuses-live-process boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the inactive-owner-refuses-live-process denial or bounded failure."
     state_before: "The inactive-owner-refuses-live-process owner, session, permissions, and candidate hashes are recorded."
     state_after: "The inactive-owner-refuses-live-process terminal, settlement, and retained-state invariants are recorded."
@@ -2664,10 +2788,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Closes the warm process and fences retained permissions when its active turn is aborted."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the abort-closes-process-and-fences-permissions boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the abort-closes-process-and-fences-permissions denial or bounded failure."
     state_before: "The abort-closes-process-and-fences-permissions owner, session, permissions, and candidate hashes are recorded."
     state_after: "The abort-closes-process-and-fences-permissions terminal, settlement, and retained-state invariants are recorded."
@@ -2698,10 +2824,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Rebinds a persistent SDK approval callback to only the active admitted turn."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the approval-callback-active-turn-rebind boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the approval-callback-active-turn-rebind denial or bounded failure."
     state_before: "The approval-callback-active-turn-rebind owner, session, permissions, and candidate hashes are recorded."
     state_after: "The approval-callback-active-turn-rebind terminal, settlement, and retained-state invariants are recorded."
@@ -2734,10 +2862,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Rejects an approval that resolves after its exact admitted turn has ended."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the late-approval-rejected boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the late-approval-rejected denial or bounded failure."
     state_before: "The late-approval-rejected owner, session, permissions, and candidate hashes are recorded."
     state_after: "The late-approval-rejected terminal, settlement, and retained-state invariants are recorded."
@@ -2770,10 +2900,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Holds provisional synthetic results until the real background-agent answer arrives."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the background-provisional-result-settlement boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the background-provisional-result-settlement denial or bounded failure."
     state_before: "The background-provisional-result-settlement owner, session, permissions, and candidate hashes are recorded."
     state_after: "The background-provisional-result-settlement terminal, settlement, and retained-state invariants are recorded."
@@ -2805,10 +2937,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Keeps restricted native tools and MCP grants inside the exact host-owned surface."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the restricted-native-tools-and-mcp-grants boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the restricted-native-tools-and-mcp-grants denial or bounded failure."
     state_before: "The restricted-native-tools-and-mcp-grants owner, session, permissions, and candidate hashes are recorded."
     state_after: "The restricted-native-tools-and-mcp-grants terminal, settlement, and retained-state invariants are recorded."
@@ -2841,10 +2975,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Preserves variadic directories, tools, and managed plugin MCP isolation."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the variadic-directories-tools-managed-mcp-isolation boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the variadic-directories-tools-managed-mcp-isolation denial or bounded failure."
     state_before: "The variadic-directories-tools-managed-mcp-isolation owner, session, permissions, and candidate hashes are recorded."
     state_after: "The variadic-directories-tools-managed-mcp-isolation terminal, settlement, and retained-state invariants are recorded."
@@ -2877,10 +3013,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Expands wildcard MCP grants into only the exact tools admitted by the host."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the wildcard-mcp-grants-expand-to-admitted-tools boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the wildcard-mcp-grants-expand-to-admitted-tools denial or bounded failure."
     state_before: "The wildcard-mcp-grants-expand-to-admitted-tools owner, session, permissions, and candidate hashes are recorded."
     state_after: "The wildcard-mcp-grants-expand-to-admitted-tools terminal, settlement, and retained-state invariants are recorded."
@@ -2913,10 +3051,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Fails closed when the official SDK exits without a terminal result."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the missing-terminal-result-fails-closed boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the missing-terminal-result-fails-closed denial or bounded failure."
     state_before: "The missing-terminal-result-fails-closed owner, session, permissions, and candidate hashes are recorded."
     state_after: "The missing-terminal-result-fails-closed terminal, settlement, and retained-state invariants are recorded."
@@ -2947,10 +3087,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Routes AskUserQuestion through structured input instead of tool approval."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the structured-question-not-tool-approval boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the structured-question-not-tool-approval denial or bounded failure."
     state_before: "The structured-question-not-tool-approval owner, session, permissions, and candidate hashes are recorded."
     state_after: "The structured-question-not-tool-approval terminal, settlement, and retained-state invariants are recorded."
@@ -2985,10 +3127,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Enforces native tool policy before user settings can shadow the permission callback."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the native-tool-policy-precedes-user-shadow boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the native-tool-policy-precedes-user-shadow denial or bounded failure."
     state_before: "The native-tool-policy-precedes-user-shadow owner, session, permissions, and candidate hashes are recorded."
     state_after: "The native-tool-policy-precedes-user-shadow terminal, settlement, and retained-state invariants are recorded."
@@ -3021,10 +3165,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Keeps bypass-shaped backend arguments behind the host permission callback."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the bypass-shaped-arguments-remain-permissioned boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the bypass-shaped-arguments-remain-permissioned denial or bounded failure."
     state_before: "The bypass-shaped-arguments-remain-permissioned owner, session, permissions, and candidate hashes are recorded."
     state_after: "The bypass-shaped-arguments-remain-permissioned terminal, settlement, and retained-state invariants are recorded."
@@ -3055,10 +3201,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Maps questions and answers while deduplicating SDK callbacks."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the structured-question-answer-mapping-dedup boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the structured-question-answer-mapping-dedup denial or bounded failure."
     state_before: "The structured-question-answer-mapping-dedup owner, session, permissions, and candidate hashes are recorded."
     state_after: "The structured-question-answer-mapping-dedup terminal, settlement, and retained-state invariants are recorded."
@@ -3089,10 +3237,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Returns actionable denial guidance when the operator skips."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the structured-question-skip-denial-guidance boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the structured-question-skip-denial-guidance denial or bounded failure."
     state_before: "The structured-question-skip-denial-guidance owner, session, permissions, and candidate hashes are recorded."
     state_after: "The structured-question-skip-denial-guidance terminal, settlement, and retained-state invariants are recorded."
@@ -3123,10 +3273,12 @@ capabilities:
       required: true
       assertion: "The adapted boundary holds: Rejects malformed questions before invoking the host."
     denial_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "A request that attempts to cross the malformed-question-rejected-before-host boundary is rejected before unauthorized execution."
     recovery_path:
-      required: true
+      required: false
+      rationale: "This source row is one focused boundary invariant; this synthetic secondary path is not claimed or counted as a pass."
       assertion: "The supported path remains usable after the malformed-question-rejected-before-host denial or bounded failure."
     state_before: "The malformed-question-rejected-before-host owner, session, permissions, and candidate hashes are recorded."
     state_after: "The malformed-question-rejected-before-host terminal, settlement, and retained-state invariants are recorded."

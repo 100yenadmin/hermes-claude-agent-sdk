@@ -63,7 +63,7 @@ def test_missing_executor_writes_pending_packets_and_exit_75(
         catalog,
         registry=ExecutorRegistry(),
         resume=False,
-        capability_ids=("v2:parent-01",),
+        capability_ids=("active:source-docs-discovery-report",),
         **_run_fields(tmp_path, candidate_fields),
     )
     assert len(packets) == 3
@@ -76,7 +76,7 @@ def test_missing_executor_writes_pending_packets_and_exit_75(
 def test_registered_executor_produces_sanitized_path_evidence_and_resume_is_read_only(
     catalog, candidate_fields, tmp_path
 ) -> None:
-    capability = catalog.by_id["v2:parent-01"]
+    capability = catalog.by_id["active:source-docs-discovery-report"]
     registry = ExecutorRegistry()
     registry.register(capability.execution_id, _outcome)
     packets, _ = run_catalog(
@@ -109,7 +109,7 @@ def test_registered_executor_produces_sanitized_path_evidence_and_resume_is_read
 
 
 def test_runner_refuses_overwrite_without_resume(catalog, candidate_fields, tmp_path) -> None:
-    capability = catalog.by_id["v2:parent-01"]
+    capability = catalog.by_id["active:source-docs-discovery-report"]
     registry = ExecutorRegistry()
     registry.register(capability.execution_id, _outcome)
     kwargs = {
@@ -144,7 +144,7 @@ def test_consequential_capability_runs_strict_three_trials_per_path(
 def test_combined_executor_runs_once_for_positive_denial_and_recovery(
     catalog, candidate_fields, tmp_path
 ) -> None:
-    capability = catalog.by_id["v2:parent-01"]
+    capability = catalog.by_id["active:source-docs-discovery-report"]
     calls = []
 
     def combined(context):
@@ -206,8 +206,8 @@ def test_combined_executor_runs_once_for_positive_denial_and_recovery(
 def test_interrupted_run_checkpoints_completed_bundle_for_resume(
     catalog, candidate_fields, tmp_path
 ) -> None:
-    first = catalog.by_id["v2:parent-01"]
-    second = catalog.by_id["v2:parent-02"]
+    first = catalog.by_id["active:source-docs-discovery-report"]
+    second = catalog.by_id["active:image-understanding-attachment"]
     first_calls = 0
 
     def completed_bundle(_context):

@@ -20,6 +20,8 @@ def _complete_rc_packets(catalog, candidate_fields):
         if set(capability.repeat_policy["triggers"]) & {"consequential", "unstable"}:
             repeats = max(repeats, 3)
         for path in ("positive", "denial", "recovery"):
+            if capability.path(path)["required"] is False:
+                continue
             for trial in range(1, repeats + 1):
                 packets.append(
                     make_packet(
@@ -40,11 +42,12 @@ def test_full_exact_candidate_can_reach_complete_without_partial_paths(
     report = grade_packets(catalog, packets, lane="rc")
     assert report.status == "COMPLETE"
     assert report.exit_code == 0
-    assert report.required_paths == 124 * 3
+    assert report.required_paths == 220
     assert report.passed_paths == report.required_paths
     assert report.pending_paths == 0
     assert report.failed_paths == 0
     assert report.pass_at_3_paths == report.required_paths
+    assert sum(item.status == "NOT_REQUIRED" for item in report.path_grades) == 152
     assert report.source_coverage == {
         "agent_sdk_boundary": 23,
         "clawprobench_native": 36,

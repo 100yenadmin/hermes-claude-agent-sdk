@@ -88,7 +88,7 @@ def test_portable_result_schema_requires_every_sanitized_packet_field(
     assert schema["properties"]["invariant_violations"]["maxItems"] == 0
 
 
-def test_every_catalog_entry_resolves_all_required_behavior_fields(catalog) -> None:
+def test_every_catalog_entry_resolves_behavior_fields_and_source_applicability(catalog) -> None:
     for capability in catalog.capabilities:
         assert capability.source_ref
         assert capability.owner
@@ -99,7 +99,28 @@ def test_every_catalog_entry_resolves_all_required_behavior_fields(catalog) -> N
         assert capability.secondary_proof
         assert capability.execution_id
         assert set(capability.paths) == {"positive", "denial", "recovery"}
-        assert all(path["required"] is True for path in capability.paths.values())
+        assert capability.paths["positive"]["required"] is True
+        if capability.source_pack in {"v2_non_soak", "agent_sdk_boundary"}:
+            for path_name in ("denial", "recovery"):
+                path = capability.paths[path_name]
+                assert path["required"] is False
+                assert path["rationale"]
+        else:
+            assert all(path["required"] is True for path in capability.paths.values())
+
+
+def test_catalog_rejects_nonrequired_path_without_rationale(tmp_path) -> None:
+    document = yaml.safe_load(CATALOG_PATH.read_text(encoding="utf-8"))
+    row = next(
+        item
+        for item in document["capabilities"]
+        if item["source_pack"] == "v2_non_soak"
+    )
+    row["denial_path"].pop("rationale")
+    path = tmp_path / "missing-rationale.yaml"
+    path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+    with pytest.raises(CatalogViolation, match="rationale is required"):
+        load_catalog(path)
 
 
 def test_catalog_rejects_source_substitution_even_when_count_is_unchanged(tmp_path) -> None:

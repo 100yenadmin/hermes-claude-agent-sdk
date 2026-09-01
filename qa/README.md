@@ -76,6 +76,13 @@ hard-capped at one 100-turn campaign. A combined executor may return all three
 path outcomes from one scenario execution, so positive, denial, and recovery
 evidence does not imply three redundant campaigns.
 
+Path applicability is explicit in the catalog. Active-12, native-36, and the
+runtime campaign require independent positive, denial, and recovery outcomes.
+Each frozen-v2 row and Agent SDK boundary row is instead one mandatory source
+invariant: its positive invariant proof is required, while synthetic secondary
+paths are marked `required: false` with a rationale. The grader reports those
+paths as `NOT_REQUIRED`; they never count as passes or source exclusions.
+
 The active-12 executor uses live, isolated subscription turns for source/docs,
 image input, native Agent handoff/fanout, memory recall and thread isolation,
 restart/tool continuity, and repository-instruction followthrough. Model-switch

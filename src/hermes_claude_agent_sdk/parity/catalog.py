@@ -111,6 +111,8 @@ def _validate_path(value: Any, field: str) -> Mapping[str, Any]:
     _nonempty_string(path.get("assertion"), f"{field}.assertion")
     if "rationale" in path:
         _nonempty_string(path["rationale"], f"{field}.rationale")
+    if path["required"] is False and "rationale" not in path:
+        raise CatalogViolation(f"{field}.rationale is required when the path is not required")
     return _freeze(path)
 
 
