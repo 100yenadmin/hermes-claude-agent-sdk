@@ -101,6 +101,18 @@ def _inventory(candidate_sha256: str) -> dict[str, Any]:
     return value | {"observed_inventory_sha256": canonical_sha256({key: value[key] for key in ("candidate_sha256", "tools", "mcp_servers")})}
 
 
+def test_packet_inventory_accepts_max_length_qualified_drift_names() -> None:
+    from hermes_claude_agent_sdk.parity import packets as packet_impl
+
+    inventory = _inventory(D)
+    inventory["missing_names"] = [
+        f"mcp_server:{'s' * 128}",
+        f"tool:{'t' * 128}",
+    ]
+
+    assert packet_impl._inventory(inventory)["missing_names"] == inventory["missing_names"]
+
+
 def _ledger() -> dict[str, Any]:
     rows = [{"pack_id": "sdk_boundary", "row_id": f"row{n}", "ordinal": n, "executable": True, "classification": "requires_0_3_239" if n in (1, 9) else "covered_current", "proof": {"ref": f"proof:row{n}", "sha256": D}} for n in range(1, 24)]
     value = {"schema_version": 1, "rows": rows}
