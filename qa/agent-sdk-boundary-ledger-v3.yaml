@@ -37,7 +37,7 @@ rows:
     status: "equivalent_host"
     evidence_state: "existing_candidate"
     evidence_refs:
-      - "tests/test_runtime_sdk_integration.py::test_pre_set_interrupt_event_honored_then_next_turn_runs"
+      - "tests/test_runtime_sdk_integration.py::test_cancellation_during_async_sdk_module_load_never_starts_client_and_recovers"
     release_blocking: true
     mapping_note: "The provider-neutral host owns this invariant; v3 must bind the matching host receipt instead of adding a Claude-specific host type."
   - id: "fresh-resume-native-session-identity"
@@ -101,8 +101,7 @@ rows:
     status: "covered_current"
     evidence_state: "existing_candidate"
     evidence_refs:
-      - "tests/test_runtime_sdk_integration.py::test_cancellation_interrupts_and_closes_once_with_one_terminal"
-      - "tests/test_tool_bridge.py::test_cancellation_and_cancellation_probe_failure_do_not_call_host"
+      - "tests/test_runtime_sdk_integration.py::test_active_abort_fences_old_tool_handler_then_fresh_session_recovers"
     release_blocking: true
     mapping_note: "Current plugin behavior has a direct deterministic evidence target; the v3 executor and trace grade remain required."
   - id: "approval-callback-active-turn-rebind"

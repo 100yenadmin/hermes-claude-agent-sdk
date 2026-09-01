@@ -42,6 +42,7 @@ class ExecutionContext:
     inventory_tools: tuple[Mapping[str, str], ...] = ()
     profile_isolation_kind: str = ""
     profile_persistent: bool = False
+    output_dir: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -564,6 +565,7 @@ async def run_catalog_async(
                             inventory_tools=tuple(inventory_tools),
                             profile_isolation_kind=profile_isolation_kind,
                             profile_persistent=profile_persistent,
+                            output_dir=str(output_path),
                         )
                         executor_result = await _call_executor(executor, context)
                         _validate_executor_result(executor_result, remaining_turn_budget)

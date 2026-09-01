@@ -112,11 +112,11 @@ _V2_NODES: dict[str, tuple[EvidenceNode, ...]] = {
     "v2:ops-05": _nodes(H, "tests/agent/test_runtime_dispatch.py::test_host_persists_runtime_state_and_idempotent_usage_for_selected_runtime"),
     "v2:ops-06": _nodes(V, "tests/hermes_cli/test_profiles.py::TestGetProfileDir::test_default_returns_hermes_home"),
     "v2:ops-07": _nodes(V, "tests/hermes_cli/test_profiles.py::TestProfileIsolation::test_separate_config_paths"),
-    "v2:ops-08": _nodes(P, "tests/test_native_agent_configuration.py::test_option_fields_expose_native_agent_and_hermes_mcp_allowlist"),
+    "v2:ops-08": _nodes(P, "tests/parity/test_dependency_restore.py::test_dependency_restore_manifest_dry_run_retains_exact_sdk_pin"),
     "v2:ops-09": _nodes(V, "tests/test_install_commit_pin_rollback.py::test_force_commit_still_rolls_back"),
     "v2:eff-01": _nodes(P, "tests/test_runtime_sdk_integration.py::test_text_projection_usage_state_terminal_and_public_options"),
     "v2:eff-02": _nodes(P, "tests/test_runtime_sdk_integration.py::test_runtime_reuses_one_client_reader_and_uses_host_only_for_idle_completion"),
-    "v2:eff-03": _nodes(P, "tests/test_billing.py::test_extract_system_and_rate_limit_evidence_is_bounded_and_serializable"),
+    "v2:eff-03": _nodes(P, "tests/parity/test_efficiency.py::test_live_sample_math_reports_cache_traffic_and_accepts_p95_at_limit"),
 }
 
 
@@ -221,7 +221,7 @@ _V2_PATH_CONTROLS: dict[str, dict[str, tuple[EvidenceNode, ...]]] = {
     ),
     "v2:parent-01": _controls(
         _nodes(P, "tests/test_runtime_sdk_integration.py::test_unknown_billing_blocks_success_and_tool_side_effect_is_conservative"),
-        _nodes(P, "tests/test_runtime_sdk_integration.py::test_billing_retirement_does_not_restart_runtime_session"),
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_billing_retirement_never_retries_but_next_explicit_turn_uses_fresh_client"),
     ),
     "v2:parent-02": _controls(
         _nodes(P, "tests/test_runtime_sdk_integration.py::test_invalid_image_fails_before_sdk_start"),
@@ -393,8 +393,8 @@ _V2_PATH_CONTROLS: dict[str, dict[str, tuple[EvidenceNode, ...]]] = {
         _nodes(V, "tests/hermes_cli/test_profiles.py::TestProfileIsolation::test_separate_config_paths"),
     ),
     "v2:ops-08": _controls(
-        _nodes(V, "tests/test_install_commit_pin_rollback.py::test_stale_pin_does_not_rewind_a_newer_checkout"),
-        _nodes(V, "tests/test_install_commit_pin_rollback.py::test_force_commit_still_rolls_back"),
+        _nodes(P, "tests/parity/test_dependency_restore.py::test_unpinned_restore_manifest_fails_before_pip"),
+        _nodes(P, "tests/parity/test_dependency_restore.py::test_dependency_restore_manifest_dry_run_retains_exact_sdk_pin"),
     ),
     "v2:ops-09": _controls(
         _nodes(V, "tests/test_install_commit_pin_rollback.py::test_stale_pin_does_not_rewind_a_newer_checkout"),
@@ -409,8 +409,8 @@ _V2_PATH_CONTROLS: dict[str, dict[str, tuple[EvidenceNode, ...]]] = {
         _nodes(P, "tests/test_runtime_sdk_integration.py::test_runtime_reuses_one_client_reader_and_uses_host_only_for_idle_completion"),
     ),
     "v2:eff-03": _controls(
-        _nodes(P, "tests/test_runtime_sdk_integration.py::test_unknown_billing_blocks_success_and_tool_side_effect_is_conservative"),
-        _nodes(P, "tests/test_billing.py::test_extract_system_and_rate_limit_evidence_is_bounded_and_serializable"),
+        _nodes(P, "tests/parity/test_efficiency.py::test_over_limit_or_malformed_samples_fail_closed"),
+        _nodes(P, "tests/parity/test_efficiency.py::test_sample_can_recover_after_an_early_over_limit_window"),
     ),
 }
 

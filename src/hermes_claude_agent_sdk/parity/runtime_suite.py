@@ -26,9 +26,14 @@ from .active_suite import (
 )
 from .focused_suite import _exact_source_preflight
 from .hashing import json_compatible, sha256_value
+from .efficiency import (
+    EfficiencyEvidenceError,
+    FableEfficiencyReport,
+    evaluate_fable_cache_efficiency,
+)
 from .native_sandbox import NativeSandboxHost, tool_schemas
 from .native_suite import _exact_git_checkout
-from .results import ExecutionClassification
+from .results import ExecutionClassification, candidate_hash
 from .runner import ExecutionBundle, ExecutionContext, ExecutionOutcome
 from .tool_inventory import declared_tool_schemas
 from .trace import normalized_path_events
@@ -56,6 +61,29 @@ _RUNTIME_SYSTEM_PROMPT = (
     "markers, files, and tools are synthetic. Never contact external systems. "
     "Use only the requested tool, retry the one injected denial once, preserve "
     "the original memory marker, and end with the exact requested turn marker."
+)
+_USAGE_SUMMARY_FIELDS = frozenset(
+    {
+        "schema_version",
+        "candidate_hash",
+        "contract_hash",
+        "catalog_hash",
+        "plugin_sha",
+        "host_sha",
+        "sdk_version",
+        "profile_hash",
+        "inventory_hash",
+        "sample_count",
+        "p95_non_cache_share_ppm",
+        "threshold_ppm",
+        "total_input_tokens",
+        "total_output_tokens",
+        "total_cache_read_tokens",
+        "total_cache_write_tokens",
+        "passed",
+        "status",
+        "summary_hash",
+    }
 )
 
 
@@ -140,6 +168,64 @@ def _load_release_receipt(
         and raw["contract_hash"] == context.contract_hash
         and raw["catalog_hash"] == context.catalog_hash
     )
+
+
+def _write_runtime_usage_summary(
+    output_dir: Path,
+    *,
+    context: ExecutionContext,
+    report: FableEfficiencyReport,
+) -> str:
+    """Write one safe aggregate bound to the exact runtime candidate."""
+
+    supplied_root = output_dir.expanduser()
+    if supplied_root.is_symlink():
+        raise OSError("runtime output directory is unavailable")
+    root = supplied_root.resolve()
+    if not root.is_dir():
+        raise OSError("runtime output directory is unavailable")
+    path = root / "runtime-usage-summary.json"
+    if path.exists() or path.is_symlink():
+        raise OSError("runtime usage summary already exists")
+    payload: dict[str, Any] = {
+        "schema_version": 1,
+        "candidate_hash": candidate_hash(
+            catalog_hash=context.catalog_hash,
+            plugin_sha=context.plugin_sha,
+            host_sha=context.host_sha,
+            sdk_version=context.sdk_version,
+            profile_hash=context.profile_hash,
+            runner_version=context.runner_version,
+            inventory_hash=context.inventory_hash,
+        ),
+        "contract_hash": context.contract_hash,
+        "catalog_hash": context.catalog_hash,
+        "plugin_sha": context.plugin_sha,
+        "host_sha": context.host_sha,
+        "sdk_version": context.sdk_version,
+        "profile_hash": context.profile_hash,
+        "inventory_hash": context.inventory_hash,
+        **report.to_safe_dict(),
+        "status": "PASS" if report.passed else "FAIL",
+    }
+    payload["summary_hash"] = sha256_value(payload)
+    if set(payload) != _USAGE_SUMMARY_FIELDS:
+        raise OSError("runtime usage summary shape is invalid")
+    temporary = root / ".runtime-usage-summary.tmp"
+    if temporary.exists() or temporary.is_symlink():
+        raise OSError("runtime usage summary temporary path is occupied")
+    try:
+        temporary.write_text(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+        )
+        os.replace(temporary, path)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+    return payload["summary_hash"]
 
 
 def _running_package_matches_wheel(wheel: Path) -> bool:
@@ -387,7 +473,7 @@ async def _campaign(
     *,
     workspace: Path,
     model: str,
-) -> tuple[bool, str, int, str, str]:
+) -> tuple[bool, str, int, str, str, FableEfficiencyReport | None]:
     from hermes_claude_agent_sdk.runtime import ClaudeAgentSDKRuntime
 
     fixture = workspace / "runtime-fixture.txt"
@@ -396,9 +482,17 @@ async def _campaign(
     host = NativeSandboxHost(workspace, (fixture,))
     baseline = _descendant_processes()
     if baseline is None:
-        return False, "runtime_process_snapshot_unavailable", 0, "none", sha256_value([])
+        return (
+            False,
+            "runtime_process_snapshot_unavailable",
+            0,
+            "none",
+            sha256_value([]),
+            None,
+        )
 
     ledger: list[dict[str, Any]] = []
+    usage_samples: list[dict[str, int]] = []
     session_hash: str | None = None
     last_state: Any | None = None
     isolation_probe: LiveTurn | None = None
@@ -451,16 +545,46 @@ async def _campaign(
                     index,
                     "unsafe" if turn.billing == "unsafe" else "subscription_included",
                     sha256_value(ledger),
+                    None,
                 )
+            usage_samples.append(
+                {
+                    "input_tokens": turn.input_tokens,
+                    "output_tokens": turn.output_tokens,
+                    "cache_read_tokens": turn.cache_read_tokens,
+                    "cache_write_tokens": turn.cache_write_tokens,
+                }
+            )
             if any(name not in {"read", "write", "exec", "cron", "Agent"} for name in turn.tool_names):
-                return False, "runtime_tool_escape", index, turn.billing, sha256_value(ledger)
+                return (
+                    False,
+                    "runtime_tool_escape",
+                    index,
+                    turn.billing,
+                    sha256_value(ledger),
+                    None,
+                )
             current_session = _external_session_hash(turn)
             if current_session is None:
-                return False, "runtime_session_identity_missing", index, turn.billing, sha256_value(ledger)
+                return (
+                    False,
+                    "runtime_session_identity_missing",
+                    index,
+                    turn.billing,
+                    sha256_value(ledger),
+                    None,
+                )
             if session_hash is None:
                 session_hash = current_session
             elif current_session != session_hash:
-                return False, "runtime_session_identity_drift", index, turn.billing, sha256_value(ledger)
+                return (
+                    False,
+                    "runtime_session_identity_drift",
+                    index,
+                    turn.billing,
+                    sha256_value(ledger),
+                    None,
+                )
             last_state = turn.state
             await asyncio.sleep(0)
 
@@ -470,7 +594,14 @@ async def _campaign(
         while not host.background_hashes and asyncio.get_running_loop().time() < deadline:
             await asyncio.sleep(0.1)
     except Exception:
-        return False, "runtime_campaign_exception", len(ledger), "none", sha256_value(ledger)
+        return (
+            False,
+            "runtime_campaign_exception",
+            len(ledger),
+            "none",
+            sha256_value(ledger),
+            None,
+        )
     finally:
         await runtime.close()
 
@@ -508,6 +639,15 @@ async def _campaign(
         and closed_probe.failure_code == "claude_runtime_closed"
         and closed_probe.billing == "none"
     )
+    try:
+        efficiency = evaluate_fable_cache_efficiency(usage_samples)
+    except EfficiencyEvidenceError:
+        efficiency = None
+    efficiency_ok = bool(
+        efficiency is not None
+        and efficiency.sample_count == 100
+        and efficiency.passed
+    )
     complete = bool(
         len(ledger) == 100
         and host.denial_observed
@@ -521,6 +661,7 @@ async def _campaign(
         and restart_teardown
         and closed_ok
         and teardown_ok
+        and efficiency_ok
     )
     evidence_hash = sha256_value(
         {
@@ -538,16 +679,26 @@ async def _campaign(
             "restart_process_hash": restart_process_hash,
             "teardown_process_hash": teardown_process_hash,
             "closed_probe_hash": closed_probe.event_hash,
+            "efficiency": (
+                efficiency.to_safe_dict() if efficiency is not None else None
+            ),
             "profile_hash": context.profile_hash,
             "inventory_hash": context.inventory_hash,
         }
     )
     return (
         complete,
-        "runtime_campaign_complete" if complete else "runtime_campaign_invariant_failed",
+        (
+            "runtime_campaign_complete"
+            if complete
+            else "runtime_efficiency_invariant_failed"
+            if not efficiency_ok
+            else "runtime_campaign_invariant_failed"
+        ),
         len(ledger),
         "subscription_included",
         evidence_hash,
+        efficiency,
     )
 
 
@@ -612,13 +763,31 @@ async def active_runtime_100_turn(context: ExecutionContext) -> ExecutionBundle:
         return _blocked("runtime_running_package_does_not_match_wheel")
 
     with tempfile.TemporaryDirectory(prefix="hermes-parity-v3-runtime-") as temp_name:
-        complete, reason, turns, billing, evidence_hash = await _campaign(
+        complete, reason, turns, billing, evidence_hash, efficiency = await _campaign(
             context,
             workspace=Path(temp_name),
             model=model,
         )
     if not complete:
         return _failed(reason, turn_count=turns, billing=billing)
+    if efficiency is None or not context.output_dir:
+        return _failed(
+            "runtime_usage_summary_unavailable",
+            turn_count=turns,
+            billing=billing,
+        )
+    try:
+        usage_summary_hash = _write_runtime_usage_summary(
+            Path(context.output_dir),
+            context=context,
+            report=efficiency,
+        )
+    except OSError:
+        return _failed(
+            "runtime_usage_summary_write_failed",
+            turn_count=turns,
+            billing=billing,
+        )
 
     outcomes: dict[str, ExecutionOutcome] = {}
     for path in ("positive", "denial", "recovery"):
@@ -639,6 +808,7 @@ async def active_runtime_100_turn(context: ExecutionContext) -> ExecutionBundle:
                 {
                     "path": path,
                     "campaign_hash": evidence_hash,
+                    "usage_summary_hash": usage_summary_hash,
                     "wheel_hash": wheel_hash,
                     "turns": 100,
                 }

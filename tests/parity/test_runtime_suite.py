@@ -5,15 +5,19 @@ import json
 import zipfile
 from pathlib import Path
 
+import pytest
+
 import hermes_claude_agent_sdk.parity.runtime_suite as runtime_suite
 from hermes_claude_agent_sdk.parity.executors import EXECUTORS
 from hermes_claude_agent_sdk.parity.results import ExecutionClassification
+from hermes_claude_agent_sdk.parity.efficiency import evaluate_fable_cache_efficiency
 from hermes_claude_agent_sdk.parity.runner import ExecutionContext
 from hermes_claude_agent_sdk.parity.runtime_suite import (
     RUNTIME_EXECUTION_ID,
     _load_release_receipt,
     _running_package_matches_wheel,
     _turn_content,
+    _write_runtime_usage_summary,
     active_runtime_100_turn,
     runtime_execution_ids,
 )
@@ -149,3 +153,39 @@ def test_running_package_must_byte_match_the_immutable_wheel(
             ).read_bytes()
             archive.writestr(f"hermes_claude_agent_sdk/{relative}", payload)
     assert not _running_package_matches_wheel(tampered_wheel)
+
+
+def test_runtime_usage_summary_reports_only_safe_aggregate_and_is_write_once(
+    catalog, candidate_fields, tmp_path: Path
+) -> None:
+    context = _context(catalog, candidate_fields, output_dir=str(tmp_path))
+    report = evaluate_fable_cache_efficiency(
+        [
+            {
+                "input_tokens": 20,
+                "output_tokens": 5,
+                "cache_read_tokens": 80,
+                "cache_write_tokens": 0,
+            }
+            for _ in range(100)
+        ]
+    )
+
+    summary_hash = _write_runtime_usage_summary(
+        tmp_path,
+        context=context,
+        report=report,
+    )
+    payload = json.loads(
+        (tmp_path / "runtime-usage-summary.json").read_text(encoding="utf-8")
+    )
+
+    assert payload["summary_hash"] == summary_hash
+    assert payload["sample_count"] == 100
+    assert payload["p95_non_cache_share_ppm"] == 200_000
+    assert payload["total_input_tokens"] == 2_000
+    assert payload["total_cache_read_tokens"] == 8_000
+    assert payload["status"] == "PASS"
+    assert not any("session" in key or "prompt" in key for key in payload)
+    with pytest.raises(OSError, match="already exists"):
+        _write_runtime_usage_summary(tmp_path, context=context, report=report)

@@ -608,6 +608,7 @@ class HostToolBridge:
         }
         self._sdk_call_count = 0
         self._host_execution_count = 0
+        self._closed = False
 
     @staticmethod
     def _safe_identifier(value: Any, limit: int) -> str | None:
@@ -633,6 +634,9 @@ class HostToolBridge:
 
     def begin_turn(self, correlation_id: str | None) -> None:
         """Bind subsequent SDK tool calls to the current Hermes turn."""
+
+        if self._closed:
+            raise ToolBridgeConfigurationError("tool bridge is closed")
 
         if correlation_id is not None:
             correlation_id = self._safe_identifier(
@@ -669,6 +673,8 @@ class HostToolBridge:
         ):
             raise ToolBridgeRequestError("arguments")
 
+        if self._closed:
+            raise ToolBridgeRequestError("cancelled")
         if self._is_cancelled():
             raise ToolBridgeRequestError("cancelled")
 
@@ -755,6 +761,11 @@ class HostToolBridge:
         candidate = f"{prefix}:sdk-call-{self._sdk_call_count:04d}"
         bounded = self._safe_identifier(candidate, _MAX_REQUEST_ID_UTF8_BYTES)
         return bounded or f"sdk-call-{self._sdk_call_count:04d}"
+
+    def close(self) -> None:
+        """Permanently fence handlers retained by a retired SDK child."""
+
+        self._closed = True
 
     def _make_sdk_handler(self, name: str):
         async def handler(arguments: Any) -> dict[str, Any]:

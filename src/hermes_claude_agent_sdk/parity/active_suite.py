@@ -84,6 +84,10 @@ class LiveTurn:
     background_hashes: tuple[str, ...]
     event_hash: str
     silent_fallback: bool
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
 
 
 def _normalize_event_tool_name(name: Any) -> str:
@@ -394,10 +398,25 @@ async def _run_turn(
         if getattr(getattr(event, "kind", None), "value", None) == "usage"
     ]
     billing = "none"
+    usage_totals = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0,
+    }
+    usage_shape_valid = True
     if usage_receipts:
+        for receipt in usage_receipts:
+            for field in usage_totals:
+                value = getattr(receipt, field, None)
+                if type(value) is not int or value < 0:
+                    usage_shape_valid = False
+                    continue
+                usage_totals[field] += value
         billing = (
             "subscription_included"
-            if all(
+            if usage_shape_valid
+            and all(
                 receipt.billing_mode == "subscription_included"
                 and receipt.cost_status == "included"
                 and not receipt.fallback_used
@@ -442,6 +461,7 @@ async def _run_turn(
                 for receipt in usage_receipts
             ]
         ),
+        "usage_totals_hash": sha256_value(usage_totals),
         "background_hashes": list(host.background_hashes),
     }
     return LiveTurn(
@@ -457,6 +477,10 @@ async def _run_turn(
         background_hashes=tuple(host.background_hashes),
         event_hash=sha256_value(json_compatible(event_receipt)),
         silent_fallback=silent_fallback,
+        input_tokens=usage_totals["input_tokens"],
+        output_tokens=usage_totals["output_tokens"],
+        cache_read_tokens=usage_totals["cache_read_tokens"],
+        cache_write_tokens=usage_totals["cache_write_tokens"],
     )
 
 

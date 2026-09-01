@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import inspect
 import os
 from collections.abc import Callable, Mapping
 from dataclasses import replace
@@ -58,6 +59,7 @@ class ClaudeAgentSDKRuntime:
         *,
         auth_probe: Callable[[], Any] | None = None,
         sdk_module: Any | None = None,
+        sdk_module_loader: Callable[[], Any] | None = None,
         client_factory: Callable[..., Any] | None = None,
         cwd: str = ".",
         parent_env: Mapping[str, object] | None = None,
@@ -65,6 +67,7 @@ class ClaudeAgentSDKRuntime:
     ) -> None:
         self._auth_probe = auth_probe
         self._sdk = sdk_module
+        self._sdk_module_loader = sdk_module_loader
         self._client_factory = client_factory
         self._cwd = cwd
         self._parent_env = parent_env
@@ -128,6 +131,18 @@ class ClaudeAgentSDKRuntime:
             on_background_result=self._emit_background_result,
             compaction_watchdog_seconds=self._compaction_watchdog_seconds,
         )
+
+    async def _load_sdk_module(self) -> Any:
+        """Load the optional SDK without blocking cancellation polling."""
+
+        if self._sdk is not None:
+            return self._sdk
+        if self._sdk_module_loader is None:
+            return await asyncio.to_thread(
+                importlib.import_module, "claude_agent_sdk"
+            )
+        result = self._sdk_module_loader()
+        return await result if inspect.isawaitable(result) else result
 
     def preflight(self, request: Any) -> Any:
         from agent.runtime_api import RuntimeFailurePhase
@@ -243,6 +258,68 @@ class ClaudeAgentSDKRuntime:
             )
             return
 
+        if self._session is None and self._sdk is None:
+            load_task = asyncio.create_task(self._load_sdk_module())
+            cancellation_unavailable_during_load = False
+            cancelled_during_load = False
+            try:
+                while not load_task.done():
+                    await asyncio.wait({load_task}, timeout=0.01)
+                    if load_task.done():
+                        break
+                    try:
+                        cancellation_state = host.cancellation_requested()
+                    except Exception:
+                        cancellation_state = None
+                    if cancellation_state is True:
+                        cancelled_during_load = True
+                        break
+                    if cancellation_state is not False:
+                        cancellation_unavailable_during_load = True
+                        break
+                if not cancelled_during_load and not cancellation_unavailable_during_load:
+                    try:
+                        cancellation_state = host.cancellation_requested()
+                    except Exception:
+                        cancellation_state = None
+                    cancelled_during_load = cancellation_state is True
+                    cancellation_unavailable_during_load = cancellation_state is not False
+                if cancelled_during_load or cancellation_unavailable_during_load:
+                    load_task.cancel()
+                    await asyncio.gather(load_task, return_exceptions=True)
+                    if cancelled_during_load:
+                        yield RuntimeCancelledEvent(reason="cancelled during SDK load")
+                    else:
+                        yield RuntimeFailedEvent(
+                            failure=_failure(
+                                "claude_runtime_cancellation_unavailable",
+                                "Claude runtime cancellation state is unavailable",
+                                RuntimeFailurePhase.BEFORE_VISIBLE_OUTPUT,
+                                replay_safe=False,
+                            )
+                        )
+                    return
+                loaded_sdk = await load_task
+                if loaded_sdk is None:
+                    raise RuntimeError("SDK loader returned no module")
+                self._sdk = loaded_sdk
+            except asyncio.CancelledError:
+                load_task.cancel()
+                await asyncio.gather(load_task, return_exceptions=True)
+                raise
+            except Exception:
+                load_task.cancel()
+                await asyncio.gather(load_task, return_exceptions=True)
+                yield RuntimeFailedEvent(
+                    failure=_failure(
+                        "claude_runtime_configuration_failed",
+                        "Claude runtime configuration failed",
+                        RuntimeFailurePhase.BEFORE_VISIBLE_OUTPUT,
+                        replay_safe=False,
+                    )
+                )
+                return
+
         resume_id, _ = _resume_id(request)
         queue: asyncio.Queue[ProjectionResult] = asyncio.Queue()
         visible = False
@@ -301,13 +378,28 @@ class ClaudeAgentSDKRuntime:
                     )
                 )
                 return
-            elif self._session.can_restart_after_cancel:
+            elif self._session.can_restart_after_close:
                 configuration = self._session_configuration
                 assert configuration is not None
+                if self._bridge is not None:
+                    self._bridge.close()
+                replacement_bridge = HostToolBridge(
+                    host, request.tool_schemas, correlation_id=request.correlation_id
+                )
+                replacement_server = replacement_bridge.build_sdk_mcp_server(
+                    _MCP_SERVER_NAME, sdk_module=self._sdk
+                )
+                replacement_allowed_tools = tuple(
+                    f"mcp__{_MCP_SERVER_NAME}__{name}"
+                    for name in replacement_bridge.tool_names
+                )
                 replacement_configuration = replace(
                     configuration,
                     resume_external_session_id=resume_id,
+                    mcp_servers={_MCP_SERVER_NAME: replacement_server},
+                    allowed_tools=replacement_allowed_tools,
                 )
+                self._bridge = replacement_bridge
                 self._session_configuration = replacement_configuration
                 self._session = self._new_session(replacement_configuration)
             bridge = self._bridge
@@ -424,6 +516,7 @@ class ClaudeAgentSDKRuntime:
                     else RuntimeFailurePhase.BEFORE_VISIBLE_OUTPUT
                 )
                 terminal = True
+                bridge.close()
                 yield RuntimeFailedEvent(
                     failure=_failure(
                         "claude_runtime_cancellation_unavailable",
@@ -470,6 +563,7 @@ class ClaudeAgentSDKRuntime:
                 return
             if result.outcome is SessionOutcome.CANCELLED:
                 terminal = True
+                bridge.close()
                 yield RuntimeCancelledEvent(reason="cancelled")
                 await session.release_background_results()
                 return
@@ -487,6 +581,8 @@ class ClaudeAgentSDKRuntime:
                 else result.error_code or "claude_runtime_failed"
             )
             terminal = True
+            if session.can_restart_after_close:
+                bridge.close()
             yield RuntimeFailedEvent(
                 failure=_failure(
                     code,
@@ -499,10 +595,14 @@ class ClaudeAgentSDKRuntime:
         except asyncio.CancelledError:
             if self._session is not None:
                 await self._session.cancel()
+            if self._bridge is not None:
+                self._bridge.close()
             raise
         except Exception:
             if self._session is not None:
                 await self._session.cancel()
+            if self._bridge is not None:
+                self._bridge.close()
             if not terminal:
                 side_effects = (
                     bridge.host_execution_count - bridge_execution_start
@@ -539,6 +639,8 @@ class ClaudeAgentSDKRuntime:
         if self._closed:
             return
         self._closed = True
+        if self._bridge is not None:
+            self._bridge.close()
         if self._session is not None:
             await self._session.close()
 

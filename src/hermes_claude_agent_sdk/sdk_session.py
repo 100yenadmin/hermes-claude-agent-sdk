@@ -199,6 +199,12 @@ class SDKSession:
 
         return self._closed and self._cancel_requested
 
+    @property
+    def can_restart_after_close(self) -> bool:
+        """Whether a later explicit turn may construct a fresh SDK child."""
+
+        return self._closed
+
     def _sdk_module(self) -> Any:
         if self._sdk is None:
             self._sdk = importlib.import_module("claude_agent_sdk")

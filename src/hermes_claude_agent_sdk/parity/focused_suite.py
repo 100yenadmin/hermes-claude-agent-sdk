@@ -25,7 +25,7 @@ _BOUNDARY_NODES: dict[str, tuple[str, ...]] = {
         "tests/test_auth.py::test_probe_uses_bounded_no_shell_argv_and_minimal_noncredential_environment",
     ),
     "boundary:cancellation-race-during-async-module-load": (
-        "tests/test_runtime_sdk_integration.py::test_pre_set_interrupt_event_honored_then_next_turn_runs",
+        "tests/test_runtime_sdk_integration.py::test_cancellation_during_async_sdk_module_load_never_starts_client_and_recovers",
     ),
     "boundary:fresh-resume-native-session-identity": (
         "tests/test_runtime_sdk_integration.py::test_host_tool_bridge_and_resume_use_only_public_fields",
@@ -47,8 +47,7 @@ _BOUNDARY_NODES: dict[str, tuple[str, ...]] = {
         "tests/test_runtime_sdk_integration.py::test_runtime_rejects_a_replacement_host_binding_without_query_or_reroute",
     ),
     "boundary:abort-closes-process-and-fences-permissions": (
-        "tests/test_runtime_sdk_integration.py::test_cancellation_interrupts_and_closes_once_with_one_terminal",
-        "tests/test_tool_bridge.py::test_cancellation_and_cancellation_probe_failure_do_not_call_host",
+        "tests/test_runtime_sdk_integration.py::test_active_abort_fences_old_tool_handler_then_fresh_session_recovers",
     ),
     "boundary:approval-callback-active-turn-rebind": (
         "tests/parity/test_boundary_adaptations.py::test_cancelled_or_late_tool_request_is_fenced_then_next_turn_rebinds",
@@ -113,10 +112,10 @@ _BOUNDARY_PATH_CONTROLS: dict[str, dict[str, tuple[str, ...]]] = {
     },
     "boundary:cancellation-race-during-async-module-load": {
         "denial": (
-            "tests/test_runtime_sdk_integration.py::test_pre_set_interrupt_event_honored_then_next_turn_runs",
+            "tests/test_runtime_sdk_integration.py::test_cancellation_during_async_sdk_module_load_never_starts_client_and_recovers",
         ),
         "recovery": (
-            "tests/test_runtime_sdk_integration.py::test_pre_set_interrupt_event_honored_then_next_turn_runs",
+            "tests/test_runtime_sdk_integration.py::test_cancellation_during_async_sdk_module_load_never_starts_client_and_recovers",
         ),
     },
     "boundary:fresh-resume-native-session-identity": {
@@ -170,9 +169,10 @@ _BOUNDARY_PATH_CONTROLS: dict[str, dict[str, tuple[str, ...]]] = {
     "boundary:abort-closes-process-and-fences-permissions": {
         "denial": (
             "tests/test_runtime_sdk_integration.py::test_cancellation_interrupts_and_closes_once_with_one_terminal",
+            "tests/test_tool_bridge.py::test_cancellation_and_cancellation_probe_failure_do_not_call_host",
         ),
         "recovery": (
-            "tests/test_runtime_sdk_integration.py::test_pre_set_interrupt_event_honored_then_next_turn_runs",
+            "tests/test_runtime_sdk_integration.py::test_active_abort_fences_old_tool_handler_then_fresh_session_recovers",
         ),
     },
     "boundary:approval-callback-active-turn-rebind": {

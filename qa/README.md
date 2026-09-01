@@ -97,6 +97,13 @@ Claude SDK turn and synthetic host tools. Neither adapter calls Telegram,
 shared Eva, customer state, a browser, a scheduler, or an external messaging
 surface.
 
+`v2:ops-08` validates `dependency-restore-manifest-v3.txt` before invoking an
+offline resolver, and then performs a real dry run against the candidate
+environment; the manifest pins `claude-agent-sdk==0.2.144`. `v2:eff-03` binds
+its RC denial and recovery paths to the conservative nearest-rank p95 grader.
+The live usage/soak portion of EFF-03 is not inferred from those unit controls:
+it is a mandatory invariant of the runtime campaign below.
+
 Each result binds the contract hash, complete catalog hash, exact plugin and
 host SHAs, SDK version, sanitized profile identity hash, runner version, and
 tool inventory hash. Passing packets require exactly one terminal event plus
@@ -125,6 +132,13 @@ executes exact-once synthetic write and cron mutations, starts one native Agent
 background task, closes and resumes at turn 50, and verifies process teardown.
 Only the 100 main-session turns count against the runtime budget; fail-closed
 state and teardown probes do not reach the provider.
+
+Every completed live turn contributes one safe usage sample. The campaign
+fails unless nearest-rank p95 non-cache input share is at most 25 percent. It
+writes one `runtime-usage-summary.json` containing only aggregate token counts,
+the threshold/result, exact candidate hashes, and its own digest; cache-read
+and cache-write traffic are reported separately. Raw prompts, responses,
+sessions, identities, and per-turn transcripts are never written.
 
 `result-packet-v3.schema.json` is the portable shape. Python validation is
 intentionally stricter: it recalculates trace, candidate, and packet hashes;

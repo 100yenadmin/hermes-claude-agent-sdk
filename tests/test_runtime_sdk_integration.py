@@ -254,13 +254,18 @@ class _SuccessThenInterruptThenSuccessClient(_Client):
         await self._messages.put(_END)
 
 
-def _sdk(mode: str, clients: list[_Client]) -> ModuleType:
+def _sdk(mode: str | tuple[str, ...], clients: list[_Client]) -> ModuleType:
     sdk = ModuleType("claude_agent_sdk")
     sdk.ClaudeAgentOptions = _Options
     sdk.HookMatcher = _HookMatcher
+    modes = (mode,) if isinstance(mode, str) else mode
+    assert modes
 
     def make_client(*, options: _Options) -> _Client:
-        client = _Client(options=options, mode=mode)
+        client = _Client(
+            options=options,
+            mode=modes[min(len(clients), len(modes) - 1)],
+        )
         clients.append(client)
         return client
 
@@ -492,7 +497,7 @@ def _request(
 
 
 def _runtime(
-    mode: str,
+    mode: str | tuple[str, ...],
     clients: list[_Client],
     *,
     compaction_watchdog_seconds: float = 600.0,
@@ -837,10 +842,10 @@ def test_unknown_billing_blocks_success_and_tool_side_effect_is_conservative() -
     assert not any(event.kind.value in {"usage", "completed"} for event in after_tool)
 
 
-def test_billing_retirement_does_not_restart_runtime_session() -> None:
+def test_billing_retirement_never_retries_but_next_explicit_turn_uses_fresh_client() -> None:
     async def scenario():
         clients: list[_Client] = []
-        runtime = _runtime("unknown", clients)
+        runtime = _runtime(("unknown", "success"), clients)
         host = _Host()
 
         first_events = await _collect(runtime, _request(), host)
@@ -852,8 +857,57 @@ def test_billing_retirement_does_not_restart_runtime_session() -> None:
 
     assert first_events[-1].kind.value == "failed"
     assert first_events[-1].failure.code == "claude_subscription_billing_blocked"
-    assert second_events[-1].kind.value == "failed"
-    assert second_events[-1].failure.code == "session_closed"
+    assert second_events[-1].kind.value == "completed"
+    assert second_events[-1].result["text"] == "hello"
+    assert len(clients) == 2
+    assert clients[0].queries == ["hello runtime"]
+    assert clients[1].queries == ["hello runtime"]
+
+
+def test_cancellation_during_async_sdk_module_load_never_starts_client_and_recovers() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        sdk = _sdk("success", clients)
+        first_load_started = asyncio.Event()
+        load_calls = 0
+
+        async def load_sdk():
+            nonlocal load_calls
+            load_calls += 1
+            if load_calls == 1:
+                first_load_started.set()
+                await asyncio.Future()
+            return sdk
+
+        class CancelDuringFirstLoadHost(_Host):
+            cancelled = False
+
+            def cancellation_requested(self) -> bool:
+                self.cancel_checks += 1
+                if first_load_started.is_set() and not self.cancelled:
+                    self.cancelled = True
+                    return True
+                return False
+
+        runtime = ClaudeAgentSDKRuntime(
+            auth_probe=lambda: SimpleNamespace(
+                allowed=True, category="subscription_oauth"
+            ),
+            sdk_module_loader=load_sdk,
+            cwd="/synthetic/workspace",
+            parent_env={},
+        )
+        host = CancelDuringFirstLoadHost()
+        first_events = await _collect(runtime, _request(), host)
+        second_events = await _collect(runtime, _request(), host)
+        await runtime.close()
+        return first_events, second_events, clients, load_calls
+
+    first_events, second_events, clients, load_calls = asyncio.run(scenario())
+
+    assert [event.kind.value for event in first_events] == ["cancelled"]
+    assert [event.kind.value for event in second_events][-1] == "completed"
+    assert load_calls == 2
     assert len(clients) == 1
     assert clients[0].queries == ["hello runtime"]
 
@@ -1005,6 +1059,64 @@ def test_successful_turn_then_cancelled_turn_reuses_current_resume_on_replacemen
         for events in (first_events, second_events, third_events)
         for event in events
     )
+
+
+def test_active_abort_fences_old_tool_handler_then_fresh_session_recovers() -> None:
+    async def scenario():
+        clients: list[_SuccessThenInterruptThenSuccessClient] = []
+        runtime = ClaudeAgentSDKRuntime(
+            auth_probe=lambda: SimpleNamespace(
+                allowed=True, category="subscription_oauth"
+            ),
+            sdk_module=_success_then_interrupt_then_success_sdk(clients),
+            cwd="/synthetic/workspace",
+            parent_env={},
+        )
+        host = _ArmableContentCancellationHost()
+        tools = (_tool_schema(),)
+        first_events = await _collect(runtime, _request(tools=tools), host)
+        state = next(
+            event.state
+            for event in first_events
+            if event.kind.value == "session_state"
+        )
+        old_handler = clients[0].options.fields["mcp_servers"]["hermes-tools"][
+            "tools"
+        ][0]["handler"]
+
+        host.arm()
+        second_events = []
+        async for event in runtime.run_turn(
+            _request(state=state, tools=tools, correlation_id="turn-b"), host
+        ):
+            second_events.append(event)
+            if event.kind.value == "content":
+                host.content_observed = True
+        host.disarm()
+
+        stale_result = await old_handler({"path": "."})
+        third_events = await _collect(
+            runtime,
+            _request(state=state, tools=tools, correlation_id="turn-c"),
+            host,
+        )
+        new_handler = clients[1].options.fields["mcp_servers"]["hermes-tools"][
+            "tools"
+        ][0]["handler"]
+        await runtime.close()
+        return second_events, third_events, stale_result, old_handler, new_handler, host
+
+    second_events, third_events, stale_result, old_handler, new_handler, host = (
+        asyncio.run(scenario())
+    )
+
+    assert [event.kind.value for event in second_events] == ["content", "cancelled"]
+    assert third_events[-1].kind.value == "completed"
+    assert third_events[-1].result["text"] == "turn C"
+    assert stale_result["is_error"] is True
+    assert "cancelled" in stale_result["content"][0]["text"].lower()
+    assert host.calls == []
+    assert old_handler is not new_handler
 
 
 def test_pre_set_interrupt_event_honored_then_next_turn_runs() -> None:

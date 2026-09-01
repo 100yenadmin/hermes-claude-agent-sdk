@@ -48,7 +48,7 @@ contract:
         sha256: "b6bcedfbb3138ed27484d341de232669b134e05a058eeb6a002c050375fb1ea4"
       agent_sdk_boundary:
         path: "agent-sdk-boundary-ledger-v3.yaml"
-        sha256: "0c33cfb0478733a6b4659f83ef2fe61b8842097257b1d7cb2374edae1326c2c4"
+        sha256: "7abb19d5a8a7508defbb9cee294e34d59d751de0e3ff70a1d417de790629b72e"
       clawprobench_native:
         path: "parity/v3/source-packs/clawprobench-native.json"
         sha256: "4f49ffbf811a164327561f1a21415b860e53dc436cc61ac65209b4ff14250fd6"
@@ -4370,10 +4370,10 @@ capabilities:
     lane: "runtime"
     surface: "active_same_session_stress"
     owner: "fable:#15"
-    title: "100-turn active same-session qualification with restart/resume at turn 50"
+    title: "100-turn active same-session qualification with restart/resume and cache-efficiency receipt"
     positive_path:
       required: true
-      assertion: "All 100 sequential turns reach their expected outcomes on one logical session with stable identity."
+      assertion: "All 100 sequential turns reach their expected outcomes on one logical session with stable identity, and p95 non-cache input share is at most 25 percent."
     denial_path:
       required: true
       assertion: "The campaign includes an expected denial that produces no unauthorized mutation or silent fallback."
@@ -4381,7 +4381,7 @@ capabilities:
       required: true
       assertion: "The same logical session recovers after denial and after the graceful turn-50 restart/resume."
     state_before: "The immutable wheel checksum, exact plugin/host SHAs, isolated profile hash, and zeroed turn ledger are recorded."
-    state_after: "The 100/100 ledger, exact-once terminal/mutation receipts, teardown receipt, and drift checks are recorded."
+    state_after: "The 100/100 ledger, exact-once terminal/mutation receipts, teardown receipt, drift checks, and write-once safe usage aggregate are recorded."
     expected_trace:
       - "start"
       - "state"
@@ -4394,6 +4394,7 @@ capabilities:
     primary_proof:
       - "sanitized_turn_ledger"
       - "process_teardown_receipt"
+      - "runtime_usage_summary"
     secondary_proof:
       - "candidate_binding"
       - "inventory_and_billing_hashes"
