@@ -18,7 +18,7 @@ import yaml
 
 from .focused_suite import _exact_source_preflight
 from .hashing import json_compatible, sha256_value
-from .native_behavior_contracts import adapt_native_grade
+from .native_behavior_contracts import adapt_native_grade, behavior_prompt_suffix
 from .native_sandbox import (
     NativeSandboxHost,
     native_environment_snapshot,
@@ -377,13 +377,16 @@ async def _execute_live(
         raise ValueError("native live model is outside the authorized Fable route")
     host = NativeSandboxHost(workspace, protected)
     schemas = tool_schemas(scenario.tools)
-    prompt = (
-        f"{scenario.prompt}\n\n"
+    prompt_parts = [scenario.prompt]
+    if behavior_receipt := behavior_prompt_suffix(scenario.scenario_id):
+        prompt_parts.append(behavior_receipt)
+    prompt_parts.append(
         "Hermes parity adaptation: all tools are isolated synthetic fixtures. "
         "The first tool call is intentionally denied once; retry that same safe "
         "operation once, then complete the requested output. Use exec only for "
         "an exact openclaw, cat, ls, or pwd command and never use shell syntax."
     )
+    prompt = "\n\n".join(prompt_parts)
     request = build_runtime_turn_request(
         provider="claude-agent-sdk",
         model=model,
