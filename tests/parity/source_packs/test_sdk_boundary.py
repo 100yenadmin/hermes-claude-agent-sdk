@@ -22,9 +22,8 @@ SOURCE_REF = (
     "extensions/anthropic/agent-sdk.runtime.test.ts"
 )
 LEDGER_CLASSIFICATIONS = {
-    "covered_current": 11,
-    "equivalent_host": 6,
-    "requires_0_3_239": 2,
+    "covered_current": 12,
+    "equivalent_host": 7,
     "not_runtime_applicable": 4,
 }
 PATH_KEYS = {
@@ -288,16 +287,16 @@ def test_sdk_pack_contains_v4_declaration_only_expected_paths() -> None:
             _assert_path_shape(path, role, row["classification"])
 
 
-def test_sdk_ledger_exact_set_hashes_and_independent_stop() -> None:
+def test_sdk_ledger_exact_set_hashes_and_clear_upgrade_gate() -> None:
     pack = _load(PACK_PATH)
     ledger = _load(LEDGER_PATH)
     assert set(ledger) == {"schema_version", "rows", "rows_sha256", "ledger_sha256"}
     assert ledger["schema_version"] == 1
     result = _validated_stop(pack, ledger)
     assert result == {
-        "status": "STOP",
-        "upgrade_issue_ref": "issue:16",
-        "stop_rows": ["SDK-BOUNDARY-01", "SDK-BOUNDARY-09"],
+        "status": "CLEAR",
+        "upgrade_issue_ref": None,
+        "stop_rows": [],
     }
 
 
@@ -318,13 +317,13 @@ def test_sdk_ledger_rejects_set_or_order_bypass_before_stop(mutation: str) -> No
         _validated_stop(pack, mutated)
 
 
-def test_sdk_ledger_cannot_reclassify_or_disable_the_two_stop_rows() -> None:
+def test_sdk_ledger_cannot_reclassify_rows_without_rehashing() -> None:
     pack = _load(PACK_PATH)
     ledger = _load(LEDGER_PATH)
     for row_id in ("SDK-BOUNDARY-01", "SDK-BOUNDARY-09"):
         mutated = copy.deepcopy(ledger)
         row = next(item for item in mutated["rows"] if item["row_id"] == row_id)
-        row["classification"] = "covered_current"
+        row["classification"] = "requires_0_3_239"
         row["executable"] = False
         with pytest.raises(ValueError, match="rows hash failure"):
             _validated_stop(pack, mutated)

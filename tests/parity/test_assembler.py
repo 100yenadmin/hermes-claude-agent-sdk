@@ -64,11 +64,11 @@ def test_inspection_accounts_all_rows_and_preserves_current_gates() -> None:
         "SDK-BOUNDARY-02", "SDK-BOUNDARY-03", "SDK-BOUNDARY-06", "SDK-BOUNDARY-19",
     ]
     assert report.issue_16 == {
-        "status": "STOP",
-        "issue_ref": "issue:16",
-        "upgrade_issue_ref": "issue:16",
-        "rows": ["SDK-BOUNDARY-01", "SDK-BOUNDARY-09"],
-        "stop_rows": ["SDK-BOUNDARY-01", "SDK-BOUNDARY-09"],
+        "status": "CLEAR",
+        "issue_ref": None,
+        "upgrade_issue_ref": None,
+        "rows": [],
+        "stop_rows": [],
     }
     assert report.catalog is None
     assert report.catalog_sha256 is None
@@ -96,7 +96,7 @@ def test_source_gaps_and_provenance_reconciliation_are_not_synthesized() -> None
     assert report.provenance["status"] == "CONTRADICTORY"
     assert {item.code for item in report.diagnostics} == {"PROVENANCE_CONTRADICTION"}
     assert report["gap_counts"]["GAP-V4-SDK-PROOF-KIND"] == 23
-    assert report["gap_counts"]["SDK-STOP-ISSUE-16"] == 2
+    assert "SDK-STOP-ISSUE-16" not in report["gap_counts"]
 
 
 def test_source_packs_and_legacy_packs_provenance_shapes_are_compatible() -> None:

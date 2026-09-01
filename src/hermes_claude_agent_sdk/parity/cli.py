@@ -16,6 +16,7 @@ from .inventory import InventoryViolation, capture_tool_inventory, load_tool_inv
 from .profile import ProfileViolation, load_profile_manifest
 from .results import ResultViolation, candidate_hash, read_result_packet
 from .runner import load_entrypoint_executors, run_catalog, validate_run_manifest
+from .source_authority import SourceAuthorityViolation, validate_source_authority
 
 
 RUNNER_VERSION = "3.0.0"
@@ -85,6 +86,7 @@ def _validate_profile(catalog, profile_id: str) -> None:
 
 def _inventory(args: argparse.Namespace) -> int:
     catalog = load_catalog(args.catalog)
+    source_authority = validate_source_authority(catalog)
     lane_capabilities = catalog.for_lane(args.lane)
     report: dict[str, Any] = {
         "schema_version": 1,
@@ -93,6 +95,7 @@ def _inventory(args: argparse.Namespace) -> int:
         "contract_hash": catalog.contract_hash,
         "catalog_hash": catalog.catalog_hash,
         "catalog_file_hash": catalog.file_hash,
+        "source_authority_hash": source_authority.authority_hash,
         "lane": args.lane,
         "lane_capability_count": len(lane_capabilities),
         "source_counts": dict(catalog.source_counts),
@@ -156,6 +159,7 @@ def _inventory(args: argparse.Namespace) -> int:
 def _run(args: argparse.Namespace) -> int:
     _require_run_fields(args)
     catalog = load_catalog(args.catalog)
+    validate_source_authority(catalog)
     _validate_profile(catalog, args.profile)
     profile = load_profile_manifest(args.profile_manifest, expected_profile=args.profile)
     inventory = load_tool_inventory(
@@ -206,6 +210,7 @@ def _run(args: argparse.Namespace) -> int:
 def _grade(args: argparse.Namespace) -> int:
     _require_run_fields(args)
     catalog = load_catalog(args.catalog)
+    validate_source_authority(catalog)
     _validate_profile(catalog, args.profile)
     profile = load_profile_manifest(args.profile_manifest, expected_profile=args.profile)
     inventory = load_tool_inventory(
@@ -253,7 +258,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "run":
             return _run(args)
         return _grade(args)
-    except (CatalogViolation, InventoryViolation, ProfileViolation, ResultViolation) as exc:
+    except (
+        CatalogViolation,
+        InventoryViolation,
+        ProfileViolation,
+        ResultViolation,
+        SourceAuthorityViolation,
+    ) as exc:
         print(f"contract violation: {exc}", file=sys.stderr)
         return 2
 

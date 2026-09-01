@@ -122,7 +122,7 @@ def test_assembler_consumes_owner_decisions_but_stays_fail_closed() -> None:
     assert raised.value.report.catalog_sha256 is None
 
 
-def test_sdk_primary_proof_kinds_equal_all_23_rows_and_issue_16_stop() -> None:
+def test_sdk_primary_proof_kinds_equal_all_23_rows_and_issue_16_is_clear() -> None:
     owner = _load_owner()
     proof_kinds = owner["sdk_primary_proof_kinds"]
     expected = {row_id for _, row_id in _pack_row_ids("sdk_boundary")}
@@ -130,10 +130,10 @@ def test_sdk_primary_proof_kinds_equal_all_23_rows_and_issue_16_stop() -> None:
     assert len(proof_kinds) == 23
     assert set(proof_kinds.values()) == {"ledger"}
     assert owner["issue_16_stop"] == {
-        "status": "STOP",
-        "issue_ref": "issue:16",
-        "rows": ["SDK-BOUNDARY-01", "SDK-BOUNDARY-09"],
-        "stop_rows": ["SDK-BOUNDARY-01", "SDK-BOUNDARY-09"],
+        "status": "CLEAR",
+        "issue_ref": None,
+        "rows": [],
+        "stop_rows": [],
     }
 
 

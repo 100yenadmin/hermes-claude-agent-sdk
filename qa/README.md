@@ -17,6 +17,14 @@ does not edit or reinterpret the v2 evidence packet.
 The source row remains visible even when several rows share an `execution_id`.
 Sharing execution is deduplication; it never turns an exclusion into a pass.
 
+`contract.source_authority` binds the executable catalog to four immutable
+repo inputs. The boundary authority is `agent-sdk-boundary-ledger-v3.yaml`,
+which covers the runtime, permissions, and structured-input suites. The older
+`parity/v3/source-packs/sdk-boundary.json` and `parity/v3/sdk-ledger.json` are
+preliminary runtime-test-only accounting artifacts; they are explicitly
+excluded from execution and pass authority. Every CLI command verifies the
+bound file hashes and the full source-to-catalog bijection before proceeding.
+
 ## Dynamic tool inventory
 
 The inventory input is a sanitized YAML or JSON mapping:

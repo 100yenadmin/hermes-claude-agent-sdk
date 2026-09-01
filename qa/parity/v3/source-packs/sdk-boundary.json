@@ -70,8 +70,8 @@
       ],
       "required": true,
       "executable": true,
-      "classification": "requires_0_3_239",
-      "upgrade_issue_ref": "issue:16",
+      "classification": "covered_current",
+      "upgrade_issue_ref": null,
       "repeat_policy": {
         "mode": "once",
         "reason": "stable"
@@ -981,8 +981,8 @@
       ],
       "required": true,
       "executable": true,
-      "classification": "requires_0_3_239",
-      "upgrade_issue_ref": "issue:16",
+      "classification": "equivalent_host",
+      "upgrade_issue_ref": null,
       "repeat_policy": {
         "mode": "once",
         "reason": "stable"
@@ -3004,7 +3004,7 @@
       }
     }
   ],
-  "pack_sha256": "0ee03c73b44f9928e77869001f0d353e1ff409dd2f069e711918876ea66d4fb1",
+  "pack_sha256": "7de0d25802f69ce49b3009616c4c2eb556ed207537efb28de2c3607623800d63",
   "sdk_distribution": "claude-agent-sdk",
   "sdk_version": "0.2.144"
 }

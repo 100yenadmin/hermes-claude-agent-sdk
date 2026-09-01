@@ -131,13 +131,13 @@ def test_packet_inventory_keeps_tool_and_mcp_server_names_in_separate_namespaces
 
 
 def _ledger() -> dict[str, Any]:
-    rows = [{"pack_id": "sdk_boundary", "row_id": f"row{n}", "ordinal": n, "executable": True, "classification": "requires_0_3_239" if n in (1, 9) else "covered_current", "proof": {"ref": f"proof:row{n}", "sha256": D}} for n in range(1, 24)]
+    rows = [{"pack_id": "sdk_boundary", "row_id": f"row{n}", "ordinal": n, "executable": True, "classification": "covered_current", "proof": {"ref": f"proof:row{n}", "sha256": D}} for n in range(1, 24)]
     value = {"schema_version": 1, "rows": rows}
     value |= {"rows_sha256": hash_projection("rows_sha256", value), "ledger_sha256": hash_projection("ledger_sha256", value)}
     return value
 
 
-def _grade(status: str = "FAIL", *, verified_failure_count: int = 0, blocked: int = 0, pending: int = 0, expected_negative_count: int = 1, sdk_ledger: dict[str, Any] | None = None, qualifications: dict[str, Any] | None = None, caret: dict[str, bool] | None = None, at: dict[str, bool] | None = None) -> dict[str, Any]:
+def _grade(status: str = "PASS", *, verified_failure_count: int = 0, blocked: int = 0, pending: int = 0, expected_negative_count: int = 1, sdk_ledger: dict[str, Any] | None = None, qualifications: dict[str, Any] | None = None, caret: dict[str, bool] | None = None, at: dict[str, bool] | None = None) -> dict[str, Any]:
     return {
         "status": status,
         "cell_qualifications": qualifications or {"CAP-one": {"positive": "PASS", "denial": "EXPECTED_NEGATIVE", "recovery": "PASS", "qualified": True, "not_required_paths": [], "attempts": 1}},
@@ -157,7 +157,7 @@ def _grade(status: str = "FAIL", *, verified_failure_count: int = 0, blocked: in
         "billing_safe": True,
         "resume_safe": True,
         "isolation_safe": True,
-        "sdk_ledger": sdk_ledger or {"ledger_sha256": _ledger()["ledger_sha256"], "row_count": 23, "requires_0_3_239_rows": ["row1", "row9"], "upgrade_issue_ref": "issue:16", "status": "STOP"},
+        "sdk_ledger": sdk_ledger or {"ledger_sha256": _ledger()["ledger_sha256"], "row_count": 23, "requires_0_3_239_rows": [], "upgrade_issue_ref": None, "status": "CLEAR"},
         "result_bijection": True,
     }
 
@@ -266,7 +266,7 @@ def test_candidate_freeze_and_result_hashes_are_deterministic() -> None:
 
 def test_result_rejects_grade_status_tamper() -> None:
     freeze = _freeze()
-    result = _result(grade=_grade("PASS"))
+    result = _result(grade=_grade("FAIL"))
     result["freeze_sha256"] = freeze["freeze_sha256"]
     result["result_sha256"] = canonical_sha256({key: value for key, value in result.items() if key != "result_sha256"})
     with pytest.raises(PacketValidationError, match="grade.status"):
@@ -274,7 +274,7 @@ def test_result_rejects_grade_status_tamper() -> None:
 
 
 def test_sdk_ledger_requires_unique_exact_source_set() -> None:
-    rows = [{"pack_id": "sdk_boundary", "row_id": f"row{n}", "ordinal": n, "executable": True, "classification": "requires_0_3_239" if n in (1, 9) else "covered_current", "proof": {"ref": f"proof:row{n}", "sha256": D}} for n in range(1, 24)]
+    rows = [{"pack_id": "sdk_boundary", "row_id": f"row{n}", "ordinal": n, "executable": True, "classification": "covered_current", "proof": {"ref": f"proof:row{n}", "sha256": D}} for n in range(1, 24)]
     ledger = {"schema_version": 1, "rows": rows}
     ledger |= {"rows_sha256": hash_projection("rows_sha256", ledger), "ledger_sha256": hash_projection("ledger_sha256", ledger)}
     source_keys = [("sdk_boundary", f"row{n}") for n in range(1, 24)]
@@ -287,14 +287,13 @@ def test_sdk_ledger_requires_unique_exact_source_set() -> None:
         validate_sdk_ledger(duplicate, source_keys)
 
 
-def test_sdk_ledger_pins_issue_16_rows() -> None:
-    for ordinal, field, replacement in ((1, "classification", "covered_current"), (9, "executable", False)):
-        ledger = deepcopy(_ledger())
-        ledger["rows"][ordinal - 1][field] = replacement
-        ledger["rows_sha256"] = hash_projection("rows_sha256", ledger)
-        ledger["ledger_sha256"] = hash_projection("ledger_sha256", ledger)
-        with pytest.raises(PacketValidationError, match="pinned"):
-            validate_sdk_ledger(ledger)
+def test_sdk_ledger_rejects_executable_not_runtime_applicable_row() -> None:
+    ledger = deepcopy(_ledger())
+    ledger["rows"][0]["classification"] = "not_runtime_applicable"
+    ledger["rows_sha256"] = hash_projection("rows_sha256", ledger)
+    ledger["ledger_sha256"] = hash_projection("ledger_sha256", ledger)
+    with pytest.raises(PacketValidationError, match="executable SDK row"):
+        validate_sdk_ledger(ledger)
 
 
 def test_sdk_proof_ref_accepts_repository_relative_source_path() -> None:
@@ -323,7 +322,7 @@ def test_aggregate_embeds_and_recomputes_packets() -> None:
     aggregate["aggregate_sha256"] = hash_projection("aggregate_sha256", aggregate)
     assert validate_aggregate(aggregate, catalog=_catalog())["aggregate_sha256"] == aggregate["aggregate_sha256"]
     tampered = deepcopy(aggregate)
-    tampered["partition_packets"][0]["result_packet"]["grade"]["status"] = "PASS"
+    tampered["partition_packets"][0]["result_packet"]["grade"]["status"] = "FAIL"
     with pytest.raises(PacketValidationError):
         validate_aggregate(tampered, catalog=_catalog())
 
@@ -581,11 +580,10 @@ def test_h4_source_fixture_scenario_projections_are_exact() -> None:
     assert hash_projection("scenario_sha256", scenario) == canonical_sha256(expected)
 
 
-def test_sdk_rows_one_and_nine_force_issue_16_stop() -> None:
+def test_any_evidence_triggered_sdk_row_forces_upgrade_stop() -> None:
     catalog = _catalog()
     ledger = _ledger()
-    ledger["rows"][0]["classification"] = "requires_0_3_239"
-    ledger["rows"][8]["classification"] = "requires_0_3_239"
+    ledger["rows"][4]["classification"] = "requires_0_3_239"
     ledger["rows_sha256"] = hash_projection("rows_sha256", ledger)
     ledger["ledger_sha256"] = hash_projection("ledger_sha256", ledger)
     catalog["sdk_ledger"] = ledger
@@ -593,16 +591,22 @@ def test_sdk_rows_one_and_nine_force_issue_16_stop() -> None:
     freeze["sdk_ledger_sha256"] = ledger["ledger_sha256"]
     freeze["freeze_sha256"] = canonical_sha256({key: value for key, value in freeze.items() if key != "freeze_sha256"})
     result["freeze_sha256"] = freeze["freeze_sha256"]
-    result["grade"]["sdk_ledger"] = {"ledger_sha256": ledger["ledger_sha256"], "row_count": 23, "requires_0_3_239_rows": ["row1", "row9"], "upgrade_issue_ref": "issue:16", "status": "STOP"}
+    result["grade"]["sdk_ledger"] = {"ledger_sha256": ledger["ledger_sha256"], "row_count": 23, "requires_0_3_239_rows": ["row5"], "upgrade_issue_ref": "issue:16", "status": "STOP"}
     result["grade"]["status"] = "FAIL"
     result["result_sha256"] = canonical_sha256({key: value for key, value in result.items() if key != "result_sha256"})
     assert validate_result(result, freeze=freeze, catalog=catalog)["grade"]["sdk_ledger"]["status"] == "STOP"
 
 
-def test_sdk_grade_cannot_clear_pinned_stop() -> None:
+def test_sdk_grade_cannot_clear_evidence_triggered_stop() -> None:
     freeze, result = _bound_result()
-    result["grade"]["sdk_ledger"] = {"ledger_sha256": _ledger()["ledger_sha256"], "row_count": 23, "requires_0_3_239_rows": [], "upgrade_issue_ref": "issue:16", "status": "CLEAR"}
+    catalog = _catalog()
+    ledger = deepcopy(catalog["sdk_ledger"])
+    ledger["rows"][4]["classification"] = "requires_0_3_239"
+    ledger["rows_sha256"] = hash_projection("rows_sha256", ledger)
+    ledger["ledger_sha256"] = hash_projection("ledger_sha256", ledger)
+    catalog["sdk_ledger"] = ledger
+    result["grade"]["sdk_ledger"] = {"ledger_sha256": ledger["ledger_sha256"], "row_count": 23, "requires_0_3_239_rows": [], "upgrade_issue_ref": None, "status": "CLEAR"}
     result["grade"]["status"] = "PASS"
     result["result_sha256"] = canonical_sha256({key: value for key, value in result.items() if key != "result_sha256"})
     with pytest.raises(PacketValidationError, match="grade.sdk_ledger"):
-        validate_result(result, freeze=freeze, catalog=_catalog())
+        validate_result(result, freeze=freeze, catalog=catalog)

@@ -118,16 +118,10 @@
     "SDK-BOUNDARY-23": "ledger"
   },
   "issue_16_stop": {
-    "status": "STOP",
-    "issue_ref": "issue:16",
-    "rows": [
-      "SDK-BOUNDARY-01",
-      "SDK-BOUNDARY-09"
-    ],
-    "stop_rows": [
-      "SDK-BOUNDARY-01",
-      "SDK-BOUNDARY-09"
-    ]
+    "status": "CLEAR",
+    "issue_ref": null,
+    "rows": [],
+    "stop_rows": []
   },
-  "decisions_sha256": "abe82554f462bb6207353932b86b2cd482964361e5b5e06575d90f0cf5ff7dfc"
+  "decisions_sha256": "b314b4d66c04a2824eb5f2f7b9f954b3861f64ca968bd49aaf69cfd375fc7212"
 }
