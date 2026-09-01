@@ -16,7 +16,6 @@ from hermes_claude_agent_sdk.parity.assembler import (
 ROOT = Path(__file__).parents[2]
 PACKS = ROOT / "qa/parity/v3/source-packs"
 LEDGER = ROOT / "qa/parity/v3/sdk-ledger.json"
-PROVENANCE = Path("/Users/m1/Codex/evidence/hermes-agent-sdk-parity-v3/drafts/source-pack-provenance.json")
 
 
 def _inputs() -> tuple[list[dict], dict]:
@@ -27,6 +26,21 @@ def _inputs() -> tuple[list[dict], dict]:
         PACKS / "clawprobench-native.json",
     ]
     return [json.loads(path.read_text(encoding="utf-8")) for path in paths], json.loads(LEDGER.read_text(encoding="utf-8"))
+
+
+def _provenance_record(packs: list[dict]) -> dict:
+    records = []
+    counts = {}
+    for pack in packs:
+        metadata = pack.get("source_pack", pack)
+        pack_id = pack.get("pack_id") or metadata["id"]
+        counts[pack_id] = metadata["expected_count"]
+        records.append({
+            "id": pack_id,
+            "source": copy.deepcopy(metadata["source"]),
+            "provenance": copy.deepcopy(metadata["provenance"]),
+        })
+    return {"schema_version": 1, "scope": {"pack_counts": counts}, "packs": records}
 
 
 def test_inspection_accounts_all_rows_and_preserves_current_gates() -> None:
@@ -72,7 +86,8 @@ def test_inspection_is_order_independent_and_mapping_compatible() -> None:
 
 def test_source_gaps_and_provenance_reconciliation_are_not_synthesized() -> None:
     packs, ledger = _inputs()
-    provenance = json.loads(PROVENANCE.read_text(encoding="utf-8"))
+    provenance = _provenance_record(packs)
+    provenance["packs"][0]["provenance"]["origin_id"] = "contradictory-origin"
     report = inspect_source_fragments(packs, ledger, provenance=provenance)
 
     assert report.provenance["status"] == "CONTRADICTORY"
