@@ -66,6 +66,7 @@ _ACTIVE_SYSTEM_PROMPT = (
     "synthetic denial once, do not contact external systems, and end with the "
     "requested marker."
 )
+_AUTH_PREFLIGHT_FAILURE_CODE = "claude_subscription_auth_rejected"
 _ACTIVE_CASE_TIMEOUT_SECONDS = 300.0
 _MCP_EVENT_PREFIX = "mcp__hermes-tools__"
 
@@ -609,7 +610,7 @@ async def _run_live_case(
     from hermes_claude_agent_sdk.runtime import ClaudeAgentSDKRuntime
 
     turns: list[LiveTurn] = []
-    billing = "subscription_included"
+    case_hosts: list[NativeSandboxHost] = []
     failure_reason = "active_behavior_or_trace_failed"
     try:
         if source_id == "source-docs-discovery-report":
@@ -627,6 +628,7 @@ async def _run_live_case(
             )
             schemas = tool_schemas(("read",))
             host = NativeSandboxHost(workspace, (readme, docs))
+            case_hosts.append(host)
             runtime = ClaudeAgentSDKRuntime(cwd=str(workspace), parent_env=os.environ)
             try:
                 source_turn = await _run_turn(
@@ -668,6 +670,7 @@ async def _run_live_case(
         elif source_id == "image-understanding-attachment":
             schemas: tuple[dict[str, Any], ...] = ()
             host = NativeSandboxHost(workspace, (), deny_first=False)
+            case_hosts.append(host)
             runtime = ClaudeAgentSDKRuntime(cwd=str(workspace), parent_env=os.environ)
             try:
                 denied = await _run_turn(
@@ -717,6 +720,7 @@ async def _run_live_case(
             fixture.write_text("Synthetic handoff marker: HANDOFF_CONTEXT\n", encoding="utf-8")
             schemas = tool_schemas(("read",))
             host = NativeSandboxHost(workspace, (fixture,))
+            case_hosts.append(host)
             runtime = ClaudeAgentSDKRuntime(cwd=str(workspace), parent_env=os.environ)
             count = 1 if source_id == "subagent-handoff" else 2
             final_marker = "HANDOFF_PASS" if count == 1 else "FANOUT_PASS"
@@ -775,6 +779,7 @@ async def _run_live_case(
         elif source_id == "memory-recall":
             schemas = ()
             host = NativeSandboxHost(workspace, (), deny_first=False)
+            case_hosts.append(host)
             runtime = ClaudeAgentSDKRuntime(cwd=str(workspace), parent_env=os.environ)
             invalid_state = RuntimeStateEnvelope(
                 runtime_id="wrong-runtime",
@@ -826,6 +831,7 @@ async def _run_live_case(
             schemas = ()
             host_a = NativeSandboxHost(workspace, (), deny_first=False)
             host_b = NativeSandboxHost(workspace, (), deny_first=False)
+            case_hosts.extend((host_a, host_b))
             runtime_a = ClaudeAgentSDKRuntime(cwd=str(workspace), parent_env=os.environ)
             runtime_b = ClaudeAgentSDKRuntime(cwd=str(workspace), parent_env=os.environ)
             try:
@@ -884,6 +890,7 @@ async def _run_live_case(
             read_schemas = tool_schemas(("read",))
             exec_schemas = tool_schemas(("exec",))
             host_before = NativeSandboxHost(workspace, (read_fixture,))
+            case_hosts.append(host_before)
             runtime_before = ClaudeAgentSDKRuntime(cwd=str(workspace), parent_env=os.environ)
             try:
                 before = await _run_turn(
@@ -900,6 +907,7 @@ async def _run_live_case(
             finally:
                 await runtime_before.close()
             host_after = NativeSandboxHost(workspace, (), deny_first=False)
+            case_hosts.append(host_after)
             runtime_after = ClaudeAgentSDKRuntime(cwd=str(workspace), parent_env=os.environ)
             try:
                 after = await _run_turn(
@@ -934,6 +942,7 @@ async def _run_live_case(
             )
             schemas = tool_schemas(("read",))
             host = NativeSandboxHost(workspace, (instructions,))
+            case_hosts.append(host)
             runtime = ClaudeAgentSDKRuntime(cwd=str(workspace), parent_env=os.environ)
             try:
                 turn = await _run_turn(
@@ -980,6 +989,33 @@ async def _run_live_case(
         )
 
     provider_turns = sum(turn.billing != "none" for turn in turns)
+    if (
+        provider_turns == 0
+        and turns
+        and all(
+            turn.terminal == "failed"
+            and turn.failure_code == _AUTH_PREFLIGHT_FAILURE_CODE
+            and turn.billing == "none"
+            and turn.state is None
+            and not turn.tool_names
+            and not turn.compaction_phases
+            and not turn.background_hashes
+            for turn in turns
+        )
+        and case_hosts
+        and all(
+            not host.trace_events and host.successful_calls == 0
+            for host in case_hosts
+        )
+    ):
+        return ActiveCaseResult(
+            ExecutionClassification.ENVIRONMENT_BLOCKED,
+            "active_subscription_auth_unavailable",
+            "none",
+            0,
+            _case_receipt(source_id, turns, extra),
+            sha256_value([turn.state_hash for turn in turns]),
+        )
     if any(turn.billing == "unsafe" or turn.silent_fallback for turn in turns):
         return ActiveCaseResult(
             ExecutionClassification.VERIFIED_FAILURE,
@@ -1003,7 +1039,7 @@ async def _run_live_case(
     return ActiveCaseResult(
         ExecutionClassification.COMPLETE if ok else ExecutionClassification.VERIFIED_FAILURE,
         None if ok else failure_reason,
-        billing,
+        "subscription_included" if provider_turns else "none",
         provider_turns,
         evidence_hash,
         state_hash,

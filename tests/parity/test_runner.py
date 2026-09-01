@@ -271,6 +271,49 @@ def test_interrupted_run_checkpoints_completed_bundle_for_resume(
     assert len(list(tmp_path.glob("*__*__trial-*.json"))) == 6
 
 
+def test_environment_blocked_bundle_stops_after_one_combined_trial(
+    catalog, candidate_fields, tmp_path
+) -> None:
+    capability = catalog.by_id["active:instruction-followthrough-repo-contract"]
+    calls = 0
+
+    def blocked(_context):
+        nonlocal calls
+        calls += 1
+        outcomes = {
+            path: ExecutionOutcome(
+                classification=ExecutionClassification.ENVIRONMENT_BLOCKED,
+                billing_classification="none",
+                normalized_events=(),
+                reason_code="active_subscription_auth_unavailable",
+            )
+            for path in ("positive", "denial", "recovery")
+        }
+        return ExecutionBundle(outcomes=outcomes, turn_count=0)
+
+    registry = ExecutorRegistry()
+    registry.register(capability.execution_id, blocked)
+    packets, report = run_catalog(
+        catalog,
+        registry=registry,
+        resume=False,
+        capability_ids=(capability.capability_id,),
+        **_run_fields(tmp_path, candidate_fields),
+    )
+
+    assert calls == 1
+    assert len(packets) == 3
+    assert all(
+        packet.classification is ExecutionClassification.ENVIRONMENT_BLOCKED
+        for packet in packets
+    )
+    assert all(packet.billing_classification == "none" for packet in packets)
+    assert all(packet.trial_index == 1 for packet in packets)
+    assert report.exit_code == 75
+    manifest = json.loads((tmp_path / "run-manifest.json").read_text(encoding="utf-8"))
+    assert len(manifest["executions"]) == 1
+
+
 def test_runtime_bundle_enforces_one_100_turn_campaign(
     catalog, candidate_fields, tmp_path
 ) -> None:

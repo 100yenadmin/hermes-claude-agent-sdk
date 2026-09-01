@@ -154,6 +154,207 @@ def test_live_case_timeout_is_environment_blocked_and_cancels(
     assert cleaned is True
 
 
+def test_live_case_auth_rejection_is_environment_blocked_without_billing(
+    monkeypatch, tmp_path
+) -> None:
+    async def rejected_turn(*_args, **_kwargs) -> LiveTurn:
+        return LiveTurn(
+            terminal="failed",
+            failure_code="claude_subscription_auth_rejected",
+            billing="none",
+            final_text="",
+            final_hash=sha256_value(""),
+            state=None,
+            state_hash="a" * 64,
+            tool_names=(),
+            compaction_phases=(),
+            background_hashes=(),
+            event_hash="b" * 64,
+            silent_fallback=False,
+        )
+
+    monkeypatch.setattr(active_suite_module, "_run_turn", rejected_turn)
+
+    result = asyncio.run(
+        active_suite_module._run_live_case(
+            "instruction-followthrough-repo-contract",
+            workspace=tmp_path,
+            model="claude-fable-5",
+        )
+    )
+
+    assert result.classification is ExecutionClassification.ENVIRONMENT_BLOCKED
+    assert result.reason_code == "active_subscription_auth_unavailable"
+    assert result.billing == "none"
+    assert result.turn_count == 0
+    assert result.evidence_hash is not None
+    assert result.state_hash is not None
+
+
+def test_live_case_auth_rejection_aggregates_multi_host_paths(
+    monkeypatch, tmp_path
+) -> None:
+    async def rejected_turn(*_args, **_kwargs) -> LiveTurn:
+        return LiveTurn(
+            terminal="failed",
+            failure_code="claude_subscription_auth_rejected",
+            billing="none",
+            final_text="",
+            final_hash=sha256_value(""),
+            state=None,
+            state_hash="a" * 64,
+            tool_names=(),
+            compaction_phases=(),
+            background_hashes=(),
+            event_hash="b" * 64,
+            silent_fallback=False,
+        )
+
+    monkeypatch.setattr(active_suite_module, "_run_turn", rejected_turn)
+
+    for source_id in (
+        "thread-memory-isolation",
+        "config-restart-capability-flip",
+    ):
+        workspace = tmp_path / source_id
+        workspace.mkdir()
+        result = asyncio.run(
+            active_suite_module._run_live_case(
+                source_id,
+                workspace=workspace,
+                model="claude-fable-5",
+            )
+        )
+        assert result.classification is ExecutionClassification.ENVIRONMENT_BLOCKED
+        assert result.reason_code == "active_subscription_auth_unavailable"
+        assert result.billing == "none"
+        assert result.turn_count == 0
+
+
+def test_live_case_pre_usage_product_failure_is_not_subscription_labeled(
+    monkeypatch, tmp_path
+) -> None:
+    async def failed_turn(*_args, **_kwargs) -> LiveTurn:
+        return LiveTurn(
+            terminal="failed",
+            failure_code="claude_runtime_failed",
+            billing="none",
+            final_text="",
+            final_hash=sha256_value(""),
+            state=None,
+            state_hash="a" * 64,
+            tool_names=(),
+            compaction_phases=(),
+            background_hashes=(),
+            event_hash="b" * 64,
+            silent_fallback=False,
+        )
+
+    monkeypatch.setattr(active_suite_module, "_run_turn", failed_turn)
+
+    result = asyncio.run(
+        active_suite_module._run_live_case(
+            "instruction-followthrough-repo-contract",
+            workspace=tmp_path,
+            model="claude-fable-5",
+        )
+    )
+
+    assert result.classification is ExecutionClassification.VERIFIED_FAILURE
+    assert result.reason_code == "active_behavior_or_trace_failed"
+    assert result.billing == "none"
+    assert result.turn_count == 0
+
+
+def test_live_case_auth_code_with_tool_evidence_remains_verified_failure(
+    monkeypatch, tmp_path
+) -> None:
+    async def rejected_after_tool(*_args, **_kwargs) -> LiveTurn:
+        return LiveTurn(
+            terminal="failed",
+            failure_code="claude_subscription_auth_rejected",
+            billing="none",
+            final_text="",
+            final_hash=sha256_value(""),
+            state=None,
+            state_hash="a" * 64,
+            tool_names=("read",),
+            compaction_phases=(),
+            background_hashes=(),
+            event_hash="b" * 64,
+            silent_fallback=False,
+        )
+
+    monkeypatch.setattr(active_suite_module, "_run_turn", rejected_after_tool)
+
+    result = asyncio.run(
+        active_suite_module._run_live_case(
+            "instruction-followthrough-repo-contract",
+            workspace=tmp_path,
+            model="claude-fable-5",
+        )
+    )
+
+    assert result.classification is ExecutionClassification.VERIFIED_FAILURE
+    assert result.billing == "none"
+    assert result.turn_count == 0
+
+
+def test_live_image_expected_denial_and_subscription_recovery_remain_complete(
+    monkeypatch, tmp_path
+) -> None:
+    turns = iter(
+        (
+            LiveTurn(
+                terminal="failed",
+                failure_code="claude_runtime_image_invalid",
+                billing="none",
+                final_text="",
+                final_hash=sha256_value(""),
+                state=None,
+                state_hash="a" * 64,
+                tool_names=(),
+                compaction_phases=(),
+                background_hashes=(),
+                event_hash="b" * 64,
+                silent_fallback=False,
+            ),
+            LiveTurn(
+                terminal="completed",
+                failure_code=None,
+                billing="subscription_included",
+                final_text="BLUE BLUE_IMAGE_PASS",
+                final_hash=sha256_value("BLUE BLUE_IMAGE_PASS"),
+                state=None,
+                state_hash="c" * 64,
+                tool_names=(),
+                compaction_phases=(),
+                background_hashes=(),
+                event_hash="d" * 64,
+                silent_fallback=False,
+            ),
+        )
+    )
+
+    async def next_turn(*_args, **_kwargs) -> LiveTurn:
+        return next(turns)
+
+    monkeypatch.setattr(active_suite_module, "_run_turn", next_turn)
+
+    result = asyncio.run(
+        active_suite_module._run_live_case(
+            "image-understanding-attachment",
+            workspace=tmp_path,
+            model="claude-fable-5",
+        )
+    )
+
+    assert result.classification is ExecutionClassification.COMPLETE
+    assert result.reason_code is None
+    assert result.billing == "subscription_included"
+    assert result.turn_count == 1
+
+
 def test_source_docs_contract_uses_host_receipts_when_projection_is_deduplicated(
     tmp_path,
 ) -> None:
