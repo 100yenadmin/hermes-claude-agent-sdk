@@ -293,6 +293,20 @@ def _load_capability(raw: Any, index: int) -> Capability:
             for name in _PATH_NAMES
         }
     )
+    if source_pack in {"v2_non_soak", "agent_sdk_boundary"}:
+        if paths["positive"]["required"] is not True:
+            raise CatalogViolation(
+                f"{source_pack} positive_path.required must be true"
+            )
+        for path_name in ("denial", "recovery"):
+            if paths[path_name]["required"] is not False:
+                raise CatalogViolation(
+                    f"{source_pack} {path_name}_path.required must be false"
+                )
+    elif not all(path["required"] is True for path in paths.values()):
+        raise CatalogViolation(
+            f"{source_pack} positive, denial, and recovery paths must be required"
+        )
     return Capability(
         capability_id=capability_id,
         source_item_id=source_item_id,

@@ -123,6 +123,51 @@ def test_catalog_rejects_nonrequired_path_without_rationale(tmp_path) -> None:
         load_catalog(path)
 
 
+@pytest.mark.parametrize("source_pack", ["v2_non_soak", "agent_sdk_boundary"])
+@pytest.mark.parametrize("path_name", ["positive_path"])
+def test_catalog_rejects_nonrequired_positive_path_for_partial_source_packs(
+    tmp_path, source_pack, path_name
+) -> None:
+    document = yaml.safe_load(CATALOG_PATH.read_text(encoding="utf-8"))
+    row = next(item for item in document["capabilities"] if item["source_pack"] == source_pack)
+    row[path_name]["required"] = False
+    row[path_name]["rationale"] = "tampered applicability"
+    path = tmp_path / "nonrequired-positive.yaml"
+    path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+    with pytest.raises(CatalogViolation, match="positive_path.required must be true"):
+        load_catalog(path)
+
+
+@pytest.mark.parametrize("source_pack", ["v2_non_soak", "agent_sdk_boundary"])
+@pytest.mark.parametrize("path_name", ["denial_path", "recovery_path"])
+def test_catalog_rejects_required_secondary_path_for_partial_source_packs(
+    tmp_path, source_pack, path_name
+) -> None:
+    document = yaml.safe_load(CATALOG_PATH.read_text(encoding="utf-8"))
+    row = next(item for item in document["capabilities"] if item["source_pack"] == source_pack)
+    row[path_name]["required"] = True
+    row[path_name].pop("rationale", None)
+    path = tmp_path / "required-secondary.yaml"
+    path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+    with pytest.raises(CatalogViolation, match=f"{source_pack} .*required must be false"):
+        load_catalog(path)
+
+
+@pytest.mark.parametrize("source_pack", ["openclaw_active", "clawprobench_native", "runtime_active"])
+@pytest.mark.parametrize("path_name", ["positive_path", "denial_path", "recovery_path"])
+def test_catalog_rejects_nonrequired_path_for_full_source_packs(
+    tmp_path, source_pack, path_name
+) -> None:
+    document = yaml.safe_load(CATALOG_PATH.read_text(encoding="utf-8"))
+    row = next(item for item in document["capabilities"] if item["source_pack"] == source_pack)
+    row[path_name]["required"] = False
+    row[path_name]["rationale"] = "tampered applicability"
+    path = tmp_path / "nonrequired-full.yaml"
+    path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+    with pytest.raises(CatalogViolation, match=f"{source_pack} .*must be required"):
+        load_catalog(path)
+
+
 def test_catalog_rejects_source_substitution_even_when_count_is_unchanged(tmp_path) -> None:
     document = yaml.safe_load(CATALOG_PATH.read_text(encoding="utf-8"))
     mutated = copy.deepcopy(document)
