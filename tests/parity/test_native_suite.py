@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+import yaml
 
 from hermes_claude_agent_sdk.parity.native_sandbox import (
     SKILLS_INVENTORY,
@@ -13,6 +14,7 @@ from hermes_claude_agent_sdk.parity.native_sandbox import (
 )
 from hermes_claude_agent_sdk.parity.native_suite import (
     CLAWPROBENCH_SHA,
+    NATIVE_READ_WRITE_ADAPTATIONS,
     NATIVE_SOURCE_IDS,
     grade_native_trace,
     load_native_scenario,
@@ -27,6 +29,32 @@ def test_native_execution_inventory_is_exactly_36_and_unique() -> None:
     assert set(native_execution_ids()) == {
         f"native-{source_id}" for source_id in NATIVE_SOURCE_IDS
     }
+
+
+def test_skill_fixture_uses_unambiguous_source_pack_identifier() -> None:
+    skill_names = {item["name"] for item in SKILLS_INVENTORY["skills"]}
+    assert "feishu-calendar" in skill_names
+    assert "calendar" not in skill_names
+
+
+def test_source_omitted_tools_have_one_explicit_safe_adapter() -> None:
+    root = _pinned_root()
+    assert len(NATIVE_READ_WRITE_ADAPTATIONS) == 18
+    for scenario_id in sorted(NATIVE_READ_WRITE_ADAPTATIONS):
+        scenario = load_native_scenario(root, scenario_id)
+        assert scenario.tools == ("read", "write")
+        raw = yaml.safe_load(scenario.path.read_text(encoding="utf-8"))
+        assert "tools" not in raw
+        assert not raw.get("setup_script")
+        assert not raw.get("teardown_script")
+
+
+def test_all_36_pinned_native_sources_load_with_bounded_tools() -> None:
+    root = _pinned_root()
+    loaded = [load_native_scenario(root, scenario_id) for scenario_id in NATIVE_SOURCE_IDS]
+    assert len(loaded) == 36
+    assert {scenario.scenario_id for scenario in loaded} == set(NATIVE_SOURCE_IDS)
+    assert all(set(scenario.tools) <= {"read", "write", "exec", "cron"} for scenario in loaded)
 
 
 def _pinned_root() -> Path:

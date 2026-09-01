@@ -74,6 +74,34 @@ NATIVE_SOURCE_IDS = (
     "intel_m02_multi_surface_probe",
 )
 
+# These pinned live scenarios intentionally omit a ``tools`` field.  Their
+# prompts and custom checks are confined to a read-only fixture plus one JSON
+# result file; none of their named OpenClaw surfaces are invoked by the grader.
+# Adapt that source shape explicitly instead of exposing browser, message,
+# scheduler, memory, session, or agent effects—or silently dropping the rows.
+NATIVE_READ_WRITE_ADAPTATIONS = frozenset(
+    {
+        "constraints_22_message_audience_boundary_live",
+        "constraints_23_external_approval_boundary_live",
+        "error_recovery_20_browser_cron_message_orchestration_live",
+        "error_recovery_22_incident_commander_sequence_live",
+        "error_recovery_23_partial_containment_boundary_live",
+        "error_recovery_24_partial_vs_containment_live",
+        "error_recovery_25_rollback_gate_decision_live",
+        "error_recovery_26_duplicate_automation_suppression_live",
+        "planning_19_agent_delegation_boundary_live",
+        "planning_20_session_agent_handoff_live",
+        "planning_21_long_horizon_preference_override_live",
+        "synthesis_24_browser_message_reschedule_live",
+        "synthesis_25_memory_conflict_resolution_live",
+        "synthesis_26_memory_staleness_resolution_live",
+        "synthesis_27_memory_quadrant_resolution_live",
+        "synthesis_28_browser_internal_external_split_live",
+        "synthesis_29_memory_conflict_action_gate_live",
+        "tool_use_22_browser_dom_console_triage_live",
+    }
+)
+
 
 @dataclass(frozen=True, slots=True)
 class NativeScenario:
@@ -239,7 +267,13 @@ def load_native_scenario(root: Path, scenario_id: str) -> NativeScenario:
     path = _scenario_index(root)[scenario_id]
     raw = json_compatible(yaml.safe_load(path.read_text(encoding="utf-8")))
     prompt = raw.get("prompt")
-    tools = raw.get("tools")
+    source_tools = raw.get("tools")
+    tool_adaptation = None
+    if source_tools is None and scenario_id in NATIVE_READ_WRITE_ADAPTATIONS:
+        tools: Any = ["read", "write"]
+        tool_adaptation = "source_omits_tools:isolated_fixture_read_write_v1"
+    else:
+        tools = source_tools
     surfaces = raw.get("openclaw_surfaces", [])
     custom_name = raw.get("custom_check")
     if (
@@ -284,6 +318,9 @@ def load_native_scenario(root: Path, scenario_id: str) -> NativeScenario:
         "custom_check_path": custom_check.relative_to(root).as_posix(),
         "custom_check_hash": _sha256_file(custom_check),
         "fixtures": list(fixture_manifest),
+        "source_declared_tools": source_tools,
+        "adapted_tools": list(tools),
+        "tool_adaptation": tool_adaptation,
     }
     return NativeScenario(
         scenario_id=scenario_id,
@@ -688,6 +725,7 @@ async def native_scenario_suite(context: ExecutionContext) -> ExecutionBundle:
 
 __all__ = [
     "CLAWPROBENCH_SHA",
+    "NATIVE_READ_WRITE_ADAPTATIONS",
     "NATIVE_SOURCE_IDS",
     "grade_native_trace",
     "load_native_scenario",

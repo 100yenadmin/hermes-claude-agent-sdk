@@ -28,7 +28,10 @@ SKILLS_INVENTORY = {
     "managedSkillsDir": "/sandbox/skills",
     "skills": [
         {
-            "name": "calendar",
+            # Use the source pack's canonical skill id.  A generic `calendar`
+            # alias makes the planning-13 routing contract ambiguous because
+            # its expected request mapping is specifically `feishu-calendar`.
+            "name": "feishu-calendar",
             "eligible": True,
             "bundled": True,
             "missing": {"bins": [], "anyBins": [], "env": [], "config": [], "os": []},
