@@ -43,7 +43,7 @@ def test_inspection_accounts_all_rows_and_preserves_current_gates() -> None:
     assert len(set(report.source_keys)) == 124
     assert len(report.missing_session_scope) == 88
     assert len(report.missing_sdk_proof_kind) == 23
-    assert [row["row_id"] for row in report.sdk_rows_without_required_path] == [
+    assert [row[1] for row in report.sdk_rows_without_required_path] == [
         "SDK-BOUNDARY-02", "SDK-BOUNDARY-03", "SDK-BOUNDARY-06", "SDK-BOUNDARY-19",
     ]
     assert report.issue_16 == {
