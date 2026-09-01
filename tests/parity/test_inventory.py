@@ -282,6 +282,25 @@ def test_inventory_drift_keeps_tool_and_mcp_server_namespaces_distinct() -> None
     assert observed.missing_names == ("mcp_server:shared", "tool:shared")
 
 
+def test_inventory_drift_accepts_max_length_qualified_names() -> None:
+    tool_name = "t" * 128
+    server_name = "s" * 128
+    declared = build_declared_inventory(
+        [ToolInventoryEntry(tool_name, _A, "host", True)],
+        [MCPServerInventoryEntry(server_name, _B, True)],
+    )
+
+    observed = build_observed_inventory(_CANDIDATE, (), (), declared=declared)
+
+    assert observed.missing_names == (
+        f"mcp_server:{server_name}",
+        f"tool:{tool_name}",
+    )
+    assert ObservedInventory.from_mapping(
+        observed.to_dict(), declared=declared
+    ).missing_names == observed.missing_names
+
+
 def test_observed_exact_match_requires_names_digests_and_enabled_state() -> None:
     declared = _declared()
     observed = build_observed_inventory(

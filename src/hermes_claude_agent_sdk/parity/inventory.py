@@ -20,14 +20,12 @@ from .tool_inventory import (
     inventory_rows_from_schemas,
 )
 
-_DECLARED = frozenset({"schema_version", "tools", "mcp_servers", "declared_inventory_sha256"})
-_TOOL = frozenset({"name", "schema_sha256", "declared_by", "enabled"})
-_ENTRY = frozenset({"name", "schema_sha256", "enabled"})
+_DECLARED, _TOOL = frozenset({"schema_version", "tools", "mcp_servers", "declared_inventory_sha256"}), frozenset({"name", "schema_sha256", "declared_by", "enabled"})
 _OBSERVED = frozenset({
     "candidate_sha256", "tools", "mcp_servers", "observed_inventory_sha256",
     "unknown_names", "missing_names", "schema_drift_names",
 })
-_SIDES = frozenset({"host", "plugin"})
+_ENTRY, _SIDES = frozenset({"name", "schema_sha256", "enabled"}), frozenset({"host", "plugin"})
 
 
 class InventoryValidationError(CanonicalizationError):
@@ -57,6 +55,10 @@ def _name(value: Any, field: str) -> str:
         raise InventoryValidationError(str(exc)) from exc
 
 
+def _qualified_name(value: Any, field: str) -> str:
+    prefix, separator, name = value.partition(":") if isinstance(value, str) else ("", "", ""); _name(name if separator == ":" and prefix in {"tool", "mcp_server"} else "", f"{field} name"); return value
+
+
 def _sha(value: Any, field: str) -> str:
     try:
         return validate_sha256(value, field=field)
@@ -71,7 +73,7 @@ def _bool(value: Any) -> bool:
 
 
 def _sorted_names(value: Any, field: str) -> tuple[str, ...]:
-    names = tuple(_name(item, f"{field} item") for item in _array(value, field))
+    names = tuple(_qualified_name(item, f"{field} item") for item in _array(value, field))
     if len(set(names)) != len(names):
         raise InventoryValidationError(f"{field} contains duplicate names")
     if names != tuple(sorted(names)):

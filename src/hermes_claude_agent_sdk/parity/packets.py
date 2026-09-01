@@ -7,10 +7,8 @@ class PacketValidationError(CanonicalizationError):
     pass
 
 PATHS, EXPECTED = ("positive", "denial", "recovery"), frozenset(("PASS", "EXPECTED_NEGATIVE", "NOT_APPLICABLE"))
-OBSERVED = frozenset(("PASS", "EXPECTED_NEGATIVE", "VERIFIED_FAILURE", "ENVIRONMENT_BLOCKED", "PENDING", "NOT_APPLICABLE"))
-QUALIFICATIONS = frozenset(("PASS", "EXPECTED_NEGATIVE", "FAIL", "BLOCKED", "PENDING", "NOT_APPLICABLE"))
-SCOPES = frozenset(("isolated_cell", "one_logical_session"))
-TERMINAL = frozenset(("complete", "cancelled", "failed", "not_applicable"))
+OBSERVED, QUALIFICATIONS = frozenset(("PASS", "EXPECTED_NEGATIVE", "VERIFIED_FAILURE", "ENVIRONMENT_BLOCKED", "PENDING", "NOT_APPLICABLE")), frozenset(("PASS", "EXPECTED_NEGATIVE", "FAIL", "BLOCKED", "PENDING", "NOT_APPLICABLE"))
+SCOPES, TERMINAL = frozenset(("isolated_cell", "one_logical_session")), frozenset(("complete", "cancelled", "failed", "not_applicable"))
 REDACTION_CATEGORIES = frozenset(("auth", "credential", "secret", "prompt", "transcript", "session", "resume_state", "provider_payload", "fixture_content", "customer_identifier", "customer_data", "environment", "exception", "filesystem_path", "path", "tool_args", "tool_results", "headers", "cookies"))
 FORBIDDEN = frozenset(("raw", "content", "prompt", "transcript", "session_token", "resume_state", "auth", "credential", "secret", "provider_payload", "fixture_content", "exception", "environment", "filesystem_path", "path", "customer", "customer_identifier", "customer_data", "tool_args", "tool_results", "arguments", "headers", "cookies", "fixture_bytes"))
 GRADE_KEYS = frozenset(("status", "cell_qualifications", "required_cell_count", "observed_cell_count", "required_pass_count", "observed_pass_count", "expected_negative_count", "verified_failure_count", "environment_blocked_count", "pending_count", "pass_caret_3", "pass_at_3", "candidate_consistent", "terminal_events_exact", "inventory_exact", "billing_safe", "resume_safe", "isolation_safe", "sdk_ledger", "result_bijection"))
@@ -53,6 +51,9 @@ def _id(value: Any, label: str) -> str:
     try:
         return validate_identifier(value, field=label, max_length=128)
     except CanonicalizationError as exc: raise PacketValidationError(str(exc)) from exc
+
+def _drift_id(value: Any, label: str) -> str:
+    prefix, separator, name = value.partition(":") if isinstance(value, str) else ("", "", ""); _id(name if separator == ":" and prefix in {"tool", "mcp_server"} else "", label); return value
 
 def _proof_ref(value: Any, label: str) -> str:
     chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.:@/-"
@@ -219,16 +220,14 @@ def _inventory(value: Any) -> dict[str, Any]:
     keys = {"candidate_sha256", "declared_inventory_sha256", "tools", "mcp_servers", "observed_inventory_sha256", "unknown_names", "missing_names", "schema_drift_names"}
     result = _obj(value, keys, "inventory")
     _sha(result["candidate_sha256"], "inventory.candidate_sha256"); _sha(result["declared_inventory_sha256"], "inventory.declared_inventory_sha256")
-    names: list[str] = []
     for group in ("tools", "mcp_servers"):
         previous = ""
         for entry in _arr(result[group], f"inventory.{group}"):
             item = _obj(entry, {"name", "schema_sha256", "enabled"}, f"inventory.{group}"); name = _id(item["name"], "inventory.name")
             if name <= previous: _fail("inventory group is not sorted/unique")
-            previous = name; names.append(name); _sha(item["schema_sha256"], "inventory.schema_sha256"); _bool(item["enabled"], "inventory.enabled")
-    if len(names) != len(set(names)): _fail("inventory names overlap")
+            previous = name; _sha(item["schema_sha256"], "inventory.schema_sha256"); _bool(item["enabled"], "inventory.enabled")
     for key in ("unknown_names", "missing_names", "schema_drift_names"):
-        values = _arr(result[key], f"inventory.{key}"); [_id(item, f"inventory.{key}") for item in values]; _sorted(values, f"inventory.{key}")
+        values = _arr(result[key], f"inventory.{key}"); [_drift_id(item, f"inventory.{key}") for item in values]; _sorted(values, f"inventory.{key}")
     if result["declared_inventory_sha256"] != hash_projection("declared_inventory_sha256", result) or result["observed_inventory_sha256"] != hash_projection("observed_inventory_sha256", result): _fail("inventory hash does not match")
     return result
 
