@@ -120,7 +120,7 @@ def test_incident_adapter_canonicalizes_only_a_complete_semantic_decision(
             {
                 "action_sequence": [
                     "note the partial recovery shown by browser status",
-                    "move commander coordination from the high-pressure session into a fresh thread",
+                    "open a separate coordination session instead of mutating the high-pressure session",
                     "inspect the existing cron follow-up checks before creating a new schedule",
                 ],
                 "blocked_actions": [

@@ -469,7 +469,10 @@ def _incident_action_kind(value: str) -> str | None:
     if (
         "session" in lowered
         and _contains_any(lowered, ("high", "pressure", "overload"))
-        and _contains_any(lowered, ("fresh", "new", "thread", "commander"))
+        and (
+            _contains_any(lowered, ("fresh", "new", "thread", "commander"))
+            or ("separate" in lowered and "coordination" in lowered)
+        )
         and _contains_any(lowered, ("avoid", "start", "open", "move", "isolate"))
     ):
         return "session_isolation"
