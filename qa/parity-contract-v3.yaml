@@ -48,7 +48,7 @@ contract:
         sha256: "b6bcedfbb3138ed27484d341de232669b134e05a058eeb6a002c050375fb1ea4"
       agent_sdk_boundary:
         path: "agent-sdk-boundary-ledger-v3.yaml"
-        sha256: "022d980eb9f4977e31044e061b9edbd45b4b677257ed285133b6e0642a91d457"
+        sha256: "22e738bebca804514cfd8311d0ff1bf1bc9da6e6a8d21cce5fb9f6aa31f1463b"
       clawprobench_native:
         path: "parity/v3/source-packs/clawprobench-native.json"
         sha256: "4f49ffbf811a164327561f1a21415b860e53dc436cc61ac65209b4ff14250fd6"
@@ -2582,7 +2582,7 @@ capabilities:
       consecutive_passes: 1
       triggers: ["consequential"]
     execution_id: "boundary-terminal-error-warm-query-reuse"
-    sdk_ledger_status: "equivalent_host"
+    sdk_ledger_status: "covered_current"
   - capability_id: "boundary:execution-fingerprint-change-restarts-warm-query"
     source_item_id: "execution-fingerprint-change-restarts-warm-query"
     source_pack: "agent_sdk_boundary"

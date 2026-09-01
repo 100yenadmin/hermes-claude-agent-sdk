@@ -36,8 +36,8 @@ def test_source_authority_binds_all_124_rc_rows_to_one_execution_catalog(catalog
         if item.source_pack == "openclaw_active"
     }
     assert report.boundary_status_counts == {
-        "covered_current": 8,
-        "equivalent_host": 10,
+        "covered_current": 9,
+        "equivalent_host": 9,
         "not_runtime_applicable": 5,
     }
     assert len(report.authority_hash) == 64
