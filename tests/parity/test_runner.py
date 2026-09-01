@@ -203,6 +203,74 @@ def test_combined_executor_runs_once_for_positive_denial_and_recovery(
     assert manifest["executions"][0]["scope"] == "bundle"
 
 
+def test_interrupted_run_checkpoints_completed_bundle_for_resume(
+    catalog, candidate_fields, tmp_path
+) -> None:
+    first = catalog.by_id["v2:parent-01"]
+    second = catalog.by_id["v2:parent-02"]
+    first_calls = 0
+
+    def completed_bundle(_context):
+        nonlocal first_calls
+        first_calls += 1
+        outcomes = {}
+        for path in ("positive", "denial", "recovery"):
+            outcomes[path] = ExecutionOutcome(
+                classification=(
+                    ExecutionClassification.EXPECTED_NEGATIVE
+                    if path == "denial"
+                    else ExecutionClassification.COMPLETE
+                ),
+                billing_classification="subscription_included",
+                normalized_events=normalized_path_events(
+                    first.expected_trace,
+                    path=path,
+                    evidence_hash="f" * 64,
+                ),
+                primary_proof_hash="a" * 64,
+                secondary_proof_hash="b" * 64,
+            )
+        return ExecutionBundle(outcomes=outcomes, turn_count=0)
+
+    def interrupt(_context):
+        raise KeyboardInterrupt
+
+    registry = ExecutorRegistry()
+    registry.register(first.execution_id, completed_bundle)
+    registry.register(second.execution_id, interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        run_catalog(
+            catalog,
+            registry=registry,
+            resume=False,
+            capability_ids=(first.capability_id, second.capability_id),
+            **_run_fields(tmp_path, candidate_fields),
+        )
+
+    packet_paths = sorted(tmp_path.glob("*__*__trial-*.json"))
+    assert first_calls == 1
+    assert len(packet_paths) == 3
+    manifest = json.loads((tmp_path / "run-manifest.json").read_text(encoding="utf-8"))
+    assert len(manifest["packet_hashes"]) == 3
+    assert len(manifest["executions"]) == 1
+
+    def must_not_rerun(_context):
+        raise AssertionError("resume reran the completed bundle")
+
+    resumed_registry = ExecutorRegistry()
+    resumed_registry.register(first.execution_id, must_not_rerun)
+    resumed_registry.register(second.execution_id, _outcome)
+    packets, _ = run_catalog(
+        catalog,
+        registry=resumed_registry,
+        resume=True,
+        capability_ids=(first.capability_id, second.capability_id),
+        **_run_fields(tmp_path, candidate_fields),
+    )
+    assert len(packets) == 6
+    assert len(list(tmp_path.glob("*__*__trial-*.json"))) == 6
+
+
 def test_runtime_bundle_enforces_one_100_turn_campaign(
     catalog, candidate_fields, tmp_path
 ) -> None:

@@ -436,6 +436,7 @@ async def run_catalog_async(
     )
     manifest_path = output_path / "run-manifest.json"
     existing_paths = sorted(output_path.glob("*__*__trial-*.json"))
+    existing_packets: list[ResultPacket] = []
     if resume:
         if manifest_path.exists():
             execution_receipts, recorded_packet_hashes = _load_manifest(
@@ -460,8 +461,56 @@ async def run_catalog_async(
     used_turns = sum(item["turn_count"] for item in execution_receipts)
     packets: list[ResultPacket] = []
     outcome_cache: dict[tuple[str, str, int], ExecutionOutcome] = {}
-    bundle_cache: dict[tuple[str, int], ExecutionBundle] = {}
+    bundle_packet_cache: dict[tuple[str, int], dict[str, ResultPacket]] = {}
+    checkpoint_packets = {
+        path: packet for path, packet in zip(existing_paths, existing_packets, strict=True)
+    }
     scenario_repeat_targets: dict[str, int] = {}
+
+    def build_packet(
+        capability: Capability,
+        path: str,
+        trial_index: int,
+        outcome: ExecutionOutcome,
+    ) -> ResultPacket:
+        return ResultPacket.build(
+            capability_id=capability.capability_id,
+            source_pack=capability.source_pack,
+            lane=capability.lane,
+            path=path,
+            execution_id=capability.execution_id,
+            classification=outcome.classification,
+            contract_hash=catalog.contract_hash,
+            catalog_hash=catalog.catalog_hash,
+            plugin_sha=plugin_sha,
+            host_sha=host_sha,
+            sdk_version=sdk_version,
+            profile_id=profile_id,
+            profile_hash=profile_hash,
+            runner_version=runner_version,
+            inventory_hash=inventory_hash,
+            billing_classification=outcome.billing_classification,
+            turn_count=outcome.turn_count,
+            trial_index=trial_index,
+            normalized_events=outcome.normalized_events,
+            primary_proof_hash=outcome.primary_proof_hash,
+            secondary_proof_hash=outcome.secondary_proof_hash,
+            silent_fallback=outcome.silent_fallback,
+            invariant_violations=outcome.invariant_violations,
+            reason_code=outcome.reason_code,
+        )
+
+    def checkpoint_manifest() -> None:
+        manifest = _manifest_payload(
+            lane=lane,
+            catalog=catalog,
+            exact_candidate=exact_candidate,
+            executions=execution_receipts,
+            packet_hashes=[
+                packet.packet_hash for packet in checkpoint_packets.values()
+            ],
+        )
+        _write_manifest(manifest_path, manifest)
 
     for capability in capabilities:
         for path in ("positive", "denial", "recovery"):
@@ -475,7 +524,10 @@ async def run_catalog_async(
             trial_index = 1
             while trial_index <= target and trial_index <= max_trials_per_path:
                 result_path = _result_path(output_path, capability, path, trial_index)
-                if result_path.exists():
+                bundle_key = (capability.execution_id, trial_index)
+                if bundle_key in bundle_packet_cache:
+                    packet = bundle_packet_cache[bundle_key][path]
+                elif result_path.exists():
                     if not resume:
                         raise ResultViolation(f"refusing to overwrite existing result packet: {result_path}")
                     packet = read_result_packet(result_path)
@@ -483,7 +535,6 @@ async def run_catalog_async(
                         raise ResultViolation("resume packet belongs to a different exact candidate")
                 else:
                     cache_key = (capability.execution_id, path, trial_index)
-                    bundle_key = (capability.execution_id, trial_index)
                     executor = registry.get(capability.execution_id)
                     if executor is None:
                         outcome = ExecutionOutcome(
@@ -491,8 +542,6 @@ async def run_catalog_async(
                             billing_classification="none",
                             reason_code="executor_not_registered",
                         )
-                    elif bundle_key in bundle_cache:
-                        outcome = bundle_cache[bundle_key].outcomes[path]
                     elif cache_key in outcome_cache:
                         outcome = outcome_cache[cache_key]
                     else:
@@ -534,8 +583,30 @@ async def run_catalog_async(
                         )
                         used_turns += executor_result.turn_count
                         if isinstance(executor_result, ExecutionBundle):
-                            bundle_cache[bundle_key] = executor_result
-                            outcome = executor_result.outcomes[path]
+                            built_packets: dict[str, ResultPacket] = {}
+                            for bundle_path, bundle_outcome in executor_result.outcomes.items():
+                                bundle_result_path = _result_path(
+                                    output_path,
+                                    capability,
+                                    bundle_path,
+                                    trial_index,
+                                )
+                                if bundle_result_path.exists():
+                                    raise ResultViolation(
+                                        "resume found an incomplete combined execution trial"
+                                    )
+                                bundle_packet = build_packet(
+                                    capability,
+                                    bundle_path,
+                                    trial_index,
+                                    bundle_outcome,
+                                )
+                                bundle_packet.write(bundle_result_path)
+                                checkpoint_packets[bundle_result_path] = bundle_packet
+                                built_packets[bundle_path] = bundle_packet
+                            bundle_packet_cache[bundle_key] = built_packets
+                            packet = built_packets[path]
+                            checkpoint_manifest()
                             if any(
                                 item.classification is ExecutionClassification.VERIFIED_FAILURE
                                 for item in executor_result.outcomes.values()
@@ -554,33 +625,16 @@ async def run_catalog_async(
                         else:
                             outcome = executor_result
                             outcome_cache[cache_key] = outcome
-                    packet = ResultPacket.build(
-                        capability_id=capability.capability_id,
-                        source_pack=capability.source_pack,
-                        lane=capability.lane,
-                        path=path,
-                        execution_id=capability.execution_id,
-                        classification=outcome.classification,
-                        contract_hash=catalog.contract_hash,
-                        catalog_hash=catalog.catalog_hash,
-                        plugin_sha=plugin_sha,
-                        host_sha=host_sha,
-                        sdk_version=sdk_version,
-                        profile_id=profile_id,
-                        profile_hash=profile_hash,
-                        runner_version=runner_version,
-                        inventory_hash=inventory_hash,
-                        billing_classification=outcome.billing_classification,
-                        turn_count=outcome.turn_count,
-                        trial_index=trial_index,
-                        normalized_events=outcome.normalized_events,
-                        primary_proof_hash=outcome.primary_proof_hash,
-                        secondary_proof_hash=outcome.secondary_proof_hash,
-                        silent_fallback=outcome.silent_fallback,
-                        invariant_violations=outcome.invariant_violations,
-                        reason_code=outcome.reason_code,
-                    )
-                    packet.write(result_path)
+                    if bundle_key not in bundle_packet_cache:
+                        packet = build_packet(
+                            capability,
+                            path,
+                            trial_index,
+                            outcome,
+                        )
+                        packet.write(result_path)
+                        checkpoint_packets[result_path] = packet
+                        checkpoint_manifest()
                 packets.append(packet)
                 if packet.classification is ExecutionClassification.VERIFIED_FAILURE:
                     target = min(max_trials_per_path, max(target, trial_index + 3))
@@ -593,14 +647,7 @@ async def run_catalog_async(
 
     all_packet_paths = sorted(output_path.glob("*__*__trial-*.json"))
     all_packets = [read_result_packet(path) for path in all_packet_paths]
-    manifest = _manifest_payload(
-        lane=lane,
-        catalog=catalog,
-        exact_candidate=exact_candidate,
-        executions=execution_receipts,
-        packet_hashes=[packet.packet_hash for packet in all_packets],
-    )
-    _write_manifest(manifest_path, manifest)
+    checkpoint_manifest()
 
     # The report intentionally includes every lane capability. A selected thin
     # run therefore remains PENDING for the broader lane instead of overstating
