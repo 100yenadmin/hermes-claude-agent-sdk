@@ -285,6 +285,16 @@ def test_not_runtime_applicable_sdk_rows_allow_all_non_required_paths(ordinal: i
     assert load_catalog(catalog)["catalog_sha256"] == catalog["catalog_sha256"]
 
 
+def test_non_sdk_not_runtime_applicable_capability_requires_an_executable_path() -> None:
+    catalog = _catalog()
+    capability = catalog["capabilities"][0]
+    for role in ("positive", "denial", "recovery"):
+        capability[f"{role}_path"] = _path(role, False)
+    catalog["catalog_sha256"] = hash_catalog(catalog)
+    with pytest.raises(CatalogValidationError):
+        load_catalog(catalog)
+
+
 @pytest.mark.parametrize("classification, executable", [("covered_current", True), ("equivalent_host", False), ("requires_0_3_239", True)])
 def test_non_na_sdk_classifications_require_an_executable_path(classification: str, executable: bool) -> None:
     catalog = _catalog()
