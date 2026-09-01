@@ -485,6 +485,60 @@ def _source_docs_contract(
     return ok, failure_reason, extra
 
 
+def _subagent_contract(
+    turns: Sequence[LiveTurn],
+    host: NativeSandboxHost,
+    *,
+    count: int,
+    final_marker: str,
+) -> tuple[bool, str, dict[str, Any]]:
+    """Grade native-Agent orchestration without retaining response content."""
+
+    final_turn = turns[-1]
+    agent_calls = sum(
+        name == "Agent" for turn in turns for name in turn.tool_names
+    )
+    upper = final_turn.final_text.upper()
+    has_context_marker = "HANDOFF_CONTEXT" in upper
+    has_final_marker = final_marker.upper() in upper
+    ok = (
+        all(turn.terminal == "completed" for turn in turns)
+        and all(turn.billing == "subscription_included" for turn in turns)
+        and not any(turn.silent_fallback for turn in turns)
+        and agent_calls == count
+        and host.denial_observed
+        and host.recovery_observed
+        and has_context_marker
+        and has_final_marker
+    )
+    if not all(turn.terminal == "completed" for turn in turns):
+        reason = "active_subagent_terminal_incomplete"
+    elif not all(turn.billing == "subscription_included" for turn in turns):
+        reason = "active_subagent_billing_unverified"
+    elif any(turn.silent_fallback for turn in turns):
+        reason = "active_subagent_silent_fallback"
+    elif agent_calls != count:
+        reason = "active_subagent_call_count_mismatch"
+    elif not host.denial_observed:
+        reason = "active_subagent_denial_missing"
+    elif not host.recovery_observed:
+        reason = "active_subagent_recovery_missing"
+    elif not has_context_marker:
+        reason = "active_subagent_context_marker_missing"
+    elif not has_final_marker:
+        reason = "active_subagent_final_marker_missing"
+    else:
+        reason = "active_behavior_or_trace_failed"
+    return ok, reason, {
+        "agent_calls": agent_calls,
+        "denial": host.denial_observed,
+        "recovery": host.recovery_observed,
+        "context_marker": has_context_marker,
+        "final_marker": has_final_marker,
+        "provider_turns": len(turns),
+    }
+
+
 def _case_receipt(source_id: str, turns: Sequence[LiveTurn], extra: Mapping[str, Any]) -> str:
     return sha256_value(
         {
@@ -630,14 +684,24 @@ async def _run_live_case(
             runtime = ClaudeAgentSDKRuntime(cwd=str(workspace), parent_env=os.environ)
             count = 1 if source_id == "subagent-handoff" else 2
             final_marker = "HANDOFF_PASS" if count == 1 else "FANOUT_PASS"
-            prompt = (
-                "Read handoff.txt, retrying the first denied read once. Then use the native "
-                f"Agent tool exactly {count} time{'s' if count != 1 else ''} with synthetic "
-                "research prompts. Synthesize the result, include HANDOFF_CONTEXT, and end "
-                f"{final_marker}."
-            )
+            if count == 1:
+                prompt = (
+                    "Read handoff.txt, retrying the first denied read once. Then use the native "
+                    "Agent tool exactly once with a synthetic research prompt. Wait for its "
+                    "result, then write one parent synthesis. The last two non-empty lines of "
+                    f"the parent response must be exactly HANDOFF_CONTEXT and {final_marker}, "
+                    "in that order."
+                )
+            else:
+                prompt = (
+                    "Read handoff.txt, retrying the first denied read once. Then use the native "
+                    "Agent tool exactly two times with independent synthetic research prompts. "
+                    "Wait for both Agent results. Do not synthesize them yet; end this delegation "
+                    "turn with FANOUT_READY."
+                )
+            case_turns: list[LiveTurn] = []
             try:
-                turn = await _run_turn(
+                delegation_turn = await _run_turn(
                     runtime,
                     host,
                     model=model,
@@ -645,21 +709,32 @@ async def _run_live_case(
                     schemas=schemas,
                     correlation_id=f"active-{source_id}",
                 )
+                case_turns.append(delegation_turn)
+                if count == 2:
+                    synthesis_turn = await _run_turn(
+                        runtime,
+                        host,
+                        model=model,
+                        content=(
+                            "Do not call any tool or Agent. Synthesize the two completed native "
+                            "Agent results from the prior turn. The last two non-empty lines of "
+                            f"your parent response must be exactly HANDOFF_CONTEXT and {final_marker}, "
+                            "in that order."
+                        ),
+                        schemas=schemas,
+                        correlation_id=f"active-{source_id}-synthesis",
+                        session_state=delegation_turn.state,
+                    )
+                    case_turns.append(synthesis_turn)
             finally:
                 await runtime.close()
-            turns.append(turn)
-            agent_calls = sum(name == "Agent" for name in turn.tool_names)
-            ok = (
-                _live_ok(turn, markers=("HANDOFF_CONTEXT", final_marker))
-                and agent_calls == count
-                and host.denial_observed
-                and host.recovery_observed
+            turns.extend(case_turns)
+            ok, failure_reason, extra = _subagent_contract(
+                case_turns,
+                host,
+                count=count,
+                final_marker=final_marker,
             )
-            extra = {
-                "agent_calls": agent_calls,
-                "denial": host.denial_observed,
-                "recovery": host.recovery_observed,
-            }
 
         elif source_id == "memory-recall":
             schemas = ()
@@ -967,7 +1042,7 @@ async def active_agentic_suite(context: ExecutionContext) -> ExecutionBundle:
             "source-docs-discovery-report": 2,
             "image-understanding-attachment": 1,
             "subagent-handoff": 1,
-            "subagent-fanout-synthesis": 1,
+            "subagent-fanout-synthesis": 2,
             "memory-recall": 2,
             "thread-memory-isolation": 4,
             "config-restart-capability-flip": 2,
