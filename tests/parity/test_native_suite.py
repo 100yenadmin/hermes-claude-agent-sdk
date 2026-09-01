@@ -86,6 +86,16 @@ def test_ambiguous_native_sources_have_bounded_output_guidance() -> None:
         "schedule duplicate follow-up cron",
     ):
         assert disclosed_answer not in incident_guidance
+    delegation_guidance = NATIVE_OUTPUT_GUIDANCE[
+        "planning_19_agent_delegation_boundary_live"
+    ]
+    for disclosed_rule in (
+        "must_preserve_local_context",
+        "must_not_delegate",
+        "copy",
+        "by omission",
+    ):
+        assert disclosed_rule not in delegation_guidance
 
 
 def test_live_pregrade_gate_accepts_only_complete_subscription_execution(

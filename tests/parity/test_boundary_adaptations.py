@@ -134,7 +134,8 @@ def test_unavailable_structured_question_surface_fails_before_host_and_recovers(
                 "AskUserQuestion",
                 {"question": "unavailable"},
             )
-        assert unknown.value.code == "unknown"
+        assert unknown.value.code == "structured_input_unavailable"
+        assert "assistant response" in str(unknown.value)
         with pytest.raises(ToolBridgeRequestError) as malformed:
             await bridge.handle_tool_call(
                 "question-2",
@@ -171,7 +172,8 @@ def test_unavailable_structured_question_mapping_rejects_duplicate_callbacks_bef
                         "questions": [{"question": "synthetic", "answer": "safe"}],
                     },
                 )
-            assert rejected.value.code == "unknown"
+            assert rejected.value.code == "structured_input_unavailable"
+            assert "assistant response" in str(rejected.value)
         assert host.calls == []
 
         recovered = await bridge.handle_tool_call(
@@ -181,6 +183,59 @@ def test_unavailable_structured_question_mapping_rejects_duplicate_callbacks_bef
         )
         assert recovered.is_error is False
         assert recovered.correlation_id == "question-dedup"
+        assert host.calls == [("parity_read_only", {"marker": "safe"})]
+
+    asyncio.run(scenario())
+
+
+def test_unavailable_structured_question_skip_has_actionable_guidance_and_recovers() -> None:
+    async def scenario() -> None:
+        host = _Host()
+        bridge = HostToolBridge(host, [_SAFE_TOOL], correlation_id="question-skip")
+
+        with pytest.raises(ToolBridgeRequestError) as skipped:
+            await bridge.handle_tool_call(
+                "question-skip-1",
+                "AskUserQuestion",
+                {"questions": [{"question": "synthetic", "answer": None}]},
+            )
+        assert skipped.value.code == "structured_input_unavailable"
+        assert "assistant response" in str(skipped.value)
+        assert host.calls == []
+
+        recovered = await bridge.handle_tool_call(
+            "question-skip-recovery",
+            "parity_read_only",
+            {"marker": "safe"},
+        )
+        assert recovered.is_error is False
+        assert recovered.correlation_id == "question-skip"
+        assert host.calls == [("parity_read_only", {"marker": "safe"})]
+
+    asyncio.run(scenario())
+
+
+def test_unavailable_malformed_structured_question_fails_before_host_and_recovers() -> None:
+    async def scenario() -> None:
+        host = _Host()
+        bridge = HostToolBridge(host, [_SAFE_TOOL], correlation_id="question-malformed")
+
+        with pytest.raises(ToolBridgeRequestError) as malformed:
+            await bridge.handle_tool_call(
+                "question-malformed-1",
+                "AskUserQuestion",
+                {"questions": "not-a-question-list"},
+            )
+        assert malformed.value.code == "structured_input_unavailable"
+        assert host.calls == []
+
+        recovered = await bridge.handle_tool_call(
+            "question-malformed-recovery",
+            "parity_read_only",
+            {"marker": "safe"},
+        )
+        assert recovered.is_error is False
+        assert recovered.correlation_id == "question-malformed"
         assert host.calls == [("parity_read_only", {"marker": "safe"})]
 
     asyncio.run(scenario())

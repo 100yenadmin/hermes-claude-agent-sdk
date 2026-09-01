@@ -16,6 +16,11 @@ does not edit or reinterpret the v2 evidence packet.
 
 The source row remains visible even when several rows share an `execution_id`.
 Sharing execution is deduplication; it never turns an exclusion into a pass.
+For the five boundary-ledger rows classified `not_runtime_applicable`, the
+upstream positive path is explicitly non-required and emits no pass packet.
+Their fail-closed denial and supported-path recovery adaptations remain
+mandatory, so source accounting stays complete without claiming an absent SDK
+surface.
 
 `contract.source_authority` binds the executable catalog to four immutable
 repo inputs. The boundary authority is `agent-sdk-boundary-ledger-v3.yaml`,

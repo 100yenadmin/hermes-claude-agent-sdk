@@ -68,7 +68,7 @@ _BOUNDARY_NODES: dict[str, tuple[str, ...]] = {
         "tests/parity/test_boundary_adaptations.py::test_variadic_sdk_surfaces_are_denied_without_weakening_tool_or_mcp_isolation",
     ),
     "boundary:wildcard-mcp-grants-expand-to-admitted-tools": (
-        "tests/test_tool_bridge.py::test_unknown_duplicate_and_excluded_names_fail_before_host_call",
+        "tests/test_runtime_sdk_integration.py::test_runtime_materializes_implicit_wildcard_grant_as_exact_admitted_tools",
     ),
     "boundary:missing-terminal-result-fails-closed": (
         "tests/test_sdk_session.py::test_sdk_stream_without_a_terminal_result_fails_closed",
@@ -164,7 +164,7 @@ _BOUNDARY_PATH_CONTROLS: dict[str, dict[str, tuple[str, ...]]] = {
             "tests/test_runtime_sdk_integration.py::test_runtime_rejects_a_replacement_host_binding_without_query_or_reroute",
         ),
         "recovery": (
-            "tests/test_runtime_sdk_integration.py::test_host_tool_bridge_and_resume_use_only_public_fields",
+            "tests/test_runtime_sdk_integration.py::test_runtime_rejects_replacement_host_then_original_owner_recovers",
         ),
     },
     "boundary:abort-closes-process-and-fences-permissions": {
@@ -220,7 +220,7 @@ _BOUNDARY_PATH_CONTROLS: dict[str, dict[str, tuple[str, ...]]] = {
             "tests/test_tool_bridge.py::test_unknown_duplicate_and_excluded_names_fail_before_host_call",
         ),
         "recovery": (
-            "tests/test_tool_bridge.py::test_anthropic_schema_maps_without_stripping_canonical_mcp_prefix",
+            "tests/test_runtime_sdk_integration.py::test_runtime_materializes_implicit_wildcard_grant_as_exact_admitted_tools",
         ),
     },
     "boundary:missing-terminal-result-fails-closed": {
@@ -265,18 +265,18 @@ _BOUNDARY_PATH_CONTROLS: dict[str, dict[str, tuple[str, ...]]] = {
     },
     "boundary:structured-question-skip-denial-guidance": {
         "denial": (
-            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers",
+            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_skip_has_actionable_guidance_and_recovers",
         ),
         "recovery": (
-            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers",
+            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_skip_has_actionable_guidance_and_recovers",
         ),
     },
     "boundary:malformed-question-rejected-before-host": {
         "denial": (
-            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers",
+            "tests/parity/test_boundary_adaptations.py::test_unavailable_malformed_structured_question_fails_before_host_and_recovers",
         ),
         "recovery": (
-            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers",
+            "tests/parity/test_boundary_adaptations.py::test_unavailable_malformed_structured_question_fails_before_host_and_recovers",
         ),
     },
 }
@@ -344,14 +344,18 @@ def _run(
     )
 
 
+def _blocked_outcome(reason: str) -> ExecutionOutcome:
+    return ExecutionOutcome(
+        classification=ExecutionClassification.ENVIRONMENT_BLOCKED,
+        billing_classification="none",
+        reason_code=reason,
+    )
+
+
 def _blocked(reason: str) -> ExecutionBundle:
     return ExecutionBundle(
         outcomes={
-            path: ExecutionOutcome(
-                classification=ExecutionClassification.ENVIRONMENT_BLOCKED,
-                billing_classification="none",
-                reason_code=reason,
-            )
+            path: _blocked_outcome(reason)
             for path in ("positive", "denial", "recovery")
         },
         turn_count=0,
@@ -405,11 +409,22 @@ def _exact_source_preflight(
     return None
 
 
-async def boundary_focused_suite(context: ExecutionContext) -> ExecutionBundle:
+async def boundary_focused_suite(
+    context: ExecutionContext,
+) -> ExecutionBundle | ExecutionOutcome:
     """Run the exact focused tests mapped to one boundary source row."""
 
     if context.capability.capability_id not in _BOUNDARY_NODES:
         return _blocked("boundary_evidence_mapping_missing")
+    adapted_unavailable = (
+        context.capability.sdk_ledger_status == "not_runtime_applicable"
+    )
+    if adapted_unavailable and context.path == "positive":
+        return ExecutionOutcome(
+            classification=ExecutionClassification.PENDING,
+            billing_classification="none",
+            reason_code="source_capability_not_runtime_applicable",
+        )
     root = Path(context.repo_root).expanduser().resolve()
     outcomes: dict[str, ExecutionOutcome] = {}
     try:
@@ -420,8 +435,17 @@ async def boundary_focused_suite(context: ExecutionContext) -> ExecutionBundle:
             environment = _safe_environment(home=home, source_root=root)
             blocked = _exact_source_preflight(context, root, environment)
             if blocked is not None:
-                return _blocked(blocked)
-            for path in ("positive", "denial", "recovery"):
+                return (
+                    _blocked_outcome(blocked)
+                    if adapted_unavailable
+                    else _blocked(blocked)
+                )
+            paths = (
+                (context.path,)
+                if adapted_unavailable
+                else ("positive", "denial", "recovery")
+            )
+            for path in paths:
                 path_nodes = _nodes_for_path(context.capability.capability_id, path)
                 node_manifest_hash = sha256_value(path_nodes)
                 completed = _run(
@@ -507,7 +531,13 @@ async def boundary_focused_suite(context: ExecutionContext) -> ExecutionBundle:
                         turn_count=0,
                     )
     except (OSError, subprocess.TimeoutExpired):
-        return _blocked("focused_suite_runner_unavailable")
+        return (
+            _blocked_outcome("focused_suite_runner_unavailable")
+            if adapted_unavailable
+            else _blocked("focused_suite_runner_unavailable")
+        )
+    if adapted_unavailable:
+        return outcomes[context.path]
     return ExecutionBundle(outcomes=outcomes, turn_count=0)
 
 

@@ -40,7 +40,13 @@ def test_full_exact_candidate_can_reach_complete_without_partial_paths(
     report = grade_packets(catalog, packets, lane="rc")
     assert report.status == "COMPLETE"
     assert report.exit_code == 0
-    assert report.required_paths == 124 * 3
+    expected_required_paths = sum(
+        path["required"]
+        for capability in catalog.for_lane("rc")
+        for path in capability.paths.values()
+    )
+    assert expected_required_paths == 367
+    assert report.required_paths == expected_required_paths
     assert report.passed_paths == report.required_paths
     assert report.pending_paths == 0
     assert report.failed_paths == 0

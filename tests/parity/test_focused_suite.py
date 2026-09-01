@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 
 from hermes_claude_agent_sdk.parity import focused_suite
@@ -70,6 +71,71 @@ def test_structured_question_dedup_uses_its_explicit_fail_closed_adaptation() ->
     )
 
     assert controls == {"denial": expected, "recovery": expected}
+
+
+def test_not_runtime_applicable_rows_do_not_emit_a_positive_pass(catalog) -> None:
+    for capability in catalog.capabilities:
+        if capability.sdk_ledger_status == "not_runtime_applicable":
+            assert capability.paths["positive"]["required"] is False
+
+
+def test_not_runtime_applicable_executor_runs_only_the_requested_adaptation_path(
+    catalog,
+    monkeypatch,
+) -> None:
+    calls = []
+    monkeypatch.setattr(focused_suite, "_exact_source_preflight", lambda *_: None)
+
+    def successful_run(*args, **kwargs):
+        calls.append((args, kwargs))
+        return subprocess.CompletedProcess(
+            args=("pytest",),
+            returncode=0,
+            stdout=b"1 passed",
+            stderr=b"",
+        )
+
+    monkeypatch.setattr(focused_suite, "_run", successful_run)
+    base = _context(catalog, "boundary:structured-question-answer-mapping-dedup")
+
+    denial = asyncio.run(boundary_focused_suite(replace(base, path="denial")))
+    excluded_positive = asyncio.run(
+        boundary_focused_suite(replace(base, path="positive"))
+    )
+
+    assert denial.classification is ExecutionClassification.EXPECTED_NEGATIVE
+    assert excluded_positive.classification is ExecutionClassification.PENDING
+    assert (
+        excluded_positive.reason_code
+        == "source_capability_not_runtime_applicable"
+    )
+    assert len(calls) == 1
+
+
+def test_structured_question_skip_and_malformed_rows_use_dedicated_adaptations() -> None:
+    skip = focused_suite._BOUNDARY_PATH_CONTROLS[
+        "boundary:structured-question-skip-denial-guidance"
+    ]
+    malformed = focused_suite._BOUNDARY_PATH_CONTROLS[
+        "boundary:malformed-question-rejected-before-host"
+    ]
+
+    assert skip == {
+        "denial": (
+            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_skip_has_actionable_guidance_and_recovers",
+        ),
+        "recovery": (
+            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_skip_has_actionable_guidance_and_recovers",
+        ),
+    }
+    assert malformed == {
+        "denial": (
+            "tests/parity/test_boundary_adaptations.py::test_unavailable_malformed_structured_question_fails_before_host_and_recovers",
+        ),
+        "recovery": (
+            "tests/parity/test_boundary_adaptations.py::test_unavailable_malformed_structured_question_fails_before_host_and_recovers",
+        ),
+    }
 
 
 def test_focused_suite_executes_and_proves_each_path_independently(

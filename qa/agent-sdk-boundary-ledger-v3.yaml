@@ -92,7 +92,7 @@ rows:
     status: "equivalent_host"
     evidence_state: "existing_candidate"
     evidence_refs:
-      - "tests/test_runtime_sdk_integration.py::test_runtime_rejects_a_replacement_host_binding_without_query_or_reroute"
+      - "tests/test_runtime_sdk_integration.py::test_runtime_rejects_replacement_host_then_original_owner_recovers"
     release_blocking: true
     mapping_note: "The provider-neutral host owns this invariant; v3 must bind the matching host receipt instead of adding a Claude-specific host type."
   - id: "abort-closes-process-and-fences-permissions"
@@ -158,6 +158,7 @@ rows:
     status: "equivalent_host"
     evidence_state: "existing_candidate"
     evidence_refs:
+      - "tests/test_runtime_sdk_integration.py::test_runtime_materializes_implicit_wildcard_grant_as_exact_admitted_tools"
       - "tests/test_tool_bridge.py::test_unknown_duplicate_and_excluded_names_fail_before_host_call"
     release_blocking: true
     mapping_note: "The provider-neutral host owns this invariant; v3 must bind the matching host receipt instead of adding a Claude-specific host type."
@@ -203,7 +204,7 @@ rows:
     status: "not_runtime_applicable"
     evidence_state: "existing_candidate"
     evidence_refs:
-      - "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers"
+      - "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_mapping_rejects_duplicate_callbacks_before_host_and_recovers"
     release_blocking: true
     mapping_note: "The current runtime surface does not expose this upstream mechanism; v3 must prove the adapted fail-closed or host-equivalent behavior, not count the classification as a pass."
   - id: "structured-question-skip-denial-guidance"
@@ -212,7 +213,7 @@ rows:
     status: "not_runtime_applicable"
     evidence_state: "existing_candidate"
     evidence_refs:
-      - "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers"
+      - "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_skip_has_actionable_guidance_and_recovers"
     release_blocking: true
     mapping_note: "The current runtime surface does not expose this upstream mechanism; v3 must prove the adapted fail-closed or host-equivalent behavior, not count the classification as a pass."
   - id: "malformed-question-rejected-before-host"
@@ -221,7 +222,7 @@ rows:
     status: "not_runtime_applicable"
     evidence_state: "existing_candidate"
     evidence_refs:
-      - "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers"
+      - "tests/parity/test_boundary_adaptations.py::test_unavailable_malformed_structured_question_fails_before_host_and_recovers"
     release_blocking: true
     mapping_note: "The current runtime surface does not expose this upstream mechanism; v3 must prove the adapted fail-closed or host-equivalent behavior, not count the classification as a pass."
 proof_boundary: "This ledger classifies adaptation ownership and evidence targets. Existing-candidate references are not v3 result packets, and no row passes until its catalog paths grade on the exact candidate."

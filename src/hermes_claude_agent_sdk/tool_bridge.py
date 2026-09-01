@@ -54,6 +54,10 @@ _REQUEST_MESSAGES = {
     "request_id": "Tool request correlation is malformed",
     "name": "Tool name is malformed",
     "unknown": "Tool is not available",
+    "structured_input_unavailable": (
+        "Structured question input is unavailable in this runtime; ask the "
+        "operator in the assistant response"
+    ),
     "arguments": "Tool arguments are malformed",
     "cancelled": "Tool call cancelled",
     "cancellation_unavailable": "Tool cancellation state unavailable",
@@ -653,6 +657,8 @@ class HostToolBridge:
             raise ToolBridgeRequestError("name")
         definition = self._definitions_by_name.get(name)
         if definition is None:
+            if name == "AskUserQuestion":
+                raise ToolBridgeRequestError("structured_input_unavailable")
             raise ToolBridgeRequestError("unknown")
 
         copied_arguments = _copy_plain_json(arguments)

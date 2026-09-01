@@ -99,7 +99,12 @@ def test_every_catalog_entry_resolves_all_required_behavior_fields(catalog) -> N
         assert capability.secondary_proof
         assert capability.execution_id
         assert set(capability.paths) == {"positive", "denial", "recovery"}
-        assert all(path["required"] is True for path in capability.paths.values())
+        if capability.sdk_ledger_status == "not_runtime_applicable":
+            assert capability.paths["positive"]["required"] is False
+            assert capability.paths["denial"]["required"] is True
+            assert capability.paths["recovery"]["required"] is True
+        else:
+            assert all(path["required"] is True for path in capability.paths.values())
 
 
 def test_catalog_rejects_source_substitution_even_when_count_is_unchanged(tmp_path) -> None:

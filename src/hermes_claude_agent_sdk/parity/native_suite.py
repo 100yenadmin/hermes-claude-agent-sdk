@@ -116,10 +116,9 @@ NATIVE_OUTPUT_GUIDANCE = {
     ),
     "planning_19_agent_delegation_boundary_live": (
         "Write only should_delegate, selected_agent, required_local_context, and "
-        "rationale. Use the exact selected agent id from candidate_agents and copy "
-        "must_preserve_local_context verbatim into required_local_context. Enforce "
-        "must_not_delegate by omission: do not copy its values, labels, or an extra "
-        "must_not_delegate field into the result."
+        "rationale. Use only identifiers and facts present in the fixture, derive "
+        "the delegation boundary from that fixture, and do not add keys, quote this "
+        "guidance, or invent context."
     ),
 }
 

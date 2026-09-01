@@ -1204,6 +1204,65 @@ def test_runtime_rejects_a_replacement_host_binding_without_query_or_reroute() -
     asyncio.run(scenario())
 
 
+def test_runtime_rejects_replacement_host_then_original_owner_recovers() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("success", clients)
+        original_host = _Host()
+
+        first = await _collect(runtime, _request(), original_host)
+        denied = await _collect(runtime, _request(), _Host())
+        recovered = await _collect(runtime, _request(), original_host)
+        await runtime.close()
+
+        assert first[-1].kind.value == "completed"
+        assert [event.kind.value for event in denied] == ["failed"]
+        assert denied[0].failure.code == "claude_runtime_host_binding_changed"
+        assert recovered[-1].kind.value == "completed"
+        assert clients[0].queries == ["hello runtime", "hello runtime"]
+
+    asyncio.run(scenario())
+
+
+def test_runtime_materializes_implicit_wildcard_grant_as_exact_admitted_tools() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("success", clients)
+        alternate = {
+            "type": "function",
+            "function": {
+                "name": "read",
+                "description": "Read an admitted synthetic path",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}},
+                    "required": ["path"],
+                    "additionalProperties": False,
+                },
+            },
+        }
+
+        events = await _collect(
+            runtime,
+            _request(tools=(_tool_schema(), alternate)),
+            _Host(),
+        )
+        await runtime.close()
+
+        assert events[-1].kind.value == "completed"
+        fields = clients[0].options.fields
+        assert fields["allowed_tools"] == [
+            "mcp__hermes-tools__pwd",
+            "mcp__hermes-tools__read",
+        ]
+        assert "*" not in fields["allowed_tools"]
+        assert [
+            tool["name"] for tool in fields["mcp_servers"]["hermes-tools"]["tools"]
+        ] == ["pwd", "read"]
+
+    asyncio.run(scenario())
+
+
 def test_queued_idle_burst_is_released_only_after_parent_terminal_is_observed() -> None:
     async def scenario():
         clients: list[_Client] = []
