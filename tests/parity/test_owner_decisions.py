@@ -68,7 +68,7 @@ def test_owner_decisions_are_strict_duplicate_free_and_hash_bound() -> None:
     assert owner["decisions_sha256"] == canonical_sha256(
         {key: value for key, value in owner.items() if key != "decisions_sha256"}
     )
-    assert b"ea806575e6450e4d1efdfc72c19f04be982a1b9b9" not in raw
+    assert b"ea806575e6450e4d1efdfc72c19f04be982a1b9b" not in raw
     with pytest.raises(CanonicalizationError):
         load_json(b'{"duplicate": 1, "duplicate": 2}', source="duplicate-test")
 

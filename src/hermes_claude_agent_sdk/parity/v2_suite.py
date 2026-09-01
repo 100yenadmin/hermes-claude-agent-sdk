@@ -138,6 +138,16 @@ def _blocked(reason: str) -> ExecutionBundle:
     )
 
 
+def _pending_path(reason: str) -> ExecutionOutcome:
+    """Leave a path unqualified until it has its own executable evidence."""
+
+    return ExecutionOutcome(
+        classification=ExecutionClassification.PENDING,
+        billing_classification="none",
+        reason_code=reason,
+    )
+
+
 def _safe_environment(*, home: Path, python_path: str, host_root: Path) -> dict[str, str]:
     environment = {
         "HOME": str(home),
@@ -279,51 +289,48 @@ async def v2_mapped_suite(context: ExecutionContext) -> ExecutionBundle:
             "receipts": receipts,
         }
     )
-    outcomes: dict[str, ExecutionOutcome] = {}
-    for path in ("positive", "denial", "recovery"):
-        if not passed:
-            classification = ExecutionClassification.VERIFIED_FAILURE
-        elif path == "denial":
-            classification = ExecutionClassification.EXPECTED_NEGATIVE
-        else:
-            classification = ExecutionClassification.COMPLETE
-        outcomes[path] = ExecutionOutcome(
-            classification=classification,
+    if passed:
+        positive = ExecutionOutcome(
+            classification=ExecutionClassification.COMPLETE,
             billing_classification="none",
-            normalized_events=(
-                normalized_path_events(
-                    context.capability.expected_trace,
-                    path=path,
-                    evidence_hash=evidence_hash,
-                )
-                if passed
-                else (
-                    {
-                        "sequence": 1,
-                        "kind": "terminal",
-                        "status": "failed",
-                        "terminal_outcome": "failed",
-                    },
-                )
+            normalized_events=normalized_path_events(
+                context.capability.expected_trace,
+                path="positive",
+                evidence_hash=evidence_hash,
             ),
-            primary_proof_hash=(
-                sha256_value({"evidence": evidence_hash, "path": path}) if passed else None
+            primary_proof_hash=sha256_value(
+                {"evidence": evidence_hash, "path": "positive"}
             ),
-            secondary_proof_hash=(
-                sha256_value(
-                    {
-                        "catalog_hash": context.catalog_hash,
-                        "profile_hash": context.profile_hash,
-                        "inventory_hash": context.inventory_hash,
-                        "path": path,
-                    }
-                )
-                if passed
-                else None
+            secondary_proof_hash=sha256_value(
+                {
+                    "catalog_hash": context.catalog_hash,
+                    "profile_hash": context.profile_hash,
+                    "inventory_hash": context.inventory_hash,
+                    "path": "positive",
+                }
             ),
-            reason_code=None if passed else "v2_mapped_focused_suite_failed",
             turn_count=0,
         )
+    else:
+        positive = ExecutionOutcome(
+            classification=ExecutionClassification.VERIFIED_FAILURE,
+            billing_classification="none",
+            normalized_events=(
+                {
+                    "sequence": 1,
+                    "kind": "terminal",
+                    "status": "failed",
+                    "terminal_outcome": "failed",
+                },
+            ),
+            reason_code="v2_mapped_focused_suite_failed",
+            turn_count=0,
+        )
+    outcomes = {
+        "positive": positive,
+        "denial": _pending_path("v2_denial_path_not_executed"),
+        "recovery": _pending_path("v2_recovery_path_not_executed"),
+    }
     return ExecutionBundle(outcomes=outcomes, turn_count=0)
 
 

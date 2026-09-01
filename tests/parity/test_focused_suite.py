@@ -41,7 +41,7 @@ def test_every_boundary_catalog_row_has_an_exact_executor_mapping(catalog) -> No
     assert len(expected) == 23
 
 
-def test_focused_suite_builds_three_sanitized_path_outcomes(
+def test_focused_suite_does_not_fabricate_unexecuted_path_outcomes(
     catalog,
     monkeypatch,
 ) -> None:
@@ -70,22 +70,22 @@ def test_focused_suite_builds_three_sanitized_path_outcomes(
     assert result.outcomes["positive"].classification is ExecutionClassification.COMPLETE
     assert (
         result.outcomes["denial"].classification
-        is ExecutionClassification.EXPECTED_NEGATIVE
+        is ExecutionClassification.PENDING
     )
-    assert result.outcomes["recovery"].classification is ExecutionClassification.COMPLETE
-    assert all(
-        outcome.primary_proof_hash and outcome.secondary_proof_hash
-        for outcome in result.outcomes.values()
+    assert result.outcomes["recovery"].classification is ExecutionClassification.PENDING
+    assert result.outcomes["positive"].primary_proof_hash
+    assert result.outcomes["positive"].secondary_proof_hash
+    assert result.outcomes["denial"].primary_proof_hash is None
+    assert result.outcomes["denial"].secondary_proof_hash is None
+    assert result.outcomes["recovery"].primary_proof_hash is None
+    assert result.outcomes["recovery"].secondary_proof_hash is None
+    assert [event["kind"] for event in result.outcomes["positive"].normalized_events] == list(
+        catalog.by_id[
+            "boundary:terminal-error-warm-query-reuse"
+        ].expected_trace
     )
-    assert all(
-        [event["kind"] for event in outcome.normalized_events]
-        == list(
-            catalog.by_id[
-                "boundary:terminal-error-warm-query-reuse"
-            ].expected_trace
-        )
-        for outcome in result.outcomes.values()
-    )
+    assert not result.outcomes["denial"].normalized_events
+    assert not result.outcomes["recovery"].normalized_events
 
 
 def test_focused_suite_test_failure_is_a_verified_failure(catalog, monkeypatch) -> None:
@@ -110,11 +110,12 @@ def test_focused_suite_test_failure_is_a_verified_failure(catalog, monkeypatch) 
         )
     )
 
-    assert all(
-        outcome.classification is ExecutionClassification.VERIFIED_FAILURE
-        for outcome in result.outcomes.values()
-    )
-    assert all(outcome.reason_code == "focused_suite_failed" for outcome in result.outcomes.values())
+    assert result.outcomes["positive"].classification is ExecutionClassification.VERIFIED_FAILURE
+    assert result.outcomes["positive"].reason_code == "focused_suite_failed"
+    assert result.outcomes["denial"].classification is ExecutionClassification.PENDING
+    assert result.outcomes["denial"].reason_code == "focused_denial_path_not_executed"
+    assert result.outcomes["recovery"].classification is ExecutionClassification.PENDING
+    assert result.outcomes["recovery"].reason_code == "focused_recovery_path_not_executed"
     assert all(outcome.primary_proof_hash is None for outcome in result.outcomes.values())
 
 

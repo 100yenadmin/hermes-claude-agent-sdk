@@ -45,7 +45,7 @@ contract:
         sha256: "9e156d8b47c1c43784b2d7be2f5fd7ec8e1988cfd506dbafd576c50b03066344"
       openclaw_active:
         path: "parity/v3/source-packs/openclaw-active.json"
-        sha256: "201c875a1b559463995c1743e3a4fe62dbd188226f11e6e348b78508a5f4cac6"
+        sha256: "b6bcedfbb3138ed27484d341de232669b134e05a058eeb6a002c050375fb1ea4"
       agent_sdk_boundary:
         path: "agent-sdk-boundary-ledger-v3.yaml"
         sha256: "022d980eb9f4977e31044e061b9edbd45b4b677257ed285133b6e0642a91d457"

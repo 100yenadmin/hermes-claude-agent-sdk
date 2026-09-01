@@ -218,8 +218,9 @@ def test_repository_relative_source_and_proof_refs_allow_single_slashes() -> Non
 ])
 def test_repository_relative_refs_reject_unsafe_paths(source_ref: str) -> None:
     catalog = _catalog()
-    catalog["catalog_sha256"] = hash_catalog(catalog)
     catalog["source_packs"][1]["source"]["source_ref"] = source_ref
+    catalog["source_map_sha256"] = hash_source_map(catalog["source_packs"])
+    catalog["catalog_sha256"] = hash_catalog(catalog)
     with pytest.raises(CatalogValidationError):
         load_catalog(catalog)
 
@@ -235,16 +236,17 @@ def test_repository_relative_refs_reject_unsafe_paths(source_ref: str) -> None:
 ])
 def test_catalog_rejects_malformed_or_forbidden_shapes(mutation: Any) -> None:
     catalog = _catalog()
-    catalog["catalog_sha256"] = hash_catalog(catalog)
     mutation(catalog)
+    catalog["source_map_sha256"] = hash_source_map(catalog["source_packs"])
+    catalog["catalog_sha256"] = hash_catalog(catalog)
     with pytest.raises(CatalogValidationError):
         load_catalog(catalog)
 
 
 def test_catalog_rejects_source_mapping_duplicates_and_hash_tamper() -> None:
     catalog = _catalog()
-    catalog["catalog_sha256"] = hash_catalog(catalog)
     catalog["capabilities"][1]["source_rows"] = copy.deepcopy(catalog["capabilities"][0]["source_rows"])
+    catalog["catalog_sha256"] = hash_catalog(catalog)
     with pytest.raises(CatalogValidationError):
         load_catalog(catalog)
     catalog = _catalog()
@@ -324,8 +326,9 @@ def test_duplicate_scenario_ids_fail_closed() -> None:
 
 def test_sdk_ledger_requires_exact_set_and_catalog_classification_match() -> None:
     catalog = _catalog()
-    catalog["catalog_sha256"] = hash_catalog(catalog)
     del catalog["sdk_ledger"]["rows"][1]
+    catalog["sdk_ledger"]["rows_sha256"], catalog["sdk_ledger"]["ledger_sha256"] = hash_sdk_ledger(catalog["sdk_ledger"])
+    catalog["catalog_sha256"] = hash_catalog(catalog)
     with pytest.raises(CatalogValidationError):
         load_catalog(catalog)
     catalog = _catalog()

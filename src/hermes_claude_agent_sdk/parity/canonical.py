@@ -109,7 +109,7 @@ def _is_control_bearing(value: str) -> bool:
     return _CONTROL_RE.search(value) is not None
 
 
-def validate_identifier(value: Any, *, field: str = "identifier", max_length: int = 256) -> str:
+def validate_identifier(value: Any, *, field: str = "identifier", max_length: int = 128) -> str:
     """Validate a catalog-owned identifier and return it unchanged.
 
     Identifiers are intentionally not normalised: case and punctuation are

@@ -1309,7 +1309,7 @@
           "lifecycle": "completed",
           "approval": "not_required",
           "tool": "recovered",
-          "resume": "absent",
+          "resume": "accepted",
           "billing": "not_applicable",
           "side_effect_count": 0,
           "boundary_sha256": null
@@ -1510,7 +1510,7 @@
           "lifecycle": "completed",
           "approval": "not_required",
           "tool": "recovered",
-          "resume": "absent",
+          "resume": "accepted",
           "billing": "not_applicable",
           "side_effect_count": 0,
           "boundary_sha256": null

@@ -22,7 +22,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
-from typing import Any, Callable, Iterator, Mapping
+from typing import Any, AsyncIterator, Callable, Iterator, Mapping
 
 
 SYNTHETIC_SESSION_ID = "synthetic-approval-session"
@@ -128,7 +128,7 @@ class _Client:
             )
         )
 
-    async def receive_messages(self) -> Iterator[object]:
+    async def receive_messages(self) -> AsyncIterator[object]:
         while not self._closed:
             message = await self._messages.get()
             if message is _END:
