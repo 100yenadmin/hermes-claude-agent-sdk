@@ -18,6 +18,10 @@ import yaml
 
 from .focused_suite import _exact_source_preflight
 from .hashing import json_compatible, sha256_value
+from .model_provenance import (
+    is_silent_model_fallback as _is_silent_model_fallback,
+    is_silent_receipt_model_fallback as _is_silent_receipt_model_fallback,
+)
 from .native_behavior_contracts import adapt_native_grade, behavior_prompt_suffix
 from .native_sandbox import (
     NativeSandboxHost,
@@ -142,6 +146,10 @@ class LiveScenarioResult:
     trace: Mapping[str, Any]
     state_hash: str
     silent_fallback: bool
+    selected_model: str | None = None
+    effective_model: str | None = None
+    canonical_model: str | None = None
+    model_resolution: str = "unknown"
 
 
 def native_execution_ids() -> tuple[str, ...]:
@@ -440,20 +448,30 @@ async def _execute_live(
     )
     final_text = ""
     silent_fallback = False
+    selected_model = None
+    effective_model = None
+    canonical_model = None
+    model_resolution = "unknown"
     if terminal == "completed":
         result = getattr(terminal_events[0], "result", {})
         if isinstance(result, Mapping):
             text = result.get("text")
             final_text = text if isinstance(text, str) else ""
-            silent_fallback = (
-                result.get("provider") != "claude-agent-sdk"
-                or result.get("model") != model
-            )
+            silent_fallback = _is_silent_model_fallback(result, model=model)
+            selected_model = result.get("selected_model")
+            effective_model = result.get("effective_model")
+            canonical_model = result.get("canonical_model")
+            model_resolution = result.get("model_resolution", "unknown")
     usage = [
         event.receipt
         for event in events
         if getattr(getattr(event, "kind", None), "value", None) == "usage"
     ]
+    if usage and any(
+        _is_silent_receipt_model_fallback(receipt, model=model)
+        for receipt in usage
+    ):
+        silent_fallback = True
     billing = "none"
     if usage:
         if all(
@@ -493,6 +511,18 @@ async def _execute_live(
             trace=trace,
             state_hash=sha256_value(state_values),
             silent_fallback=silent_fallback,
+            selected_model=(
+                selected_model if isinstance(selected_model, str) else None
+            ),
+            effective_model=(
+                effective_model if isinstance(effective_model, str) else None
+            ),
+            canonical_model=(
+                canonical_model if isinstance(canonical_model, str) else None
+            ),
+            model_resolution=(
+                model_resolution if isinstance(model_resolution, str) else "unknown"
+            ),
         ),
         host,
     )
@@ -716,6 +746,12 @@ async def native_scenario_suite(context: ExecutionContext) -> ExecutionBundle:
         usage_hash = sha256_value(
             {
                 "billing": live.billing,
+                "model_provenance": {
+                    "selected_model": live.selected_model,
+                    "effective_model": live.effective_model,
+                    "canonical_model": live.canonical_model,
+                    "model_resolution": live.model_resolution,
+                },
                 "plugin_sha": context.plugin_sha,
                 "host_sha": context.host_sha,
             }

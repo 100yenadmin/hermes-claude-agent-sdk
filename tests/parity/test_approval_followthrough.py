@@ -49,9 +49,14 @@ def test_public_host_approval_followthrough() -> None:
     assert report["runtime_terminal_events"] == 1
     assert report["usage_receipts"] == (
         {
+            "model": "claude-fable-5",
             "billing_mode": "subscription_included",
             "cost_status": "included",
             "correlation_id": "synthetic-approval-correlation",
+            "selected_model": "claude-fable-5",
+            "effective_model": "claude-fable-5",
+            "canonical_model": None,
+            "model_resolution": "exact",
             "input_tokens": 2,
             "output_tokens": 3,
         },

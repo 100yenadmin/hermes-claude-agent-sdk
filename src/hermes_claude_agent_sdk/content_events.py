@@ -527,6 +527,10 @@ class ClaudeSdkEventProjector:
                 ),
                 replay_safe=False,
                 correlation_id=self._correlation_id,
+                selected_model=self._selected_model,
+                effective_model=effective,
+                canonical_model=canonical,
+                model_resolution=resolution,
             )
             events.append(RuntimeUsageEvent(receipt=receipt))
 

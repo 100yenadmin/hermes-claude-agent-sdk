@@ -24,6 +24,10 @@ from typing import Any
 
 from .focused_suite import _exact_source_preflight
 from .hashing import json_compatible, sha256_value
+from .model_provenance import (
+    is_silent_model_fallback as _is_silent_model_fallback,
+    is_silent_receipt_model_fallback as _is_silent_receipt_model_fallback,
+)
 from .native_sandbox import NativeSandboxHost, tool_schemas
 from .native_suite import _exact_git_checkout
 from .results import ExecutionClassification
@@ -385,15 +389,17 @@ async def _run_turn(
         if isinstance(result, Mapping):
             text = result.get("text")
             final_text = text if isinstance(text, str) else ""
-            silent_fallback = (
-                result.get("provider") != "claude-agent-sdk"
-                or result.get("model") != model
-            )
+            silent_fallback = _is_silent_model_fallback(result, model=model)
     usage_receipts = [
         event.receipt
         for event in events
         if getattr(getattr(event, "kind", None), "value", None) == "usage"
     ]
+    if usage_receipts and any(
+        _is_silent_receipt_model_fallback(receipt, model=model)
+        for receipt in usage_receipts
+    ):
+        silent_fallback = True
     billing = "none"
     if usage_receipts:
         billing = (
@@ -436,6 +442,10 @@ async def _run_turn(
                     "runtime_id": receipt.runtime_id,
                     "provider": receipt.provider,
                     "model": receipt.model,
+                    "selected_model": receipt.selected_model,
+                    "effective_model": receipt.effective_model,
+                    "canonical_model": receipt.canonical_model,
+                    "model_resolution": receipt.model_resolution,
                     "billing_mode": receipt.billing_mode,
                     "cost_status": receipt.cost_status,
                     "fallback_used": receipt.fallback_used,

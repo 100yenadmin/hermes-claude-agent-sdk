@@ -572,6 +572,10 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
             "included",
             "synthetic-correlation",
         )
+        assert receipt.selected_model == "claude-fable-5"
+        assert receipt.effective_model == "claude-fable-synthetic"
+        assert receipt.canonical_model is None
+        assert receipt.model_resolution == "mismatch"
         assert dict(events[3].state.state) == {
             "external_session_id": "synthetic-next-session"
         }
@@ -612,6 +616,10 @@ def test_runtime_preserves_canonical_sdk_model_in_usage_and_terminal_result() ->
 
         receipt = next(event.receipt for event in events if event.kind.value == "usage")
         assert receipt.model == "claude-fable-5-1"
+        assert receipt.selected_model == "claude-fable-5"
+        assert receipt.effective_model == "claude-fable-5"
+        assert receipt.canonical_model == "claude-fable-5-1"
+        assert receipt.model_resolution == "canonicalized"
         terminal_result = next(
             event.result for event in events if event.kind.value == "completed"
         )
@@ -633,6 +641,10 @@ def test_runtime_does_not_use_selected_model_when_sdk_reports_no_model() -> None
 
         receipt = next(event.receipt for event in events if event.kind.value == "usage")
         assert receipt.model == "unknown"
+        assert receipt.selected_model == "claude-fable-5"
+        assert receipt.effective_model is None
+        assert receipt.canonical_model is None
+        assert receipt.model_resolution == "unknown"
         terminal_result = next(
             event.result for event in events if event.kind.value == "completed"
         )
@@ -654,6 +666,10 @@ def test_runtime_erases_model_identity_for_ambiguous_shared_canonical() -> None:
 
         receipt = next(event.receipt for event in events if event.kind.value == "usage")
         assert receipt.model == "unknown"
+        assert receipt.selected_model == "claude-fable-5"
+        assert receipt.effective_model is None
+        assert receipt.canonical_model is None
+        assert receipt.model_resolution == "ambiguous"
         terminal_result = next(
             event.result for event in events if event.kind.value == "completed"
         )

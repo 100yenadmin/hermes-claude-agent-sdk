@@ -57,6 +57,10 @@ def _install_runtime_api_test_compat() -> None:
         reasoning_tokens: int = 0
         replay_safe: bool = False
         correlation_id: str | None = None
+        selected_model: str | None = None
+        effective_model: str | None = None
+        canonical_model: str | None = None
+        model_resolution: str = "unknown"
 
     @dataclass(frozen=True)
     class RuntimeUsageEvent:
@@ -378,7 +382,12 @@ def test_model_provenance_preserves_selected_and_exact_sdk_model() -> None:
     assert result.effective_model == "claude-fable-5"
     assert result.canonical_model is None
     assert result.model_resolution == "exact"
-    assert result.events[1].receipt.model == "claude-fable-5"
+    receipt = result.events[1].receipt
+    assert receipt.model == "claude-fable-5"
+    assert receipt.selected_model == "claude-fable-5"
+    assert receipt.effective_model == "claude-fable-5"
+    assert receipt.canonical_model is None
+    assert receipt.model_resolution == "exact"
     assert result.events[-1].result == {
         "text": "done",
         "model": "claude-fable-5",
@@ -408,7 +417,12 @@ def test_model_provenance_preserves_unique_canonical_model_on_mismatch() -> None
     assert result.effective_model == "claude-fable-5"
     assert result.canonical_model == "claude-fable-5-1"
     assert result.model_resolution == "canonicalized"
-    assert result.events[1].receipt.model == "claude-fable-5-1"
+    receipt = result.events[1].receipt
+    assert receipt.model == "claude-fable-5-1"
+    assert receipt.selected_model == "claude-fable-5-1"
+    assert receipt.effective_model == "claude-fable-5"
+    assert receipt.canonical_model == "claude-fable-5-1"
+    assert receipt.model_resolution == "canonicalized"
     assert result.events[-1].result["selected_model"] == "claude-fable-5-1"
     assert result.events[-1].result["effective_model"] == "claude-fable-5"
     assert result.events[-1].result["canonical_model"] == "claude-fable-5-1"
@@ -428,7 +442,12 @@ def test_model_provenance_missing_sdk_evidence_does_not_use_selected_model() -> 
     assert result.effective_model is None
     assert result.canonical_model is None
     assert result.model_resolution == "unknown"
-    assert result.events[1].receipt.model == "unknown"
+    receipt = result.events[1].receipt
+    assert receipt.model == "unknown"
+    assert receipt.selected_model == "claude-fable-5-1"
+    assert receipt.effective_model is None
+    assert receipt.canonical_model is None
+    assert receipt.model_resolution == "unknown"
     assert result.events[-1].result == {
         "text": "done",
         "model": "unknown",
@@ -464,7 +483,12 @@ def test_model_provenance_malformed_or_ambiguous_usage_fails_closed() -> None:
         assert result.effective_model is None
         assert result.canonical_model is None
         assert result.model_resolution == "ambiguous"
-        assert result.events[1].receipt.model == "unknown"
+        receipt = result.events[1].receipt
+        assert receipt.model == "unknown"
+        assert receipt.selected_model == "claude-fable-5-1"
+        assert receipt.effective_model is None
+        assert receipt.canonical_model is None
+        assert receipt.model_resolution == "ambiguous"
         assert result.events[-1].result["effective_model"] == "unknown"
         assert result.events[-1].result["canonical_model"] == "unknown"
         assert result.events[-1].result["model_resolution"] == "ambiguous"

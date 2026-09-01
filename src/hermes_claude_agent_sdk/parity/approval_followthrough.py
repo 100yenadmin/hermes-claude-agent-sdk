@@ -336,6 +336,11 @@ def _load_host(host_root: str) -> tuple[Any, ...]:
 
 def _normalized_receipt(receipt: Any) -> dict[str, Any]:
     return {
+        "model": receipt.model,
+        "selected_model": receipt.selected_model,
+        "effective_model": receipt.effective_model,
+        "canonical_model": receipt.canonical_model,
+        "model_resolution": receipt.model_resolution,
         "billing_mode": receipt.billing_mode,
         "cost_status": receipt.cost_status,
         "correlation_id": receipt.correlation_id,

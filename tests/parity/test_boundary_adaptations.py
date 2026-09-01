@@ -74,6 +74,12 @@ def test_cache_receipts_and_resume_survive_while_unknown_fork_controls_fail_clos
 
     assert options["resume"] == "sdk-session-safe"
     assert {"cache_read_tokens", "cache_write_tokens"} <= receipt_fields
+    assert {
+        "selected_model",
+        "effective_model",
+        "canonical_model",
+        "model_resolution",
+    } <= receipt_fields
     assert not {"effort", "checkpoint", "fork"} & set(options)
     with pytest.raises(TypeError):
         _valid_turn_request(effort="high")

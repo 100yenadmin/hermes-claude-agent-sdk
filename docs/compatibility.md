@@ -27,6 +27,13 @@ content is bounded and deduplicated in arrival order, then delivered only
 through the exact bound host service. Provider session identifiers remain
 resume state only and are never background-delivery metadata.
 
+The candidate also requires `runtime_model_provenance_v1`. That capability
+means the host can durably store the selected, effective, and canonical model
+identities plus their resolution while retaining the legacy receipt `model`
+as the observed billing identity. An older AgentRuntime v1 host without this
+additive receipt shape is rejected during compatibility validation; the plugin
+does not silently discard provenance or defer the failure until a turn.
+
 The descriptor accepts only the plugin-owned provider id
 `claude-agent-sdk`, the provider-neutral `agent_runtime` API mode, and model
 ids matching a bounded direct `claude-*` identifier. Provider-qualified model

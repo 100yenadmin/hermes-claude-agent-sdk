@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -20,6 +21,8 @@ from hermes_claude_agent_sdk.parity.native_suite import (
     grade_native_trace,
     load_native_scenario,
     native_execution_ids,
+    _is_silent_model_fallback,
+    _is_silent_receipt_model_fallback,
 )
 
 
@@ -30,6 +33,67 @@ def test_native_execution_inventory_is_exactly_36_and_unique() -> None:
     assert set(native_execution_ids()) == {
         f"native-{source_id}" for source_id in NATIVE_SOURCE_IDS
     }
+
+
+@pytest.mark.parametrize("resolution", ("unknown", "ambiguous", "mismatch"))
+def test_native_no_fallback_check_rejects_unproven_model_resolution(
+    resolution: str,
+) -> None:
+    assert _is_silent_model_fallback(
+        {
+            "provider": "claude-agent-sdk",
+            "model": "claude-fable-5-1",
+            "selected_model": "claude-fable-5",
+            "effective_model": "claude-fable-5",
+            "canonical_model": None,
+            "model_resolution": resolution,
+        },
+        model="claude-fable-5",
+    ) is True
+
+
+def test_native_no_fallback_check_accepts_selected_effective_canonicalized_model() -> None:
+    assert _is_silent_model_fallback(
+        {
+            "provider": "claude-agent-sdk",
+            "model": "claude-fable-5-1",
+            "selected_model": "claude-fable-5",
+            "effective_model": "claude-fable-5",
+            "canonical_model": "claude-fable-5-1",
+            "model_resolution": "canonicalized",
+        },
+        model="claude-fable-5",
+    ) is False
+
+
+def test_native_no_fallback_check_accepts_canonicalized_receipt_provenance() -> None:
+    receipt = SimpleNamespace(
+        provider="claude-agent-sdk",
+        model="claude-fable-5-1",
+        selected_model="claude-fable-5",
+        effective_model="claude-fable-5",
+        canonical_model="claude-fable-5-1",
+        model_resolution="canonicalized",
+    )
+
+    assert (
+        _is_silent_receipt_model_fallback(receipt, model="claude-fable-5")
+        is False
+    )
+
+
+def test_native_no_fallback_check_rejects_wrong_billing_model_provenance() -> None:
+    assert _is_silent_model_fallback(
+        {
+            "provider": "claude-agent-sdk",
+            "model": "claude-fable-5",
+            "selected_model": "claude-fable-5",
+            "effective_model": "claude-fable-5",
+            "canonical_model": "claude-fable-5-1",
+            "model_resolution": "canonicalized",
+        },
+        model="claude-fable-5",
+    ) is True
 
 
 def test_skill_fixture_uses_unambiguous_source_pack_identifier() -> None:

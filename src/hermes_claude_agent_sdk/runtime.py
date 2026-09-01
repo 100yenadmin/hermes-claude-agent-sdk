@@ -177,7 +177,6 @@ class ClaudeAgentSDKRuntime:
             RuntimeStateEnvelope,
             RuntimeStateEvent,
             RuntimeUsageEvent,
-            RuntimeUsageReceipt,
         )
         from .content_events import ClaudeSdkEventProjector, ProjectionResult
         from .compaction import SessionCompactionPhase
@@ -421,17 +420,12 @@ class ClaudeAgentSDKRuntime:
                     if isinstance(event, RuntimeUsageEvent):
                         receipt = event.receipt
                         event = RuntimeUsageEvent(
-                            receipt=RuntimeUsageReceipt(
+                            receipt=replace(
+                                receipt,
                                 runtime_id=RUNTIME_ID,
                                 provider=request.selection.provider,
-                                model=receipt.model,
                                 billing_mode="subscription_included",
                                 cost_status="included",
-                                input_tokens=receipt.input_tokens,
-                                output_tokens=receipt.output_tokens,
-                                cache_read_tokens=receipt.cache_read_tokens,
-                                cache_write_tokens=receipt.cache_write_tokens,
-                                reasoning_tokens=receipt.reasoning_tokens,
                                 replay_safe=False,
                                 correlation_id=request.correlation_id,
                             )
