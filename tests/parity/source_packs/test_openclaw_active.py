@@ -79,6 +79,8 @@ def _assert_path(path: dict[str, Any], expected_outcome: str, terminal_kind: str
     assert path["sdk_events"] == []
     _assert_state(path["state_before"])
     _assert_state(path["state_after"])
+    if path["state_before"]["resume"] == "supplied":
+        assert path["state_after"]["resume"] in {"accepted", "rejected"}
     assert path["state_after"]["side_effect_count"] - path["state_before"]["side_effect_count"] == path["side_effect_count"]
 
 
