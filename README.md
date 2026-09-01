@@ -43,6 +43,7 @@ doctor never reads credentials or constructs an SDK client.
 - [Project tracker](https://github.com/100yenadmin/hermes-claude-agent-sdk/issues/1)
 - [Compatibility matrix](docs/compatibility.md)
 - [Architecture boundary](docs/architecture.md)
+- [Installed Hermes session handoff](docs/installed-hermes-session-handoff.md)
 - [Subscription-only security model](docs/subscription-only-security.md)
 - [Removal and rollback](docs/removal-and-rollback.md)
 
