@@ -28,6 +28,7 @@ from .native_sandbox import NativeSandboxHost, tool_schemas
 from .native_suite import _exact_git_checkout
 from .results import ExecutionClassification
 from .runner import ExecutionBundle, ExecutionContext, ExecutionOutcome
+from .tool_inventory import declared_tool_schemas
 from .trace import normalized_path_events
 
 
@@ -178,24 +179,36 @@ def _inventory_matches(
             return False
         observed[name] = schema_hash
 
-    expected: dict[str, str] = {}
-    for schema in schemas:
-        if not isinstance(schema, Mapping):
-            return False
-        function = schema.get("function")
-        if not isinstance(function, Mapping):
-            return False
-        name = function.get("name")
-        parameters = function.get("parameters")
-        if not isinstance(name, str) or not name.strip() or not isinstance(parameters, Mapping):
-            return False
-        if name in expected:
-            return False
-        try:
-            expected[name] = sha256_value(json_compatible(parameters))
-        except (TypeError, ValueError, RecursionError):
-            return False
-    return observed == expected
+    def schema_hashes(
+        values: Sequence[Mapping[str, Any]],
+    ) -> dict[str, str] | None:
+        projected: dict[str, str] = {}
+        for schema in values:
+            if not isinstance(schema, Mapping):
+                return None
+            function = schema.get("function")
+            if not isinstance(function, Mapping):
+                return None
+            name = function.get("name")
+            parameters = function.get("parameters")
+            if (
+                not isinstance(name, str)
+                or not name.strip()
+                or not isinstance(parameters, Mapping)
+                or name in projected
+            ):
+                return None
+            try:
+                projected[name] = sha256_value(json_compatible(parameters))
+            except (TypeError, ValueError, RecursionError):
+                return None
+        return projected
+
+    complete_profile = schema_hashes(declared_tool_schemas())
+    required = schema_hashes(schemas)
+    if complete_profile is None or required is None or observed != complete_profile:
+        return False
+    return all(observed.get(name) == schema_hash for name, schema_hash in required.items())
 
 
 def _complete_bundle(
