@@ -92,8 +92,9 @@ The active executors fail closed unless the plugin and host checkouts are clean
 at the supplied SHAs. Live RC execution additionally requires
 `HERMES_PARITY_LIVE=1`, `HERMES_PARITY_MODEL=claude-fable-5`, the exact host
 root, and the pinned ClawProBench root. The v2 source map also requires the
-immutable `33fe73a` reference checkout. These are execution inputs, not values
-written into result packets.
+immutable `33fe73a` reference checkout and a test-capable exact-host interpreter
+via `HERMES_PARITY_HOST_PYTHON` when that checkout does not own a `.venv`.
+These are execution inputs, not values written into result packets.
 
 The runtime lane has a stricter barrier. It accepts only a persistent
 `local_profile` manifest and requires an immutable wheel, its SHA-256 digest,

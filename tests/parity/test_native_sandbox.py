@@ -91,3 +91,17 @@ def test_sandbox_exec_never_accepts_shell_syntax(tmp_path: Path) -> None:
         assert result == {"error": "sandbox operation rejected"}
 
     asyncio.run(scenario())
+
+
+def test_cron_trace_records_effective_one_shot_default(tmp_path: Path) -> None:
+    host = NativeSandboxHost(tmp_path, (), deny_first=False)
+
+    async def scenario() -> None:
+        result = await host.execute_tool(
+            "cron", {"cron": "57 9 31 3 *", "content": "synthetic reminder"}
+        )
+        assert result["recurring"] is False
+
+    asyncio.run(scenario())
+    assert host.trace_events[0]["args"]["recurring"] is False
+    assert host.trace_events[0]["args"]["action"] == "create"

@@ -380,6 +380,13 @@ class NativeSandboxHost:
         if name == "write":
             path = arguments.get("path") or arguments.get("file_path") or ""
             return {"path": str(path), "file_path": str(path)}
+        if name == "cron":
+            effective = {str(key): value for key, value in arguments.items()}
+            effective.setdefault("action", "create")
+            effective["recurring"] = bool(arguments.get("recurring", False))
+            if "cron" not in effective and isinstance(arguments.get("schedule"), str):
+                effective["cron"] = arguments["schedule"]
+            return effective
         return {str(key): value for key, value in arguments.items()}
 
     def _resolve(self, raw: Any) -> Path:
