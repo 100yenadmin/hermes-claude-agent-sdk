@@ -8,6 +8,7 @@ events that cannot be forced safely against the operator subscription.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import os
@@ -64,6 +65,7 @@ _ACTIVE_SYSTEM_PROMPT = (
     "synthetic denial once, do not contact external systems, and end with the "
     "requested marker."
 )
+_ACTIVE_CASE_TIMEOUT_SECONDS = 300.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -815,6 +817,28 @@ async def _run_live_case(
     )
 
 
+async def _run_live_case_bounded(
+    source_id: str,
+    *,
+    workspace: Path,
+    model: str,
+) -> ActiveCaseResult:
+    try:
+        return await asyncio.wait_for(
+            _run_live_case(source_id, workspace=workspace, model=model),
+            timeout=_ACTIVE_CASE_TIMEOUT_SECONDS,
+        )
+    except TimeoutError:
+        return ActiveCaseResult(
+            ExecutionClassification.ENVIRONMENT_BLOCKED,
+            "active_live_case_timeout",
+            "none",
+            0,
+            None,
+            None,
+        )
+
+
 async def active_agentic_suite(context: ExecutionContext) -> ExecutionBundle:
     """Execute one mapped active-agentic capability on an exact clean candidate."""
 
@@ -870,7 +894,7 @@ async def active_agentic_suite(context: ExecutionContext) -> ExecutionBundle:
         if context.remaining_turn_budget < minimum_turns:
             return _blocked("active_turn_budget_exhausted")
         with tempfile.TemporaryDirectory(prefix="hermes-parity-v3-active-") as temp_name:
-            result = await _run_live_case(
+            result = await _run_live_case_bounded(
                 source_id,
                 workspace=Path(temp_name),
                 model=model,
