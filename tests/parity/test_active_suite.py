@@ -114,8 +114,11 @@ def test_source_docs_contract_uses_host_receipts_when_projection_is_deduplicated
     host.denial_observed = True
     host.recovery_observed = True
     host.successful_calls = 2
-    source = turn("SOURCE_OK SOURCE_STAGE_PASS", ())
-    docs = turn("SOURCE_OK DOCS_OK SOURCE_DOCS_PASS", ("read",))
+    source = turn("SOURCE_QUARTZ_7319 SOURCE_STAGE_PASS", ())
+    docs = turn(
+        "SOURCE_QUARTZ_7319 DOCS_EMBER_4826 SOURCE_DOCS_PASS",
+        ("read",),
+    )
 
     ok, reason, extra = _source_docs_contract(source, docs, host)
 

@@ -430,14 +430,17 @@ def _source_docs_contract(
     source_turn: LiveTurn,
     docs_turn: LiveTurn,
     host: NativeSandboxHost,
+    *,
+    source_marker: str = "SOURCE_QUARTZ_7319",
+    docs_marker: str = "DOCS_EMBER_4826",
 ) -> tuple[bool, str, dict[str, Any]]:
     source_stage_ok = _live_ok(
         source_turn,
-        markers=("SOURCE_OK", "SOURCE_STAGE_PASS"),
+        markers=(source_marker, "SOURCE_STAGE_PASS"),
     )
     docs_stage_ok = _live_ok(
         docs_turn,
-        markers=("SOURCE_OK", "DOCS_OK", "SOURCE_DOCS_PASS"),
+        markers=(source_marker, docs_marker, "SOURCE_DOCS_PASS"),
     )
     projected_read_count = sum(
         name == "read"
@@ -514,8 +517,16 @@ async def _run_live_case(
         if source_id == "source-docs-discovery-report":
             readme = workspace / "README.md"
             docs = workspace / "CONTRACT.md"
-            readme.write_text("Synthetic source marker: SOURCE_OK\n", encoding="utf-8")
-            docs.write_text("Synthetic docs marker: DOCS_OK\n", encoding="utf-8")
+            source_marker = "SOURCE_QUARTZ_7319"
+            docs_marker = "DOCS_EMBER_4826"
+            readme.write_text(
+                f"Synthetic source marker: {source_marker}\n",
+                encoding="utf-8",
+            )
+            docs.write_text(
+                f"Synthetic docs marker: {docs_marker}\n",
+                encoding="utf-8",
+            )
             schemas = tool_schemas(("read",))
             host = NativeSandboxHost(workspace, (readme, docs))
             runtime = ClaudeAgentSDKRuntime(cwd=str(workspace), parent_env=os.environ)
@@ -525,8 +536,9 @@ async def _run_live_case(
                     host,
                     model=model,
                     content=(
-                        "Read README.md. The first read is denied; retry it once. Report the "
-                        "exact uppercase marker from the file and end SOURCE_STAGE_PASS."
+                        "Use the read tool on README.md; do not infer or guess its content. "
+                        "The first read is denied, so retry it once. Report the exact "
+                        "uppercase marker from the file and end SOURCE_STAGE_PASS."
                     ),
                     schemas=schemas,
                     correlation_id="active-source-stage",
@@ -536,8 +548,9 @@ async def _run_live_case(
                     host,
                     model=model,
                     content=(
-                        "Read CONTRACT.md. Report its exact uppercase marker, restate the "
-                        "marker learned in the prior turn, and end SOURCE_DOCS_PASS."
+                        "Use the read tool on CONTRACT.md; do not infer or guess its content. "
+                        "Report its exact uppercase marker, restate the marker learned in "
+                        "the prior turn, and end SOURCE_DOCS_PASS."
                     ),
                     schemas=schemas,
                     correlation_id="active-docs-stage",
@@ -550,6 +563,8 @@ async def _run_live_case(
                 source_turn,
                 docs_turn,
                 host,
+                source_marker=source_marker,
+                docs_marker=docs_marker,
             )
 
         elif source_id == "image-understanding-attachment":
