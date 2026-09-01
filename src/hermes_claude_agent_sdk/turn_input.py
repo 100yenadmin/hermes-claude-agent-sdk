@@ -148,7 +148,7 @@ def _url_source(value: Any) -> SDKImageSource:
         raise TurnInputValidationError("claude_runtime_image_invalid")
     parsed = urlsplit(value)
     if (
-        parsed.scheme not in {"http", "https"}
+        parsed.scheme != "https"
         or not parsed.netloc
         or parsed.username is not None
         or parsed.password is not None

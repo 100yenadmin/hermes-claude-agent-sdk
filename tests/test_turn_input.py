@@ -77,6 +77,7 @@ def test_image_only_turn_gets_a_neutral_text_prompt() -> None:
         "data:image/svg+xml;base64,PHN2Zz4=",
         "data:image/png;base64,not-valid!",
         "file:///tmp/private.png",
+        "http://example.test/image.png",
         "https://user:password@example.test/image.png",
     ],
 )
