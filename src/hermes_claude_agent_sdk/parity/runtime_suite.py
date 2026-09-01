@@ -147,8 +147,10 @@ def _running_package_matches_wheel(wheel: Path) -> bool:
 
     The comparison boundary is the ``hermes_claude_agent_sdk`` package tree;
     wheel metadata and files outside that package are intentionally ignored.
-    Within that boundary, both sides must contain the same regular-file
-    manifest and each corresponding file must have identical bytes.
+    Interpreter-generated ``__pycache__`` directories and ``.pyc``/``.pyo``
+    artifacts are excluded from the installed manifest. Within that boundary,
+    both sides must contain the same regular-file manifest and each
+    corresponding file must have identical bytes.
     """
 
     package_root = Path(__file__).resolve().parents[1]
@@ -157,6 +159,8 @@ def _running_package_matches_wheel(wheel: Path) -> bool:
         if not package_root.is_dir() or package_root.is_symlink():
             return False
         for path in package_root.rglob("*"):
+            if "__pycache__" in path.parts or path.suffix in {".pyc", ".pyo"}:
+                continue
             if path.is_file() and not path.is_symlink():
                 relative = path.relative_to(package_root).as_posix()
                 installed_files[relative] = path
