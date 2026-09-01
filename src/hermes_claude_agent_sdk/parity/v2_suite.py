@@ -183,6 +183,12 @@ def _run_nodes(
     )
 
 
+def _executable_path(raw: str) -> Path:
+    """Make an executable absolute without resolving a virtualenv symlink."""
+
+    return Path(os.path.abspath(os.path.expanduser(raw)))
+
+
 async def v2_mapped_suite(context: ExecutionContext) -> ExecutionBundle:
     """Run exact focused evidence for one frozen-v2 non-soak source row."""
 
@@ -207,7 +213,9 @@ async def v2_mapped_suite(context: ExecutionContext) -> ExecutionBundle:
         "HERMES_PARITY_HOST_PYTHON",
         str(host_root / ".venv" / "bin" / "python"),
     )
-    host_python = Path(host_python_raw).expanduser().resolve()
+    # Resolving ``.venv/bin/python`` follows its symlink to the base uv/Python
+    # interpreter and discards the virtualenv's pyvenv.cfg/package context.
+    host_python = _executable_path(host_python_raw)
     if not host_python.is_file():
         return _blocked("v2_host_test_python_unavailable")
 

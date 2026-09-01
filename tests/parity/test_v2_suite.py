@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from hermes_claude_agent_sdk.parity.v2_suite import _V2_NODES, v2_execution_ids
+from pathlib import Path
+
+from hermes_claude_agent_sdk.parity.v2_suite import (
+    _V2_NODES,
+    _executable_path,
+    v2_execution_ids,
+)
 
 
 def test_every_v2_non_soak_row_has_one_exact_mapping(catalog) -> None:
@@ -20,3 +26,17 @@ def test_v2_mapping_never_names_forbidden_live_surfaces() -> None:
     assert "telegram" not in rendered
     assert "customer" not in rendered
     assert "shared-eva" not in rendered
+
+
+def test_virtualenv_python_path_is_not_resolved_to_its_base_interpreter(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "base-python"
+    target.write_text("synthetic", encoding="utf-8")
+    virtualenv = tmp_path / "venv" / "bin"
+    virtualenv.mkdir(parents=True)
+    link = virtualenv / "python"
+    link.symlink_to(target)
+
+    assert _executable_path(str(link)) == link
+    assert _executable_path(str(link)) != link.resolve()
