@@ -134,7 +134,7 @@ def test_catalog_rejects_nonrequired_positive_path_for_partial_source_packs(
     row[path_name]["rationale"] = "tampered applicability"
     path = tmp_path / "nonrequired-positive.yaml"
     path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
-    with pytest.raises(CatalogViolation, match="positive_path.required must be true"):
+    with pytest.raises(CatalogViolation, match=r"positive_path\.required must be true"):
         load_catalog(path)
 
 
