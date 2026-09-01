@@ -1,20 +1,23 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 
 from hermes_claude_agent_sdk.parity import active_suite as active_suite_module
 from hermes_claude_agent_sdk.parity.active_suite import (
     ACTIVE_SOURCE_IDS,
     LiveTurn,
     _normalize_event_tool_name,
+    _inventory_matches,
     _source_docs_contract,
     _subagent_contract,
     active_execution_ids,
 )
 from hermes_claude_agent_sdk.parity.executors import EXECUTORS
-from hermes_claude_agent_sdk.parity.native_sandbox import NativeSandboxHost
+from hermes_claude_agent_sdk.parity.native_sandbox import NativeSandboxHost, tool_schemas
 from hermes_claude_agent_sdk.parity.hashing import sha256_value
 from hermes_claude_agent_sdk.parity.results import ExecutionClassification
+from hermes_claude_agent_sdk.parity.tool_inventory import declared_tool_schemas
 from hermes_claude_agent_sdk.parity.trace import normalized_path_events
 
 
@@ -68,6 +71,55 @@ def test_event_tool_names_normalize_one_provider_namespace_only() -> None:
         _normalize_event_tool_name("mcp__hermes-tools__mcp__server__tool")
         == "mcp__server__tool"
     )
+
+
+def test_inventory_matches_requires_an_exact_unique_well_formed_inventory() -> None:
+    complete_schemas = declared_tool_schemas()
+    complete_rows = tuple(
+        {
+            "name": schema["function"]["name"],
+            "schema_hash": sha256_value(schema["function"]["parameters"]),
+        }
+        for schema in complete_schemas
+    )
+    read_schema = tool_schemas(("read",))[0]
+
+    def matches(rows, requested=(read_schema,)) -> bool:
+        return _inventory_matches(
+            SimpleNamespace(inventory_tools=tuple(rows)), requested
+        )
+
+    assert matches(complete_rows) is True
+    assert matches(complete_rows, requested=()) is True
+    assert matches(
+        (*complete_rows, {"name": "extra", "schema_hash": "a" * 64})
+    ) is False
+    assert matches(()) is False
+    assert matches(complete_rows[:-1]) is False
+    assert matches((*complete_rows, complete_rows[0])) is False
+    assert matches(({"name": "read"},)) is False
+    drifted_rows = (
+        {**complete_rows[0], "schema_hash": "b" * 64},
+        *complete_rows[1:],
+    )
+    assert matches(drifted_rows) is False
+    assert matches(("malformed",)) is False
+    assert matches(complete_rows, requested=(read_schema, read_schema)) is False
+    assert matches(
+        complete_rows, requested=({"function": {"name": "read"}},)
+    ) is False
+    assert matches(
+        complete_rows,
+        requested=(
+            {
+                "type": "function",
+                "function": {
+                    "name": "unknown",
+                    "parameters": {"type": "object"},
+                },
+            },
+        ),
+    ) is False
 
 
 def test_live_case_timeout_is_environment_blocked_and_cancels(

@@ -6,7 +6,8 @@ import hashlib
 import os
 import subprocess
 import sys
-from collections.abc import Sequence
+import tempfile
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from .catalog import load_catalog
 from .hashing import sha256_value
@@ -289,10 +290,13 @@ def _nodes_for_path(capability_id: str, path: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys((*base, *controls)))
 
 
-def _safe_environment() -> dict[str, str]:
+def _safe_environment(
+    *,
+    home: Path | None = None,
+    source_root: Path | None = None,
+) -> dict[str, str]:
     allowed = (
         "PATH",
-        "PYTHONPATH",
         "TMPDIR",
         "LANG",
         "LC_ALL",
@@ -309,6 +313,15 @@ def _safe_environment() -> dict[str, str]:
             "PYTHONHASHSEED": "0",
         }
     )
+    if home is not None:
+        environment.update(
+            {
+                "HOME": str(home),
+                "HERMES_HOME": str(home / ".hermes"),
+            }
+        )
+    if source_root is not None:
+        environment["PYTHONPATH"] = str(source_root / "src")
     return environment
 
 
@@ -317,11 +330,12 @@ def _run(
     *,
     cwd: Path,
     timeout: float,
+    environment: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     return subprocess.run(
         list(argv),
         cwd=cwd,
-        env=_safe_environment(),
+        env=dict(environment) if environment is not None else _safe_environment(),
         shell=False,
         check=False,
         capture_output=True,
@@ -344,7 +358,11 @@ def _blocked(reason: str) -> ExecutionBundle:
     )
 
 
-def _exact_source_preflight(context: ExecutionContext, root: Path) -> str | None:
+def _exact_source_preflight(
+    context: ExecutionContext,
+    root: Path,
+    environment: Mapping[str, str] | None = None,
+) -> str | None:
     if (
         context.profile_id != "fable-v3-isolated"
         or context.sdk_version != "0.2.144"
@@ -366,11 +384,17 @@ def _exact_source_preflight(context: ExecutionContext, root: Path) -> str | None
     ):
         return "focused_suite_catalog_mismatch"
     try:
-        head = _run(("git", "rev-parse", "HEAD"), cwd=root, timeout=10.0)
+        head = _run(
+            ("git", "rev-parse", "HEAD"),
+            cwd=root,
+            timeout=10.0,
+            environment=environment,
+        )
         status = _run(
             ("git", "status", "--porcelain", "--untracked-files=all"),
             cwd=root,
             timeout=10.0,
+            environment=environment,
         )
     except (OSError, subprocess.TimeoutExpired):
         return "focused_suite_git_unavailable"
@@ -387,97 +411,103 @@ async def boundary_focused_suite(context: ExecutionContext) -> ExecutionBundle:
     if context.capability.capability_id not in _BOUNDARY_NODES:
         return _blocked("boundary_evidence_mapping_missing")
     root = Path(context.repo_root).expanduser().resolve()
-    blocked = _exact_source_preflight(context, root)
-    if blocked is not None:
-        return _blocked(blocked)
     outcomes: dict[str, ExecutionOutcome] = {}
-    for path in ("positive", "denial", "recovery"):
-        path_nodes = _nodes_for_path(context.capability.capability_id, path)
-        node_manifest_hash = sha256_value(path_nodes)
-        try:
-            completed = _run(
-                (
-                    sys.executable,
-                    "-m",
-                    "pytest",
-                    "-q",
-                    "-p",
-                    "no:cacheprovider",
-                    "--disable-warnings",
-                    *path_nodes,
-                ),
-                cwd=root,
-                timeout=300.0,
-            )
-        except (OSError, subprocess.TimeoutExpired):
-            return _blocked("focused_suite_runner_unavailable")
-        output_hash = sha256_value(
-            {
-                "returncode": completed.returncode,
-                "stdout_hash": hashlib.sha256(
-                    completed.stdout[: 256 * 1024]
-                ).hexdigest(),
-                "stderr_hash": hashlib.sha256(
-                    completed.stderr[: 256 * 1024]
-                ).hexdigest(),
-            }
-        )
-        passed = completed.returncode == 0
-        if passed:
-            classification = (
-                ExecutionClassification.EXPECTED_NEGATIVE
-                if path == "denial"
-                else ExecutionClassification.COMPLETE
-            )
-            evidence_hash = sha256_value(
-                {
-                    "node_manifest_hash": node_manifest_hash,
-                    "output_hash": output_hash,
-                }
-            )
-            outcomes[path] = ExecutionOutcome(
-                classification=classification,
-                billing_classification="none",
-                normalized_events=normalized_path_events(
-                    context.capability.expected_trace,
-                    path=path,
-                    evidence_hash=evidence_hash,
-                ),
-                primary_proof_hash=sha256_value(
+    try:
+        with tempfile.TemporaryDirectory(prefix="hermes-parity-v3-focused-") as home_name:
+            home = Path(home_name)
+            hermes_home = home / ".hermes"
+            hermes_home.mkdir()
+            environment = _safe_environment(home=home, source_root=root)
+            blocked = _exact_source_preflight(context, root, environment)
+            if blocked is not None:
+                return _blocked(blocked)
+            for path in ("positive", "denial", "recovery"):
+                path_nodes = _nodes_for_path(context.capability.capability_id, path)
+                node_manifest_hash = sha256_value(path_nodes)
+                completed = _run(
+                    (
+                        sys.executable,
+                        "-m",
+                        "pytest",
+                        "-q",
+                        "-p",
+                        "no:cacheprovider",
+                        "--disable-warnings",
+                        *path_nodes,
+                    ),
+                    cwd=root,
+                    timeout=300.0,
+                    environment=environment,
+                )
+                output_hash = sha256_value(
                     {
-                        "capability_id": context.capability.capability_id,
-                        "path": path,
-                        "node_manifest_hash": node_manifest_hash,
-                        "output_hash": output_hash,
-                        "plugin_sha": context.plugin_sha,
-                        "host_sha": context.host_sha,
+                        "returncode": completed.returncode,
+                        "stdout_hash": hashlib.sha256(
+                            completed.stdout[: 256 * 1024]
+                        ).hexdigest(),
+                        "stderr_hash": hashlib.sha256(
+                            completed.stderr[: 256 * 1024]
+                        ).hexdigest(),
                     }
-                ),
-                secondary_proof_hash=sha256_value(
-                    {
-                        "catalog_hash": context.catalog_hash,
-                        "inventory_hash": context.inventory_hash,
-                        "profile_hash": context.profile_hash,
-                        "path": path,
-                    }
-                ),
-                turn_count=0,
-            )
-        else:
-            outcomes[path] = ExecutionOutcome(
-                classification=ExecutionClassification.VERIFIED_FAILURE,
-                billing_classification="none",
-                normalized_events=(
-                    {
-                        "sequence": 1,
-                        "kind": "terminal",
-                        "status": "failed",
-                        "terminal_outcome": "failed",
-                    },
-                ),
-                reason_code=f"focused_{path}_suite_failed",
-                turn_count=0,
-            )
+                )
+                passed = completed.returncode == 0
+                if passed:
+                    classification = (
+                        ExecutionClassification.EXPECTED_NEGATIVE
+                        if path == "denial"
+                        else ExecutionClassification.COMPLETE
+                    )
+                    evidence_hash = sha256_value(
+                        {
+                            "node_manifest_hash": node_manifest_hash,
+                            "output_hash": output_hash,
+                        }
+                    )
+                    outcomes[path] = ExecutionOutcome(
+                        classification=classification,
+                        billing_classification="none",
+                        normalized_events=normalized_path_events(
+                            context.capability.expected_trace,
+                            path=path,
+                            evidence_hash=evidence_hash,
+                        ),
+                        primary_proof_hash=sha256_value(
+                            {
+                                "capability_id": context.capability.capability_id,
+                                "path": path,
+                                "node_manifest_hash": node_manifest_hash,
+                                "output_hash": output_hash,
+                                "plugin_sha": context.plugin_sha,
+                                "host_sha": context.host_sha,
+                            }
+                        ),
+                        secondary_proof_hash=sha256_value(
+                            {
+                                "catalog_hash": context.catalog_hash,
+                                "inventory_hash": context.inventory_hash,
+                                "profile_hash": context.profile_hash,
+                                "path": path,
+                            }
+                        ),
+                        turn_count=0,
+                    )
+                else:
+                    outcomes[path] = ExecutionOutcome(
+                        classification=ExecutionClassification.VERIFIED_FAILURE,
+                        billing_classification="none",
+                        normalized_events=(
+                            {
+                                "sequence": 1,
+                                "kind": "terminal",
+                                "status": "failed",
+                                "terminal_outcome": "failed",
+                            },
+                        ),
+                        reason_code=f"focused_{path}_suite_failed",
+                        turn_count=0,
+                    )
+    except (OSError, subprocess.TimeoutExpired):
+        return _blocked("focused_suite_runner_unavailable")
     return ExecutionBundle(outcomes=outcomes, turn_count=0)
 
 

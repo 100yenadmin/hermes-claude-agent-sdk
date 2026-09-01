@@ -71,12 +71,12 @@ rows:
   - id: "terminal-error-warm-query-reuse"
     source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L665"
     title: "Keeps a terminal error turn warm query reusable for the next turn"
-    status: "equivalent_host"
+    status: "covered_current"
     evidence_state: "existing_candidate"
     evidence_refs:
       - "tests/test_sdk_session.py::test_terminal_error_turn_keeps_the_compatible_sdk_session_warm"
     release_blocking: true
-    mapping_note: "The provider-neutral host owns this invariant; v3 must bind the matching host receipt instead of adding a Claude-specific host type."
+    mapping_note: "Current plugin behavior has a direct deterministic evidence target; the v3 executor and trace grade remain required."
   - id: "execution-fingerprint-change-restarts-warm-query"
     source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L698"
     title: "Restarts the warm SDK query when system prompt or execution fingerprint changes"
