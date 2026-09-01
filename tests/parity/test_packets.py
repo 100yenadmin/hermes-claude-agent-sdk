@@ -136,7 +136,7 @@ def _grade(status: str = "FAIL", *, verified_failure_count: int = 0, blocked: in
 def _catalog() -> dict[str, Any]:
     paths = {name: _path(expected) for name, expected in zip(("positive", "denial", "recovery"), ("PASS", "EXPECTED_NEGATIVE", "PASS"))}
     cap = {"id": "CAP-one", "scenario_id": "SCN-one", "source_rows": [{"pack_id": "v2_non_soak", "row_id": "row1"}], "required": True, "positive_path": paths["positive"], "denial_path": paths["denial"], "recovery_path": paths["recovery"]}
-    return {"catalog_sha256": D, "capabilities": [cap], "scope_partitions": [{"id": "PART-one", "session_scope": "isolated_cell", "capability_ids": ["CAP-one"], "capability_set_sha256": canonical_sha256(["CAP-one"])}], "source_packs": [{"id": "sdk_boundary", "row_ids": [f"row{n}" for n in range(1, 24)]}], "sdk_ledger": _ledger()}
+    return {"catalog_sha256": D, "contract_sha256": D, "source_map_sha256": D, "capabilities": [cap], "scope_partitions": [{"id": "PART-one", "session_scope": "isolated_cell", "capability_ids": ["CAP-one"], "capability_set_sha256": canonical_sha256(["CAP-one"])}], "source_packs": [{"id": "sdk_boundary", "row_ids": [f"row{n}" for n in range(1, 24)]}], "sdk_ledger": _ledger()}
 
 
 def _two_partition_catalog() -> dict[str, Any]:
@@ -309,6 +309,18 @@ def test_aggregate_binds_disjoint_catalog_partitions_and_exact_full_projection()
     expected_full = {"source_row_set_sha256": aggregate["source_row_set_sha256"], "partitions": [{"partition_id": "PART-one", "freeze_sha256": freeze_one["freeze_sha256"], "result_sha256": result_one["result_sha256"], "capability_ids": ["CAP-one"]}, {"partition_id": "PART-two", "freeze_sha256": freeze_two["freeze_sha256"], "result_sha256": result_two["result_sha256"], "capability_ids": ["CAP-two"]}]}
     assert aggregate["full_result_sha256"] == canonical_sha256(expected_full)
     assert validate_aggregate(aggregate, catalog=catalog)["aggregate_sha256"] == aggregate["aggregate_sha256"]
+    for key in ("contract_sha256", "source_map_sha256"):
+        bad = deepcopy(aggregate)
+        for packet in bad["partition_packets"]:
+            freeze = packet["freeze_packet"]; result = packet["result_packet"]; freeze[key] = result[key] = "e" * 64
+            freeze["freeze_sha256"] = canonical_sha256({name: value for name, value in freeze.items() if name != "freeze_sha256"})
+            result["freeze_sha256"] = freeze["freeze_sha256"]
+            result["result_sha256"] = canonical_sha256({name: value for name, value in result.items() if name != "result_sha256"})
+        bad[key] = "e" * 64
+        bad["full_result_sha256"] = hash_projection("full_result_sha256", bad)
+        bad["aggregate_sha256"] = hash_projection("aggregate_sha256", bad)
+        with pytest.raises(PacketValidationError, match="catalog"):
+            validate_aggregate(bad, catalog=catalog)
     for bad_packets in (aggregate["partition_packets"][:1], aggregate["partition_packets"] + [aggregate["partition_packets"][0]]):
         bad = deepcopy(aggregate); bad["partition_packets"] = bad_packets
         with pytest.raises(PacketValidationError):
@@ -400,6 +412,17 @@ def test_result_rejects_candidate_inventory_and_catalog_identity_drift() -> None
     result["result_sha256"] = canonical_sha256({key: value for key, value in result.items() if key != "result_sha256"})
     with pytest.raises(PacketValidationError, match="catalog"):
         validate_result(result, freeze=freeze, catalog=catalog)
+
+
+def test_result_and_freeze_root_identities_must_match_catalog() -> None:
+    for key in ("contract_sha256", "source_map_sha256"):
+        freeze, result = _bound_result()
+        freeze[key] = result[key] = "e" * 64
+        freeze["freeze_sha256"] = canonical_sha256({name: value for name, value in freeze.items() if name != "freeze_sha256"})
+        result["freeze_sha256"] = freeze["freeze_sha256"]
+        result["result_sha256"] = canonical_sha256({name: value for name, value in result.items() if name != "result_sha256"})
+        with pytest.raises(PacketValidationError, match="catalog"):
+            validate_result(result, freeze=freeze, catalog=_catalog())
 
 
 def test_verified_failure_trace_may_deviate_but_qualifies_fail() -> None:

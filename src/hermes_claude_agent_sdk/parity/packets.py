@@ -374,7 +374,7 @@ def validate_result(value: Any, *, freeze: Mapping[str, Any] | None = None, cata
     if freeze is not None:
         frozen = validate_freeze(freeze)
         if frozen["capability_set_sha256"] != canonical_sha256(sorted(ids)) or result["freeze_sha256"] != frozen["freeze_sha256"] or candidate["candidate_sha256"] != frozen["candidate_sha256"] or any(result[key] != frozen[key] for key in ("contract_sha256", "catalog_sha256", "source_map_sha256", "fixture_manifest_sha256")) or inventory["declared_inventory_sha256"] != frozen["declared_inventory_sha256"] or inventory["observed_inventory_sha256"] != frozen["observed_inventory_sha256"] or run["scenario_sha256"] != frozen["scenario_sha256"] or run["scope_partition_id"] != frozen["scope_partition_id"] or run["session_scope"] != frozen["session_scope"] or frozen["sdk_ledger_sha256"] != catalog["sdk_ledger"]["ledger_sha256"]: _fail("capability_set_sha256 is not bound" if frozen["capability_set_sha256"] != canonical_sha256(sorted(ids)) else "result freeze/candidate binding is invalid")
-    if catalog is not None and result["catalog_sha256"] != catalog.get("catalog_sha256"): _fail("result catalog binding is invalid")
+    if catalog is not None and any(result[key] != catalog.get(key) for key in ("catalog_sha256", "contract_sha256", "source_map_sha256")): _fail("result catalog binding is invalid")
     return result
 
 def _aggregate_projection(value: Mapping[str, Any], full: bool = False) -> Any:
@@ -409,7 +409,7 @@ def validate_aggregate(value: Any, *, catalog: Mapping[str, Any] | None = None) 
     rows = sorted(rows, key=lambda row: (row["pack_id"], row["row_id"]))
     if len({(row["pack_id"], row["row_id"]) for row in rows}) != len(rows): _fail("aggregate source rows overlap")
     if result["source_row_set_sha256"] != canonical_sha256(rows) or result["full_result_sha256"] != canonical_sha256(_aggregate_projection(result, True)) or result["aggregate_sha256"] != canonical_sha256(_aggregate_projection(result)): _fail("aggregate hash projection is invalid")
-    if result["catalog_sha256"] != catalog.get("catalog_sha256"): _fail("aggregate catalog binding is invalid")
+    if any(result[key] != catalog.get(key) for key in ("catalog_sha256", "contract_sha256", "source_map_sha256")): _fail("aggregate catalog binding is invalid")
     return result
 
 def hash_projection(field: str, value: Mapping[str, Any] | Sequence[Any]) -> str:
