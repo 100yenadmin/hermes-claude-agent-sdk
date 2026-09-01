@@ -1,2 +1,2 @@
-recursive-include qa *.json *.md *.yaml
+recursive-include qa *.json *.md *.txt *.yaml
 recursive-include tests/parity *.py
