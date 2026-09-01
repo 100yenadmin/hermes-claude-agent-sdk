@@ -1,0 +1,227 @@
+schema_version: 1
+ledger_name: "Hermes Agent SDK boundary ledger"
+ledger_version: "3.0.0"
+sdk_version: "0.2.144"
+source:
+  repository: "https://github.com/openclaw/openclaw"
+  commit: "ea806575e6450e4d1efdfc72c19f04be982a1b9b"
+  root: "extensions/anthropic"
+policy:
+  allowed_statuses: ["covered_current", "equivalent_host", "requires_0_3_239", "not_runtime_applicable"]
+  exclusion_is_pass: false
+  release_blocking_source_rows: 23
+  sdk_upgrade_trigger: "A release-blocking requires_0_3_239 row with reproduced evidence creates a new candidate and full-suite rerun."
+rows:
+  - id: "sdk-identity-credential-privacy-side-question-isolation"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L209"
+    title: "Pins SDK identity, keeps selected credentials private, and isolates side questions"
+    status: "covered_current"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/test_sdk_session.py::test_import_and_configuration_do_not_import_sdk_or_retain_parent_secret"
+      - "tests/test_auth.py::test_parser_accepts_json_and_discards_identity_fields"
+    release_blocking: true
+    mapping_note: "Current plugin behavior has a direct deterministic evidence target; the v3 executor and trace grade remain required."
+  - id: "authenticated-executable-exact-host-environment"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L471"
+    title: "Runs the installed authenticated executable with the exact host-prepared environment"
+    status: "covered_current"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/test_auth.py::test_probe_uses_bounded_no_shell_argv_and_minimal_noncredential_environment"
+    release_blocking: true
+    mapping_note: "Current plugin behavior has a direct deterministic evidence target; the v3 executor and trace grade remain required."
+  - id: "cancellation-race-during-async-module-load"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L512"
+    title: "Rejects cancellation that races the SDK asynchronous module load"
+    status: "equivalent_host"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/test_runtime_sdk_integration.py::test_pre_set_interrupt_event_honored_then_next_turn_runs"
+    release_blocking: true
+    mapping_note: "The provider-neutral host owns this invariant; v3 must bind the matching host receipt instead of adding a Claude-specific host type."
+  - id: "fresh-resume-native-session-identity"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L557"
+    title: "Preserves native session identity across fresh and resumed turns"
+    status: "covered_current"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/test_runtime_sdk_integration.py::test_host_tool_bridge_and_resume_use_only_public_fields"
+      - "tests/test_runtime_sdk_integration.py::test_successful_turn_then_cancelled_turn_reuses_current_resume_on_replacement"
+    release_blocking: true
+    mapping_note: "Current plugin behavior has a direct deterministic evidence target; the v3 executor and trace grade remain required."
+  - id: "cache-effort-checkpoint-fork-options"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L570"
+    title: "Preserves cache, effort, and checkpoint-fork controls through SDK options"
+    status: "equivalent_host"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/parity/test_boundary_adaptations.py::test_cache_receipts_and_resume_survive_while_unknown_fork_controls_fail_closed"
+    release_blocking: true
+    mapping_note: "The provider-neutral host owns this invariant; v3 must bind the matching host receipt instead of adding a Claude-specific host type."
+  - id: "compatible-warm-query-process-reuse"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L599"
+    title: "Reuses one official SDK query and Claude process across compatible agent turns"
+    status: "covered_current"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/test_runtime_sdk_integration.py::test_runtime_reuses_one_client_reader_and_uses_host_only_for_idle_completion"
+    release_blocking: true
+    mapping_note: "Current plugin behavior has a direct deterministic evidence target; the v3 executor and trace grade remain required."
+  - id: "terminal-error-warm-query-reuse"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L665"
+    title: "Keeps a terminal error turn warm query reusable for the next turn"
+    status: "equivalent_host"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/test_sdk_session.py::test_terminal_error_turn_keeps_the_compatible_sdk_session_warm"
+    release_blocking: true
+    mapping_note: "The provider-neutral host owns this invariant; v3 must bind the matching host receipt instead of adding a Claude-specific host type."
+  - id: "execution-fingerprint-change-restarts-warm-query"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L698"
+    title: "Restarts the warm SDK query when system prompt or execution fingerprint changes"
+    status: "equivalent_host"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/test_runtime_sdk_integration.py::test_runtime_rejects_prompt_or_tool_contract_change_before_second_query"
+    release_blocking: true
+    mapping_note: "The provider-neutral host owns this invariant; v3 must bind the matching host receipt instead of adding a Claude-specific host type."
+  - id: "inactive-owner-refuses-live-process"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L734"
+    title: "Refuses to start a live process when its owner will not activate the admitted turn"
+    status: "equivalent_host"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/test_runtime_sdk_integration.py::test_runtime_rejects_a_replacement_host_binding_without_query_or_reroute"
+    release_blocking: true
+    mapping_note: "The provider-neutral host owns this invariant; v3 must bind the matching host receipt instead of adding a Claude-specific host type."
+  - id: "abort-closes-process-and-fences-permissions"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L749"
+    title: "Closes the warm process and fences retained permissions when its active turn is aborted"
+    status: "covered_current"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/test_runtime_sdk_integration.py::test_cancellation_interrupts_and_closes_once_with_one_terminal"
+      - "tests/test_tool_bridge.py::test_cancellation_and_cancellation_probe_failure_do_not_call_host"
+    release_blocking: true
+    mapping_note: "Current plugin behavior has a direct deterministic evidence target; the v3 executor and trace grade remain required."
+  - id: "approval-callback-active-turn-rebind"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L792"
+    title: "Rebinds a persistent SDK approval callback to only the active admitted turn"
+    status: "equivalent_host"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/parity/test_boundary_adaptations.py::test_cancelled_or_late_tool_request_is_fenced_then_next_turn_rebinds"
+      - "tests/test_tool_bridge.py::test_begin_turn_refreshes_tool_correlation_without_rebuilding_bridge"
+    release_blocking: true
+    mapping_note: "The provider-neutral host owns this invariant; v3 must bind the matching host receipt instead of adding a Claude-specific host type."
+  - id: "late-approval-rejected"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L854"
+    title: "Rejects an approval that resolves after its exact admitted turn has ended"
+    status: "equivalent_host"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/parity/test_boundary_adaptations.py::test_cancelled_or_late_tool_request_is_fenced_then_next_turn_rebinds"
+    release_blocking: true
+    mapping_note: "The provider-neutral host owns this invariant; v3 must bind the matching host receipt instead of adding a Claude-specific host type."
+  - id: "background-provisional-result-settlement"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L885"
+    title: "Holds provisional synthetic results until the real background-agent answer arrives"
+    status: "covered_current"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/test_runtime_sdk_integration.py::test_queued_idle_burst_is_released_only_after_parent_terminal_is_observed"
+    release_blocking: true
+    mapping_note: "Current plugin behavior has a direct deterministic evidence target; the v3 executor and trace grade remain required."
+  - id: "restricted-native-tools-and-mcp-grants"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L929"
+    title: "Keeps restricted native tools and MCP grants inside the exact host-owned surface"
+    status: "covered_current"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/test_native_agent_configuration.py::test_option_fields_expose_native_agent_and_hermes_mcp_allowlist"
+      - "tests/test_tool_bridge.py::test_unknown_duplicate_and_excluded_names_fail_before_host_call"
+    release_blocking: true
+    mapping_note: "Current plugin behavior has a direct deterministic evidence target; the v3 executor and trace grade remain required."
+  - id: "variadic-directories-tools-managed-mcp-isolation"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L975"
+    title: "Preserves variadic directories, tools, and managed plugin MCP isolation"
+    status: "not_runtime_applicable"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/parity/test_boundary_adaptations.py::test_variadic_sdk_surfaces_are_denied_without_weakening_tool_or_mcp_isolation"
+    release_blocking: true
+    mapping_note: "The current runtime surface does not expose this upstream mechanism; v3 must prove the adapted fail-closed or host-equivalent behavior, not count the classification as a pass."
+  - id: "wildcard-mcp-grants-expand-to-admitted-tools"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L1021"
+    title: "Expands wildcard MCP grants into only the exact tools admitted by the host"
+    status: "equivalent_host"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/test_tool_bridge.py::test_unknown_duplicate_and_excluded_names_fail_before_host_call"
+    release_blocking: true
+    mapping_note: "The provider-neutral host owns this invariant; v3 must bind the matching host receipt instead of adding a Claude-specific host type."
+  - id: "missing-terminal-result-fails-closed"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L1078"
+    title: "Fails closed when the official SDK exits without a terminal result"
+    status: "covered_current"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/test_sdk_session.py::test_sdk_stream_without_a_terminal_result_fails_closed"
+    release_blocking: true
+    mapping_note: "Current plugin behavior has a direct deterministic evidence target; the v3 executor and trace grade remain required."
+  - id: "structured-question-not-tool-approval"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.permissions.test.ts#L104"
+    title: "Routes AskUserQuestion through structured input instead of tool approval"
+    status: "not_runtime_applicable"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers"
+    release_blocking: true
+    mapping_note: "The current runtime surface does not expose this upstream mechanism; v3 must prove the adapted fail-closed or host-equivalent behavior, not count the classification as a pass."
+  - id: "native-tool-policy-precedes-user-shadow"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.permissions.test.ts#L147"
+    title: "Enforces native tool policy before user settings can shadow the permission callback"
+    status: "equivalent_host"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/test_tool_bridge.py::test_sdk_adapter_does_not_approve_or_execute_fallback"
+    release_blocking: true
+    mapping_note: "The provider-neutral host owns this invariant; v3 must bind the matching host receipt instead of adding a Claude-specific host type."
+  - id: "bypass-shaped-arguments-remain-permissioned"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.permissions.test.ts#L217"
+    title: "Keeps bypass-shaped backend arguments behind the host permission callback"
+    status: "equivalent_host"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/test_tool_bridge.py::test_malformed_arguments_fail_closed_before_host_call"
+    release_blocking: true
+    mapping_note: "The provider-neutral host owns this invariant; v3 must bind the matching host receipt instead of adding a Claude-specific host type."
+  - id: "structured-question-answer-mapping-dedup"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk-user-input.test.ts#L50"
+    title: "Maps questions and answers while deduplicating SDK callbacks"
+    status: "not_runtime_applicable"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers"
+    release_blocking: true
+    mapping_note: "The current runtime surface does not expose this upstream mechanism; v3 must prove the adapted fail-closed or host-equivalent behavior, not count the classification as a pass."
+  - id: "structured-question-skip-denial-guidance"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk-user-input.test.ts#L108"
+    title: "Returns actionable denial guidance when the operator skips"
+    status: "not_runtime_applicable"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers"
+    release_blocking: true
+    mapping_note: "The current runtime surface does not expose this upstream mechanism; v3 must prove the adapted fail-closed or host-equivalent behavior, not count the classification as a pass."
+  - id: "malformed-question-rejected-before-host"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk-user-input.test.ts#L126"
+    title: "Rejects malformed questions before invoking the host"
+    status: "not_runtime_applicable"
+    evidence_state: "existing_candidate"
+    evidence_refs:
+      - "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers"
+    release_blocking: true
+    mapping_note: "The current runtime surface does not expose this upstream mechanism; v3 must prove the adapted fail-closed or host-equivalent behavior, not count the classification as a pass."
+proof_boundary: "This ledger classifies adaptation ownership and evidence targets. Existing-candidate references are not v3 result packets, and no row passes until its catalog paths grade on the exact candidate."

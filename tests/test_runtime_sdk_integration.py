@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import time
 from dataclasses import dataclass
 from types import ModuleType, SimpleNamespace
@@ -72,7 +73,7 @@ class _Client:
         self.connected = 0
         self.disconnected = 0
         self.interrupted = 0
-        self.queries: list[str] = []
+        self.queries: list[object] = []
         self._messages: asyncio.Queue[object] = asyncio.Queue()
         self._closed = False
         self._producer_task: asyncio.Task[None] | None = None
@@ -82,10 +83,15 @@ class _Client:
 
     async def query(self, prompt: str) -> None:
         self.queries.append(prompt)
-        if self.mode in {"compaction", "compaction_failure", "compaction_watchdog"}:
+        if self.mode in {
+            "compaction",
+            "compaction_failure",
+            "compaction_watchdog",
+            "compaction_tool_success",
+        }:
             callback = self.options.fields["hooks"]["PreCompact"][0].hooks[0]
             await callback({"trigger": "auto"}, None, None)
-        if self.mode in {"tool_success", "tool_failure"}:
+        if self.mode in {"tool_success", "tool_failure", "compaction_tool_success"}:
             server = self.options.fields["mcp_servers"]["hermes-tools"]
             handler = server["tools"][0]["handler"]
             await handler({"path": "."})
@@ -103,7 +109,7 @@ class _Client:
         if self.mode not in {"unknown", "tool_failure"}:
             await self._messages.put(SystemMessage("init", {"apiKeySource": "none"}))
             await self._messages.put(AssistantMessage([TextBlock("hello")]))
-        if self.mode == "compaction":
+        if self.mode in {"compaction", "compaction_tool_success"}:
             await self._messages.put(
                 SystemMessage(
                     "compact_boundary",
@@ -471,12 +477,13 @@ def _request(
     tools=(),
     correlation_id="synthetic-correlation",
     prompt_snapshot="stable system prompt",
+    messages=({"role": "user", "content": "hello runtime"},),
 ):
     return build_runtime_turn_request(
         provider="claude-agent-sdk",
         model="claude-fable-5",
         api_mode="agent_runtime",
-        messages=({"role": "user", "content": "hello runtime"},),
+        messages=messages,
         prompt_snapshot=prompt_snapshot,
         tool_schemas=tools,
         session_state=state,
@@ -552,6 +559,86 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
         assert fields["mcp_servers"]["hermes-tools"]["tools"] == []
         assert clients[0].queries == ["hello runtime"]
         assert clients[0].disconnected == 1
+
+    asyncio.run(scenario())
+
+
+def test_native_image_turn_uses_the_public_sdk_streaming_input() -> None:
+    async def scenario():
+        payload = base64.b64encode(b"\x89PNG\r\n\x1a\nfixture").decode("ascii")
+        clients: list[_Client] = []
+        runtime = _runtime("success", clients)
+        request = _request(
+            messages=(
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "inspect the fixture"},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{payload}"
+                            },
+                        },
+                    ],
+                },
+            )
+        )
+
+        events = await _collect(runtime, request, _Host())
+        await runtime.close()
+
+        assert events[-1].kind.value == "completed"
+        prompt = clients[0].queries[0]
+        messages = [message async for message in prompt]
+        assert messages == [
+            {
+                "type": "user",
+                "message": {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "inspect the fixture"},
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": payload,
+                            },
+                        },
+                    ],
+                },
+                "parent_tool_use_id": None,
+            }
+        ]
+
+    asyncio.run(scenario())
+
+
+def test_invalid_image_fails_before_sdk_start() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("success", clients)
+        request = _request(
+            messages=(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": "file:///tmp/private.png"},
+                        }
+                    ],
+                },
+            )
+        )
+
+        events = await _collect(runtime, request, _Host())
+        await runtime.close()
+
+        assert [event.kind.value for event in events] == ["failed"]
+        assert events[0].failure.code == "claude_runtime_image_invalid"
+        assert clients == []
 
     asyncio.run(scenario())
 
@@ -1025,6 +1112,76 @@ def test_runtime_rejects_prompt_or_tool_contract_change_before_second_query() ->
 
         assert [event.kind.value for event in events] == ["failed"]
         assert events[0].failure.code == "claude_runtime_session_contract_changed"
+        assert clients[0].queries == ["hello runtime"]
+
+    asyncio.run(scenario())
+
+
+def test_model_switch_requires_a_new_runtime_and_preserves_tool_schema() -> None:
+    async def scenario():
+        first_clients: list[_Client] = []
+        first_runtime = _runtime("success", first_clients)
+        host = _Host()
+        schemas = (_tool_schema(),)
+
+        first = await _collect(first_runtime, _request(tools=schemas), host)
+        switched_request = build_runtime_turn_request(
+            provider="claude-agent-sdk",
+            model="claude-fable-synthetic-switched",
+            api_mode="agent_runtime",
+            messages=({"role": "user", "content": "hello runtime"},),
+            prompt_snapshot="stable system prompt",
+            tool_schemas=schemas,
+            correlation_id="synthetic-model-switch",
+        )
+        fenced = await _collect(first_runtime, switched_request, host)
+        await first_runtime.close()
+
+        second_clients: list[_Client] = []
+        second_runtime = _runtime("success", second_clients)
+        recovered = await _collect(second_runtime, switched_request, _Host())
+        await second_runtime.close()
+
+        assert first[-1].kind.value == "completed"
+        assert [event.kind.value for event in fenced] == ["failed"]
+        assert fenced[0].failure.code == "claude_runtime_session_contract_changed"
+        assert recovered[-1].kind.value == "completed"
+        assert first_clients[0].queries == ["hello runtime"]
+        assert second_clients[0].queries == ["hello runtime"]
+        assert first_clients[0].options.fields["model"] == "claude-fable-5"
+        assert (
+            second_clients[0].options.fields["model"]
+            == "claude-fable-synthetic-switched"
+        )
+        assert (
+            first_clients[0].options.fields["allowed_tools"]
+            == second_clients[0].options.fields["allowed_tools"]
+            == ["mcp__hermes-tools__pwd"]
+        )
+
+    asyncio.run(scenario())
+
+
+def test_compaction_retry_keeps_mutation_exactly_once() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("compaction_tool_success", clients)
+        host = _Host()
+
+        result = await _collect_runtime_turn(
+            runtime,
+            _request(tools=(_tool_schema(),)),
+            host,
+            descriptor=build_runtime_descriptor(),
+        )
+        await runtime.close()
+
+        assert [event.phase for event in host.compaction] == [
+            RuntimeCompactionPhase.STARTED,
+            RuntimeCompactionPhase.COMPLETED,
+        ]
+        assert result.terminal.kind.value == "completed"
+        assert host.calls == [("pwd", {"path": "."})]
         assert clients[0].queries == ["hello runtime"]
 
     asyncio.run(scenario())

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import os
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping
 from dataclasses import replace
 from typing import Any
 
@@ -13,8 +13,8 @@ from .compatibility import API_MODES, MODEL_PREFIXES, PROVIDER_IDS, RUNTIME_ID
 from .configuration import SDKSessionConfiguration
 from .prompt_context import build_sdk_prompt_context
 from .tool_bridge import HostToolBridge
+from .turn_input import TurnInputValidationError, build_sdk_turn_input
 
-_MAX_TURN_TEXT = 32_000
 _MAX_SYSTEM_APPEND = 32_000
 _MCP_SERVER_NAME = "hermes-tools"
 
@@ -23,42 +23,6 @@ def _failure(code: str, message: str, phase: Any, *, replay_safe: bool) -> Any:
     from agent.runtime_api import RuntimeFailure
 
     return RuntimeFailure(code=code, message=message, phase=phase, replay_safe=replay_safe)
-
-
-def _bounded_turn_text(request: Any) -> str | None:
-    """Extract the last bounded public user-text turn without coercing objects."""
-
-    messages = getattr(request, "messages", ())
-    if not isinstance(messages, Sequence) or isinstance(messages, (str, bytes)):
-        return None
-    for message in reversed(messages):
-        if not isinstance(message, Mapping) or message.get("role") != "user":
-            continue
-        content = message.get("content")
-        if isinstance(content, str):
-            text = content.strip()
-            return text[:_MAX_TURN_TEXT] if text else None
-        if isinstance(content, Sequence) and not isinstance(content, (str, bytes)):
-            parts: list[str] = []
-            used = 0
-            for block in content:
-                if not isinstance(block, Mapping) or block.get("type") != "text":
-                    continue
-                value = block.get("text")
-                if not isinstance(value, str):
-                    continue
-                value = value.strip()
-                if not value:
-                    continue
-                remaining = _MAX_TURN_TEXT - used
-                if remaining <= 0:
-                    break
-                parts.append(value[:remaining])
-                used += min(len(value), remaining)
-            text = "\n".join(parts).strip()
-            return text[:_MAX_TURN_TEXT] if text else None
-        return None
-    return None
 
 
 def _resume_id(request: Any) -> tuple[str | None, bool]:
@@ -256,7 +220,18 @@ class ClaudeAgentSDKRuntime:
             )
             return
 
-        prompt = _bounded_turn_text(request)
+        try:
+            prompt = build_sdk_turn_input(request)
+        except TurnInputValidationError as exc:
+            yield RuntimeFailedEvent(
+                failure=_failure(
+                    exc.code,
+                    "Claude runtime image input is invalid",
+                    RuntimeFailurePhase.BEFORE_VISIBLE_OUTPUT,
+                    replay_safe=False,
+                )
+            )
+            return
         if prompt is None:
             yield RuntimeFailedEvent(
                 failure=_failure(

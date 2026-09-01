@@ -1,0 +1,4378 @@
+schema_version: 1
+contract:
+  name: "Hermes Agent SDK Feature Parity"
+  version: "3.0.0"
+  runner_version: "3.0.0"
+  references:
+    hermes_v2:
+      version: "2.0.0"
+      sha256: "e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+      candidate_sha: "6967371b9ff8efce9372dd428b3b764322bd6481"
+    openclaw:
+      tag: "v2026.8.1"
+      commit: "ea806575e6450e4d1efdfc72c19f04be982a1b9b"
+      active_pack: "extensions/qa-lab/src/agentic-parity.ts"
+      boundary_root: "extensions/anthropic"
+      runtime_reference: "qa/scenarios/runtime/soak-100-turn.yaml"
+    clawprobench:
+      commit: "c4b8395854fe0752eef435b44f140366efd44d8e"
+      profile: "native"
+      license: "Apache-2.0"
+  required_coverage:
+    v2_non_soak: 53
+    openclaw_active: 12
+    agent_sdk_boundary: 23
+    clawprobench_native: 36
+  source_manifest:
+    v2_non_soak:
+      count: 53
+      ids_sha256: "6933d6abe587ffafdf20d63485445851f2ab0c0b2c12ab2e21b146271e72f861"
+    openclaw_active:
+      count: 12
+      ids_sha256: "5542995d9213b31b227910ef7337057cb01301b2d87546c5375459e9184439a7"
+    agent_sdk_boundary:
+      count: 23
+      ids_sha256: "3b5aaf3c5282061fd7a7f34345d514aad55b91ee820fd65b99133b36dab85b32"
+    clawprobench_native:
+      count: 36
+      ids_sha256: "b0c79c09ea2f640962f875ecc222235f9f26df59cedb077fef740a03a8bd9048"
+  tool_inventory:
+    required: true
+    declared_equals_observed: true
+    schema_hash_required: true
+    fail_closed: true
+  profile_policy:
+    allowed_ids: ["fable-v3-isolated"]
+    shared_profiles_forbidden: true
+  result_contract:
+    classifications: ["PENDING", "EXPECTED_NEGATIVE", "ENVIRONMENT_BLOCKED", "VERIFIED_FAILURE", "COMPLETE"]
+    billing_allowed: ["subscription_included", "explicitly_free", "none"]
+    exits: {pass: 0, verified_failure: 1, contract_violation: 2, pending: 75}
+    raw_content_forbidden: true
+    partial_gate_pass_forbidden: true
+    silent_fallback_forbidden: true
+  deduplication_key: "execution_id"
+  proof_boundary: "RC evidence is exact-candidate release readiness; runtime evidence is isolated-profile runtime safety. Neither authorizes publication, shared Eva, fleet, or customer use."
+capabilities:
+  - capability_id: "v2:auth-01"
+    source_item_id: "AUTH-01"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "authentication_billing"
+    owner: "plugin:#11"
+    title: "Fable parent resolves claude-agent-sdk/claude-fable-5 with subscription_included and included cost status."
+    positive_path:
+      required: true
+      assertion: "Fable parent resolves claude-agent-sdk/claude-fable-5 with subscription_included and included cost status."
+    denial_path:
+      required: true
+      assertion: "The AUTH-01 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected AUTH-01 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The AUTH-01 fixture is isolated and its initial state hash is recorded."
+    state_after: "The AUTH-01 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "usage"
+      - "terminal"
+    primary_proof:
+      - "live"
+      - "usage_receipt"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "v2-auth-01"
+  - capability_id: "v2:auth-02"
+    source_item_id: "AUTH-02"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "authentication_billing"
+    owner: "plugin:#11"
+    title: "Codex Luna worker resolves openai-codex/gpt-5.6-luna with subscription_included and included cost status."
+    positive_path:
+      required: true
+      assertion: "Codex Luna worker resolves openai-codex/gpt-5.6-luna with subscription_included and included cost status."
+    denial_path:
+      required: true
+      assertion: "The AUTH-02 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected AUTH-02 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The AUTH-02 fixture is isolated and its initial state hash is recorded."
+    state_after: "The AUTH-02 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "usage"
+      - "terminal"
+    primary_proof:
+      - "live"
+      - "usage_receipt"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "v2-auth-02"
+  - capability_id: "v2:auth-03"
+    source_item_id: "AUTH-03"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "authentication_billing"
+    owner: "plugin:#11"
+    title: "Codex Sol worker resolves openai-codex/gpt-5.6-sol with subscription_included and included cost status."
+    positive_path:
+      required: true
+      assertion: "Codex Sol worker resolves openai-codex/gpt-5.6-sol with subscription_included and included cost status."
+    denial_path:
+      required: true
+      assertion: "The AUTH-03 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected AUTH-03 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The AUTH-03 fixture is isolated and its initial state hash is recorded."
+    state_after: "The AUTH-03 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "usage"
+      - "terminal"
+    primary_proof:
+      - "live"
+      - "usage_receipt"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "v2-auth-03"
+  - capability_id: "v2:auth-04"
+    source_item_id: "AUTH-04"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "authentication_billing"
+    owner: "plugin:#11"
+    title: "Declared OpenCode Free keyless route resolves without a credential and reports non_metered/included."
+    positive_path:
+      required: true
+      assertion: "Declared OpenCode Free keyless route resolves without a credential and reports non_metered/included."
+    denial_path:
+      required: true
+      assertion: "The AUTH-04 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected AUTH-04 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The AUTH-04 fixture is isolated and its initial state hash is recorded."
+    state_after: "The AUTH-04 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "usage"
+      - "terminal"
+    primary_proof:
+      - "integration"
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "v2-auth-04"
+  - capability_id: "v2:auth-05"
+    source_item_id: "AUTH-05"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "authentication_billing"
+    owner: "plugin:#11"
+    title: "Known metered route is rejected before spawn while allow_metered_routes is false."
+    positive_path:
+      required: true
+      assertion: "Known metered route is rejected before spawn while allow_metered_routes is false."
+    denial_path:
+      required: true
+      assertion: "The AUTH-05 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected AUTH-05 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The AUTH-05 fixture is isolated and its initial state hash is recorded."
+    state_after: "The AUTH-05 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "usage"
+      - "terminal"
+    primary_proof:
+      - "deterministic"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "v2-auth-05"
+  - capability_id: "v2:auth-06"
+    source_item_id: "AUTH-06"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "authentication_billing"
+    owner: "plugin:#11"
+    title: "Known metered route becomes preflight-eligible only with explicit allow_metered_routes true; no live paid request is made."
+    positive_path:
+      required: true
+      assertion: "Known metered route becomes preflight-eligible only with explicit allow_metered_routes true; no live paid request is made."
+    denial_path:
+      required: true
+      assertion: "The AUTH-06 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected AUTH-06 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The AUTH-06 fixture is isolated and its initial state hash is recorded."
+    state_after: "The AUTH-06 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "usage"
+      - "terminal"
+    primary_proof:
+      - "deterministic"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "v2-auth-06"
+  - capability_id: "v2:auth-07"
+    source_item_id: "AUTH-07"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "authentication_billing"
+    owner: "plugin:#11"
+    title: "Unknown billing is rejected before spawn even when allow_metered_routes is true."
+    positive_path:
+      required: true
+      assertion: "Unknown billing is rejected before spawn even when allow_metered_routes is true."
+    denial_path:
+      required: true
+      assertion: "The AUTH-07 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected AUTH-07 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The AUTH-07 fixture is isolated and its initial state hash is recorded."
+    state_after: "The AUTH-07 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "usage"
+      - "terminal"
+    primary_proof:
+      - "deterministic"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "v2-auth-07"
+  - capability_id: "v2:auth-08"
+    source_item_id: "AUTH-08"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "authentication_billing"
+    owner: "plugin:#11"
+    title: "API-key and missing-credential route evidence is rejected before child construction under the default policy."
+    positive_path:
+      required: true
+      assertion: "API-key and missing-credential route evidence is rejected before child construction under the default policy."
+    denial_path:
+      required: true
+      assertion: "The AUTH-08 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected AUTH-08 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The AUTH-08 fixture is isolated and its initial state hash is recorded."
+    state_after: "The AUTH-08 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "usage"
+      - "terminal"
+    primary_proof:
+      - "deterministic"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "v2-auth-08"
+  - capability_id: "v2:auth-09"
+    source_item_id: "AUTH-09"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "authentication_billing"
+    owner: "plugin:#11"
+    title: "Claude Extra Usage or API-key runtime evidence fails closed before accepting auxiliary or parent output."
+    positive_path:
+      required: true
+      assertion: "Claude Extra Usage or API-key runtime evidence fails closed before accepting auxiliary or parent output."
+    denial_path:
+      required: true
+      assertion: "The AUTH-09 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected AUTH-09 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The AUTH-09 fixture is isolated and its initial state hash is recorded."
+    state_after: "The AUTH-09 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "usage"
+      - "terminal"
+    primary_proof:
+      - "deterministic"
+      - "integration"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "v2-auth-09"
+  - capability_id: "v2:auth-10"
+    source_item_id: "AUTH-10"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "authentication_billing"
+    owner: "plugin:#11"
+    title: "GLM 5.3 remains config-only and is rejected by non-metered route policy without a live call."
+    positive_path:
+      required: true
+      assertion: "GLM 5.3 remains config-only and is rejected by non-metered route policy without a live call."
+    denial_path:
+      required: true
+      assertion: "The AUTH-10 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected AUTH-10 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The AUTH-10 fixture is isolated and its initial state hash is recorded."
+    state_after: "The AUTH-10 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "usage"
+      - "terminal"
+    primary_proof:
+      - "deterministic"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "v2-auth-10"
+  - capability_id: "v2:auth-11"
+    source_item_id: "AUTH-11"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "authentication_billing"
+    owner: "plugin:#11"
+    title: "Explicit routes never silently fall back after auth, quota, transport, billing, or provider failure."
+    positive_path:
+      required: true
+      assertion: "Explicit routes never silently fall back after auth, quota, transport, billing, or provider failure."
+    denial_path:
+      required: true
+      assertion: "The AUTH-11 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected AUTH-11 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The AUTH-11 fixture is isolated and its initial state hash is recorded."
+    state_after: "The AUTH-11 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "usage"
+      - "terminal"
+    primary_proof:
+      - "deterministic"
+      - "fault"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "v2-auth-11"
+  - capability_id: "v2:parent-01"
+    source_item_id: "PARENT-01"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "parent_runtime"
+    owner: "plugin:#11"
+    title: "Fable completes a normal text turn."
+    positive_path:
+      required: true
+      assertion: "Fable completes a normal text turn."
+    denial_path:
+      required: true
+      assertion: "The PARENT-01 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected PARENT-01 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The PARENT-01 fixture is isolated and its initial state hash is recorded."
+    state_after: "The PARENT-01 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-parent-01"
+  - capability_id: "v2:parent-02"
+    source_item_id: "PARENT-02"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "parent_runtime"
+    owner: "plugin:#11"
+    title: "Fable accepts supported rich-image input and preserves the image content path."
+    positive_path:
+      required: true
+      assertion: "Fable accepts supported rich-image input and preserves the image content path."
+    denial_path:
+      required: true
+      assertion: "The PARENT-02 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected PARENT-02 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The PARENT-02 fixture is isolated and its initial state hash is recorded."
+    state_after: "The PARENT-02 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "integration"
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-parent-02"
+  - capability_id: "v2:parent-03"
+    source_item_id: "PARENT-03"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "parent_runtime"
+    owner: "plugin:#11"
+    title: "A named Fable session preserves multi-turn continuity."
+    positive_path:
+      required: true
+      assertion: "A named Fable session preserves multi-turn continuity."
+    denial_path:
+      required: true
+      assertion: "The PARENT-03 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected PARENT-03 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The PARENT-03 fixture is isolated and its initial state hash is recorded."
+    state_after: "The PARENT-03 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-parent-03"
+  - capability_id: "v2:parent-04"
+    source_item_id: "PARENT-04"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "parent_runtime"
+    owner: "plugin:#11"
+    title: "A Fable session resumes by durable identity without cross-session contamination."
+    positive_path:
+      required: true
+      assertion: "A Fable session resumes by durable identity without cross-session contamination."
+    denial_path:
+      required: true
+      assertion: "The PARENT-04 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected PARENT-04 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The PARENT-04 fixture is isolated and its initial state hash is recorded."
+    state_after: "The PARENT-04 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "integration"
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-parent-04"
+  - capability_id: "v2:parent-05"
+    source_item_id: "PARENT-05"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "parent_runtime"
+    owner: "plugin:#11"
+    title: "Native SDK compaction status is surfaced and does not violate message roles."
+    positive_path:
+      required: true
+      assertion: "Native SDK compaction status is surfaced and does not violate message roles."
+    denial_path:
+      required: true
+      assertion: "The PARENT-05 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected PARENT-05 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The PARENT-05 fixture is isolated and its initial state hash is recorded."
+    state_after: "The PARENT-05 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "deterministic"
+      - "integration"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-parent-05"
+  - capability_id: "v2:parent-06"
+    source_item_id: "PARENT-06"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "parent_runtime"
+    owner: "plugin:#11"
+    title: "Cancellation terminates the active SDK operation with an explicit classified result."
+    positive_path:
+      required: true
+      assertion: "Cancellation terminates the active SDK operation with an explicit classified result."
+    denial_path:
+      required: true
+      assertion: "The PARENT-06 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected PARENT-06 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The PARENT-06 fixture is isolated and its initial state hash is recorded."
+    state_after: "The PARENT-06 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "integration"
+      - "fault"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-parent-06"
+  - capability_id: "v2:parent-07"
+    source_item_id: "PARENT-07"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "parent_runtime"
+    owner: "plugin:#11"
+    title: "Interrupt drains the active turn and permits a clean subsequent turn."
+    positive_path:
+      required: true
+      assertion: "Interrupt drains the active turn and permits a clean subsequent turn."
+    denial_path:
+      required: true
+      assertion: "The PARENT-07 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected PARENT-07 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The PARENT-07 fixture is isolated and its initial state hash is recorded."
+    state_after: "The PARENT-07 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "integration"
+      - "fault"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-parent-07"
+  - capability_id: "v2:parent-08"
+    source_item_id: "PARENT-08"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "parent_runtime"
+    owner: "plugin:#11"
+    title: "Transport failure is explicit, terminal, and does not emit partial success or fallback."
+    positive_path:
+      required: true
+      assertion: "Transport failure is explicit, terminal, and does not emit partial success or fallback."
+    denial_path:
+      required: true
+      assertion: "The PARENT-08 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected PARENT-08 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The PARENT-08 fixture is isolated and its initial state hash is recorded."
+    state_after: "The PARENT-08 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "integration"
+      - "fault"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-parent-08"
+  - capability_id: "v2:parent-09"
+    source_item_id: "PARENT-09"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "parent_runtime"
+    owner: "plugin:#11"
+    title: "The frozen Fable system-prompt hash is stable across equivalent turns."
+    positive_path:
+      required: true
+      assertion: "The frozen Fable system-prompt hash is stable across equivalent turns."
+    denial_path:
+      required: true
+      assertion: "The PARENT-09 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected PARENT-09 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The PARENT-09 fixture is isolated and its initial state hash is recorded."
+    state_after: "The PARENT-09 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "deterministic"
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-parent-09"
+  - capability_id: "v2:parent-10"
+    source_item_id: "PARENT-10"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "parent_runtime"
+    owner: "plugin:#11"
+    title: "The frozen Fable tool/MCP schema hash is stable across equivalent turns."
+    positive_path:
+      required: true
+      assertion: "The frozen Fable tool/MCP schema hash is stable across equivalent turns."
+    denial_path:
+      required: true
+      assertion: "The PARENT-10 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected PARENT-10 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The PARENT-10 fixture is isolated and its initial state hash is recorded."
+    state_after: "The PARENT-10 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "deterministic"
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-parent-10"
+  - capability_id: "v2:tool-01"
+    source_item_id: "TOOL-01"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "tools_mcp"
+    owner: "plugin:#11"
+    title: "The frozen Eva tool inventory registers with stable names, order, and schemas."
+    positive_path:
+      required: true
+      assertion: "The frozen Eva tool inventory registers with stable names, order, and schemas."
+    denial_path:
+      required: true
+      assertion: "The TOOL-01 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected TOOL-01 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The TOOL-01 fixture is isolated and its initial state hash is recorded."
+    state_after: "The TOOL-01 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "tool_requested"
+      - "tool_result"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "deterministic"
+      - "integration"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "v2-tool-01"
+  - capability_id: "v2:tool-02"
+    source_item_id: "TOOL-02"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "tools_mcp"
+    owner: "plugin:#11"
+    title: "A read-only terminal pwd call executes through the Fable runtime."
+    positive_path:
+      required: true
+      assertion: "A read-only terminal pwd call executes through the Fable runtime."
+    denial_path:
+      required: true
+      assertion: "The TOOL-02 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected TOOL-02 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The TOOL-02 fixture is isolated and its initial state hash is recorded."
+    state_after: "The TOOL-02 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "tool_requested"
+      - "tool_result"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "v2-tool-02"
+  - capability_id: "v2:tool-03"
+    source_item_id: "TOOL-03"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "tools_mcp"
+    owner: "plugin:#11"
+    title: "A side-effectful tool denial is explicit and produces no external mutation."
+    positive_path:
+      required: true
+      assertion: "A side-effectful tool denial is explicit and produces no external mutation."
+    denial_path:
+      required: true
+      assertion: "The TOOL-03 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected TOOL-03 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The TOOL-03 fixture is isolated and its initial state hash is recorded."
+    state_after: "The TOOL-03 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "tool_requested"
+      - "tool_result"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "integration"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "v2-tool-03"
+  - capability_id: "v2:tool-04"
+    source_item_id: "TOOL-04"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "tools_mcp"
+    owner: "plugin:#11"
+    title: "Approval, denial, and timeout callbacks remain distinct without stdin deadlock."
+    positive_path:
+      required: true
+      assertion: "Approval, denial, and timeout callbacks remain distinct without stdin deadlock."
+    denial_path:
+      required: true
+      assertion: "The TOOL-04 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected TOOL-04 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The TOOL-04 fixture is isolated and its initial state hash is recorded."
+    state_after: "The TOOL-04 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "tool_requested"
+      - "tool_result"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "deterministic"
+      - "integration"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "v2-tool-04"
+  - capability_id: "v2:tool-05"
+    source_item_id: "TOOL-05"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "tools_mcp"
+    owner: "plugin:#11"
+    title: "The real hermes-hybrid delegate_task handler is invoked, not registration-only coverage."
+    positive_path:
+      required: true
+      assertion: "The real hermes-hybrid delegate_task handler is invoked, not registration-only coverage."
+    denial_path:
+      required: true
+      assertion: "The TOOL-05 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected TOOL-05 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The TOOL-05 fixture is isolated and its initial state hash is recorded."
+    state_after: "The TOOL-05 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "tool_requested"
+      - "tool_result"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "integration"
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "v2-tool-05"
+  - capability_id: "v2:tool-06"
+    source_item_id: "TOOL-06"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "tools_mcp"
+    owner: "plugin:#11"
+    title: "Hybrid MCP preserves mcp prefixes, bucket membership, exclusions, and deterministic cache ordering."
+    positive_path:
+      required: true
+      assertion: "Hybrid MCP preserves mcp prefixes, bucket membership, exclusions, and deterministic cache ordering."
+    denial_path:
+      required: true
+      assertion: "The TOOL-06 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected TOOL-06 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The TOOL-06 fixture is isolated and its initial state hash is recorded."
+    state_after: "The TOOL-06 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "tool_requested"
+      - "tool_result"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "deterministic"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "v2-tool-06"
+  - capability_id: "v2:orch-01"
+    source_item_id: "ORCH-01"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "orchestration"
+    owner: "plugin:#11"
+    title: "Native Claude Agent synchronous child completes with distinguishable SDK-native evidence."
+    positive_path:
+      required: true
+      assertion: "Native Claude Agent synchronous child completes with distinguishable SDK-native evidence."
+    denial_path:
+      required: true
+      assertion: "The ORCH-01 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected ORCH-01 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The ORCH-01 fixture is isolated and its initial state hash is recorded."
+    state_after: "The ORCH-01 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-orch-01"
+  - capability_id: "v2:orch-02"
+    source_item_id: "ORCH-02"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "orchestration"
+    owner: "plugin:#11"
+    title: "Native Claude Agent background child completes and is delivered exactly once while the process remains alive."
+    positive_path:
+      required: true
+      assertion: "Native Claude Agent background child completes and is delivered exactly once while the process remains alive."
+    denial_path:
+      required: true
+      assertion: "The ORCH-02 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected ORCH-02 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The ORCH-02 fixture is isolated and its initial state hash is recorded."
+    state_after: "The ORCH-02 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-orch-02"
+  - capability_id: "v2:orch-03"
+    source_item_id: "ORCH-03"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "orchestration"
+    owner: "plugin:#11"
+    title: "Fable delegates one routed task to codex-luna and receives the exact safe route receipt."
+    positive_path:
+      required: true
+      assertion: "Fable delegates one routed task to codex-luna and receives the exact safe route receipt."
+    denial_path:
+      required: true
+      assertion: "The ORCH-03 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected ORCH-03 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The ORCH-03 fixture is isolated and its initial state hash is recorded."
+    state_after: "The ORCH-03 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-orch-03"
+  - capability_id: "v2:orch-04"
+    source_item_id: "ORCH-04"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "orchestration"
+    owner: "plugin:#11"
+    title: "Fable delegates one routed task to codex-sol and receives the exact safe route receipt."
+    positive_path:
+      required: true
+      assertion: "Fable delegates one routed task to codex-sol and receives the exact safe route receipt."
+    denial_path:
+      required: true
+      assertion: "The ORCH-04 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected ORCH-04 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The ORCH-04 fixture is isolated and its initial state hash is recorded."
+    state_after: "The ORCH-04 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-orch-04"
+  - capability_id: "v2:orch-05"
+    source_item_id: "ORCH-05"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "orchestration"
+    owner: "plugin:#11"
+    title: "A Luna/Sol mixed batch returns per-task receipts, mixed_routes true, and null aggregate provider/model."
+    positive_path:
+      required: true
+      assertion: "A Luna/Sol mixed batch returns per-task receipts, mixed_routes true, and null aggregate provider/model."
+    denial_path:
+      required: true
+      assertion: "The ORCH-05 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected ORCH-05 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The ORCH-05 fixture is isolated and its initial state hash is recorded."
+    state_after: "The ORCH-05 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "integration"
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-orch-05"
+  - capability_id: "v2:orch-06"
+    source_item_id: "ORCH-06"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "orchestration"
+    owner: "plugin:#11"
+    title: "A claude-agent-sdk opaque routed child completes through Hermes with subscription attribution."
+    positive_path:
+      required: true
+      assertion: "A claude-agent-sdk opaque routed child completes through Hermes with subscription attribution."
+    denial_path:
+      required: true
+      assertion: "The ORCH-06 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected ORCH-06 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The ORCH-06 fixture is isolated and its initial state hash is recorded."
+    state_after: "The ORCH-06 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "integration"
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-orch-06"
+  - capability_id: "v2:orch-07"
+    source_item_id: "ORCH-07"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "orchestration"
+    owner: "plugin:#11"
+    title: "An OpenCode Free opaque routed child completes as non_metered/included."
+    positive_path:
+      required: true
+      assertion: "An OpenCode Free opaque routed child completes as non_metered/included."
+    denial_path:
+      required: true
+      assertion: "The ORCH-07 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected ORCH-07 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The ORCH-07 fixture is isolated and its initial state hash is recorded."
+    state_after: "The ORCH-07 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "integration"
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-orch-07"
+  - capability_id: "v2:orch-08"
+    source_item_id: "ORCH-08"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "orchestration"
+    owner: "plugin:#11"
+    title: "Malformed, unknown, partial, forbidden-field, or unavailable batches fail atomically before spawn."
+    positive_path:
+      required: true
+      assertion: "Malformed, unknown, partial, forbidden-field, or unavailable batches fail atomically before spawn."
+    denial_path:
+      required: true
+      assertion: "The ORCH-08 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected ORCH-08 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The ORCH-08 fixture is isolated and its initial state hash is recorded."
+    state_after: "The ORCH-08 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "deterministic"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-orch-08"
+  - capability_id: "v2:orch-09"
+    source_item_id: "ORCH-09"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "orchestration"
+    owner: "plugin:#11"
+    title: "Routed results expose only route/provider/model/billing_mode/cost_status plus ordinary task status/output fields."
+    positive_path:
+      required: true
+      assertion: "Routed results expose only route/provider/model/billing_mode/cost_status plus ordinary task status/output fields."
+    denial_path:
+      required: true
+      assertion: "The ORCH-09 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected ORCH-09 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The ORCH-09 fixture is isolated and its initial state hash is recorded."
+    state_after: "The ORCH-09 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "deterministic"
+      - "integration"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-orch-09"
+  - capability_id: "v2:orch-10"
+    source_item_id: "ORCH-10"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "orchestration"
+    owner: "plugin:#11"
+    title: "Unrouted delegation preserves legacy precedence and result shape; explicit routing uses task route over global override over parent inheritance and disables fallback."
+    positive_path:
+      required: true
+      assertion: "Unrouted delegation preserves legacy precedence and result shape; explicit routing uses task route over global override over parent inheritance and disables fallback."
+    denial_path:
+      required: true
+      assertion: "The ORCH-10 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected ORCH-10 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The ORCH-10 fixture is isolated and its initial state hash is recorded."
+    state_after: "The ORCH-10 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "deterministic"
+      - "integration"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-orch-10"
+  - capability_id: "v2:bg-01"
+    source_item_id: "BG-01"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "background"
+    owner: "plugin:#11"
+    title: "One routed batch produces one consolidated completion and one bounded Fable synthesis."
+    positive_path:
+      required: true
+      assertion: "One routed batch produces one consolidated completion and one bounded Fable synthesis."
+    denial_path:
+      required: true
+      assertion: "The BG-01 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected BG-01 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The BG-01 fixture is isolated and its initial state hash is recorded."
+    state_after: "The BG-01 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "integration"
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-bg-01"
+  - capability_id: "v2:bg-02"
+    source_item_id: "BG-02"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "background"
+    owner: "plugin:#11"
+    title: "Completion claim and acknowledgement prevent duplicate or cross-session delivery while the process remains alive."
+    positive_path:
+      required: true
+      assertion: "Completion claim and acknowledgement prevent duplicate or cross-session delivery while the process remains alive."
+    denial_path:
+      required: true
+      assertion: "The BG-02 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected BG-02 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The BG-02 fixture is isolated and its initial state hash is recorded."
+    state_after: "The BG-02 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "deterministic"
+      - "integration"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-bg-02"
+  - capability_id: "v2:bg-03"
+    source_item_id: "BG-03"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "background"
+    owner: "plugin:#11"
+    title: "A graceful restart during active process-local delegation records interruption/cancellation and emits no late or misattributed duplicate."
+    positive_path:
+      required: true
+      assertion: "A graceful restart during active process-local delegation records interruption/cancellation and emits no late or misattributed duplicate."
+    denial_path:
+      required: true
+      assertion: "The BG-03 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected BG-03 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The BG-03 fixture is isolated and its initial state hash is recorded."
+    state_after: "The BG-03 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "fault"
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-bg-03"
+  - capability_id: "v2:bg-04"
+    source_item_id: "BG-04"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "background"
+    owner: "plugin:#11"
+    title: "An abrupt owner loss is classified outcome-unknown rather than falsely resumed or reported successful."
+    positive_path:
+      required: true
+      assertion: "An abrupt owner loss is classified outcome-unknown rather than falsely resumed or reported successful."
+    denial_path:
+      required: true
+      assertion: "The BG-04 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected BG-04 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The BG-04 fixture is isolated and its initial state hash is recorded."
+    state_after: "The BG-04 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "deterministic"
+      - "fault"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-bg-04"
+  - capability_id: "v2:ops-01"
+    source_item_id: "OPS-01"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "operations"
+    owner: "plugin:#11"
+    title: "The isolated and shared CLI paths can select Fable explicitly without changing the saved default."
+    positive_path:
+      required: true
+      assertion: "The isolated and shared CLI paths can select Fable explicitly without changing the saved default."
+    denial_path:
+      required: true
+      assertion: "The OPS-01 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected OPS-01 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The OPS-01 fixture is isolated and its initial state hash is recorded."
+    state_after: "The OPS-01 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-ops-01"
+  - capability_id: "v2:ops-02"
+    source_item_id: "OPS-02"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "operations"
+    owner: "plugin:#11"
+    title: "The operator-owned Eva Telegram path completes the approved Fable orchestration canary."
+    positive_path:
+      required: true
+      assertion: "The operator-owned Eva Telegram path completes the approved Fable orchestration canary."
+    denial_path:
+      required: true
+      assertion: "The OPS-02 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected OPS-02 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The OPS-02 fixture is isolated and its initial state hash is recorded."
+    state_after: "The OPS-02 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-ops-02"
+  - capability_id: "v2:ops-03"
+    source_item_id: "OPS-03"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "operations"
+    owner: "plugin:#11"
+    title: "The inventoried Eva gateway/default serve process set stops and restarts with the frozen SHA."
+    positive_path:
+      required: true
+      assertion: "The inventoried Eva gateway/default serve process set stops and restarts with the frozen SHA."
+    denial_path:
+      required: true
+      assertion: "The OPS-03 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected OPS-03 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The OPS-03 fixture is isolated and its initial state hash is recorded."
+    state_after: "The OPS-03 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "runtime_readback"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-ops-03"
+  - capability_id: "v2:ops-04"
+    source_item_id: "OPS-04"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "operations"
+    owner: "plugin:#11"
+    title: "Fable session continuity survives the supported gateway restart boundary."
+    positive_path:
+      required: true
+      assertion: "Fable session continuity survives the supported gateway restart boundary."
+    denial_path:
+      required: true
+      assertion: "The OPS-04 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected OPS-04 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The OPS-04 fixture is isolated and its initial state hash is recorded."
+    state_after: "The OPS-04 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "integration"
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-ops-04"
+  - capability_id: "v2:ops-05"
+    source_item_id: "OPS-05"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "operations"
+    owner: "plugin:#11"
+    title: "Parent and worker usage attribution persists exactly once across restart."
+    positive_path:
+      required: true
+      assertion: "Parent and worker usage attribution persists exactly once across restart."
+    denial_path:
+      required: true
+      assertion: "The OPS-05 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected OPS-05 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The OPS-05 fixture is isolated and its initial state hash is recorded."
+    state_after: "The OPS-05 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "integration"
+      - "runtime_readback"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-ops-05"
+  - capability_id: "v2:ops-06"
+    source_item_id: "OPS-06"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "operations"
+    owner: "plugin:#11"
+    title: "Eva saved default remains openai-codex/gpt-5.6-sol before and after cutover."
+    positive_path:
+      required: true
+      assertion: "Eva saved default remains openai-codex/gpt-5.6-sol before and after cutover."
+    denial_path:
+      required: true
+      assertion: "The OPS-06 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected OPS-06 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The OPS-06 fixture is isolated and its initial state hash is recorded."
+    state_after: "The OPS-06 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "runtime_readback"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-ops-06"
+  - capability_id: "v2:ops-07"
+    source_item_id: "OPS-07"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "operations"
+    owner: "plugin:#11"
+    title: "default and bsmoke profiles remain source/config/runtime isolated from Eva changes."
+    positive_path:
+      required: true
+      assertion: "default and bsmoke profiles remain source/config/runtime isolated from Eva changes."
+    denial_path:
+      required: true
+      assertion: "The OPS-07 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected OPS-07 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The OPS-07 fixture is isolated and its initial state hash is recorded."
+    state_after: "The OPS-07 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "deterministic"
+      - "runtime_readback"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-ops-07"
+  - capability_id: "v2:ops-08"
+    source_item_id: "OPS-08"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "operations"
+    owner: "plugin:#11"
+    title: "The dependency restore manifest resolves in a dry run and retains claude-agent-sdk 0.2.144 for the candidate."
+    positive_path:
+      required: true
+      assertion: "The dependency restore manifest resolves in a dry run and retains claude-agent-sdk 0.2.144 for the candidate."
+    denial_path:
+      required: true
+      assertion: "The OPS-08 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected OPS-08 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The OPS-08 fixture is isolated and its initial state hash is recorded."
+    state_after: "The OPS-08 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "rollback"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-ops-08"
+  - capability_id: "v2:ops-09"
+    source_item_id: "OPS-09"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "operations"
+    owner: "plugin:#11"
+    title: "Git ref, dependency, profile-state, and service rollback restores the named v1 source when invoked."
+    positive_path:
+      required: true
+      assertion: "Git ref, dependency, profile-state, and service rollback restores the named v1 source when invoked."
+    denial_path:
+      required: true
+      assertion: "The OPS-09 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected OPS-09 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The OPS-09 fixture is isolated and its initial state hash is recorded."
+    state_after: "The OPS-09 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "rollback"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-ops-09"
+  - capability_id: "v2:eff-01"
+    source_item_id: "EFF-01"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "efficiency"
+    owner: "plugin:#11"
+    title: "Lean orchestration uses zero native Claude children."
+    positive_path:
+      required: true
+      assertion: "Lean orchestration uses zero native Claude children."
+    denial_path:
+      required: true
+      assertion: "The EFF-01 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected EFF-01 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The EFF-01 fixture is isolated and its initial state hash is recorded."
+    state_after: "The EFF-01 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "usage_receipt"
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-eff-01"
+  - capability_id: "v2:eff-02"
+    source_item_id: "EFF-02"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "efficiency"
+    owner: "plugin:#11"
+    title: "Each lean orchestration run uses at most two Fable model turns."
+    positive_path:
+      required: true
+      assertion: "Each lean orchestration run uses at most two Fable model turns."
+    denial_path:
+      required: true
+      assertion: "The EFF-02 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected EFF-02 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The EFF-02 fixture is isolated and its initial state hash is recorded."
+    state_after: "The EFF-02 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "usage_receipt"
+      - "live"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-eff-02"
+  - capability_id: "v2:eff-03"
+    source_item_id: "EFF-03"
+    source_pack: "v2_non_soak"
+    source_ref: "hermes-v2@e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
+    lane: "rc"
+    surface: "efficiency"
+    owner: "plugin:#11"
+    title: "Across the live sample, p95 Fable non-cache share is at most 25 percent; cache traffic is reported separately."
+    positive_path:
+      required: true
+      assertion: "Across the live sample, p95 Fable non-cache share is at most 25 percent; cache traffic is reported separately."
+    denial_path:
+      required: true
+      assertion: "The EFF-03 out-of-contract or unsafe variant is rejected without an unrecorded side effect."
+    recovery_path:
+      required: true
+      assertion: "After an expected EFF-03 denial or bounded failure, the supported path recovers on the unchanged candidate."
+    state_before: "The EFF-03 fixture is isolated and its initial state hash is recorded."
+    state_after: "The EFF-03 expected state and exact terminal outcome are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "usage_receipt"
+      - "soak"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "v2-eff-03"
+  - capability_id: "active:approval-turn-tool-followthrough"
+    source_item_id: "approval-turn-tool-followthrough"
+    source_pack: "openclaw_active"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts"
+    lane: "rc"
+    surface: "agentic_behavior"
+    owner: "plugin:#12"
+    title: "Approval turn tool followthrough"
+    positive_path:
+      required: true
+      assertion: "Approval turn tool followthrough completes through the supported Hermes plugin and host surface."
+    denial_path:
+      required: true
+      assertion: "Approval turn tool followthrough obeys an explicit denial or unavailable-capability boundary without fallback."
+    recovery_path:
+      required: true
+      assertion: "Approval turn tool followthrough recovers after denial or a bounded injected failure without losing identity or state."
+    state_before: "The isolated approval-turn-tool-followthrough fixture and candidate identity are recorded."
+    state_after: "The expected approval-turn-tool-followthrough outcome, state delta, and terminal are recorded."
+    expected_trace:
+      - "start"
+      - "approval_requested"
+      - "approval_decision"
+      - "tool_requested"
+      - "tool_result"
+      - "terminal"
+    primary_proof:
+      - "normalized_trace"
+      - "host_tool_receipt"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "active-approval-turn-tool-followthrough"
+  - capability_id: "active:model-switch-tool-continuity"
+    source_item_id: "model-switch-tool-continuity"
+    source_pack: "openclaw_active"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts"
+    lane: "rc"
+    surface: "agentic_behavior"
+    owner: "plugin:#12"
+    title: "Model switch with tool continuity"
+    positive_path:
+      required: true
+      assertion: "Model switch with tool continuity completes through the supported Hermes plugin and host surface."
+    denial_path:
+      required: true
+      assertion: "Model switch with tool continuity obeys an explicit denial or unavailable-capability boundary without fallback."
+    recovery_path:
+      required: true
+      assertion: "Model switch with tool continuity recovers after denial or a bounded injected failure without losing identity or state."
+    state_before: "The isolated model-switch-tool-continuity fixture and candidate identity are recorded."
+    state_after: "The expected model-switch-tool-continuity outcome, state delta, and terminal are recorded."
+    expected_trace:
+      - "start"
+      - "tool_requested"
+      - "tool_result"
+      - "terminal"
+    primary_proof:
+      - "normalized_trace"
+      - "host_tool_receipt"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "active-model-switch-tool-continuity"
+  - capability_id: "active:source-docs-discovery-report"
+    source_item_id: "source-docs-discovery-report"
+    source_pack: "openclaw_active"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts"
+    lane: "rc"
+    surface: "agentic_behavior"
+    owner: "plugin:#12"
+    title: "Source and docs discovery report"
+    positive_path:
+      required: true
+      assertion: "Source and docs discovery report completes through the supported Hermes plugin and host surface."
+    denial_path:
+      required: true
+      assertion: "Source and docs discovery report obeys an explicit denial or unavailable-capability boundary without fallback."
+    recovery_path:
+      required: true
+      assertion: "Source and docs discovery report recovers after denial or a bounded injected failure without losing identity or state."
+    state_before: "The isolated source-docs-discovery-report fixture and candidate identity are recorded."
+    state_after: "The expected source-docs-discovery-report outcome, state delta, and terminal are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "normalized_trace"
+      - "host_tool_receipt"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "active-source-docs-discovery-report"
+  - capability_id: "active:image-understanding-attachment"
+    source_item_id: "image-understanding-attachment"
+    source_pack: "openclaw_active"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts"
+    lane: "rc"
+    surface: "agentic_behavior"
+    owner: "plugin:#12"
+    title: "Image understanding from attachment"
+    positive_path:
+      required: true
+      assertion: "Image understanding from attachment completes through the supported Hermes plugin and host surface."
+    denial_path:
+      required: true
+      assertion: "Image understanding from attachment obeys an explicit denial or unavailable-capability boundary without fallback."
+    recovery_path:
+      required: true
+      assertion: "Image understanding from attachment recovers after denial or a bounded injected failure without losing identity or state."
+    state_before: "The isolated image-understanding-attachment fixture and candidate identity are recorded."
+    state_after: "The expected image-understanding-attachment outcome, state delta, and terminal are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "normalized_trace"
+      - "state_receipt"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "active-image-understanding-attachment"
+  - capability_id: "active:compaction-retry-mutating-tool"
+    source_item_id: "compaction-retry-mutating-tool"
+    source_pack: "openclaw_active"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts"
+    lane: "rc"
+    surface: "agentic_behavior"
+    owner: "plugin:#12"
+    title: "Compaction retry after mutating tool"
+    positive_path:
+      required: true
+      assertion: "Compaction retry after mutating tool completes through the supported Hermes plugin and host surface."
+    denial_path:
+      required: true
+      assertion: "Compaction retry after mutating tool obeys an explicit denial or unavailable-capability boundary without fallback."
+    recovery_path:
+      required: true
+      assertion: "Compaction retry after mutating tool recovers after denial or a bounded injected failure without losing identity or state."
+    state_before: "The isolated compaction-retry-mutating-tool fixture and candidate identity are recorded."
+    state_after: "The expected compaction-retry-mutating-tool outcome, state delta, and terminal are recorded."
+    expected_trace:
+      - "start"
+      - "tool_requested"
+      - "tool_result"
+      - "compaction"
+      - "terminal"
+    primary_proof:
+      - "normalized_trace"
+      - "host_tool_receipt"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "active-compaction-retry-mutating-tool"
+  - capability_id: "active:subagent-handoff"
+    source_item_id: "subagent-handoff"
+    source_pack: "openclaw_active"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts"
+    lane: "rc"
+    surface: "agentic_behavior"
+    owner: "plugin:#12"
+    title: "Subagent handoff"
+    positive_path:
+      required: true
+      assertion: "Subagent handoff completes through the supported Hermes plugin and host surface."
+    denial_path:
+      required: true
+      assertion: "Subagent handoff obeys an explicit denial or unavailable-capability boundary without fallback."
+    recovery_path:
+      required: true
+      assertion: "Subagent handoff recovers after denial or a bounded injected failure without losing identity or state."
+    state_before: "The isolated subagent-handoff fixture and candidate identity are recorded."
+    state_after: "The expected subagent-handoff outcome, state delta, and terminal are recorded."
+    expected_trace:
+      - "start"
+      - "background"
+      - "terminal"
+    primary_proof:
+      - "normalized_trace"
+      - "host_tool_receipt"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "active-subagent-handoff"
+  - capability_id: "active:subagent-fanout-synthesis"
+    source_item_id: "subagent-fanout-synthesis"
+    source_pack: "openclaw_active"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts"
+    lane: "rc"
+    surface: "agentic_behavior"
+    owner: "plugin:#12"
+    title: "Subagent fanout synthesis"
+    positive_path:
+      required: true
+      assertion: "Subagent fanout synthesis completes through the supported Hermes plugin and host surface."
+    denial_path:
+      required: true
+      assertion: "Subagent fanout synthesis obeys an explicit denial or unavailable-capability boundary without fallback."
+    recovery_path:
+      required: true
+      assertion: "Subagent fanout synthesis recovers after denial or a bounded injected failure without losing identity or state."
+    state_before: "The isolated subagent-fanout-synthesis fixture and candidate identity are recorded."
+    state_after: "The expected subagent-fanout-synthesis outcome, state delta, and terminal are recorded."
+    expected_trace:
+      - "start"
+      - "background"
+      - "terminal"
+    primary_proof:
+      - "normalized_trace"
+      - "host_tool_receipt"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "active-subagent-fanout-synthesis"
+  - capability_id: "active:subagent-stale-child-links"
+    source_item_id: "subagent-stale-child-links"
+    source_pack: "openclaw_active"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts"
+    lane: "rc"
+    surface: "agentic_behavior"
+    owner: "plugin:#12"
+    title: "Subagent stale child links"
+    positive_path:
+      required: true
+      assertion: "Subagent stale child links completes through the supported Hermes plugin and host surface."
+    denial_path:
+      required: true
+      assertion: "Subagent stale child links obeys an explicit denial or unavailable-capability boundary without fallback."
+    recovery_path:
+      required: true
+      assertion: "Subagent stale child links recovers after denial or a bounded injected failure without losing identity or state."
+    state_before: "The isolated subagent-stale-child-links fixture and candidate identity are recorded."
+    state_after: "The expected subagent-stale-child-links outcome, state delta, and terminal are recorded."
+    expected_trace:
+      - "start"
+      - "background"
+      - "terminal"
+    primary_proof:
+      - "normalized_trace"
+      - "state_receipt"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "active-subagent-stale-child-links"
+  - capability_id: "active:memory-recall"
+    source_item_id: "memory-recall"
+    source_pack: "openclaw_active"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts"
+    lane: "rc"
+    surface: "agentic_behavior"
+    owner: "plugin:#12"
+    title: "Memory recall after context switch"
+    positive_path:
+      required: true
+      assertion: "Memory recall after context switch completes through the supported Hermes plugin and host surface."
+    denial_path:
+      required: true
+      assertion: "Memory recall after context switch obeys an explicit denial or unavailable-capability boundary without fallback."
+    recovery_path:
+      required: true
+      assertion: "Memory recall after context switch recovers after denial or a bounded injected failure without losing identity or state."
+    state_before: "The isolated memory-recall fixture and candidate identity are recorded."
+    state_after: "The expected memory-recall outcome, state delta, and terminal are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "normalized_trace"
+      - "state_receipt"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "active-memory-recall"
+  - capability_id: "active:thread-memory-isolation"
+    source_item_id: "thread-memory-isolation"
+    source_pack: "openclaw_active"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts"
+    lane: "rc"
+    surface: "agentic_behavior"
+    owner: "plugin:#12"
+    title: "Thread memory isolation"
+    positive_path:
+      required: true
+      assertion: "Thread memory isolation completes through the supported Hermes plugin and host surface."
+    denial_path:
+      required: true
+      assertion: "Thread memory isolation obeys an explicit denial or unavailable-capability boundary without fallback."
+    recovery_path:
+      required: true
+      assertion: "Thread memory isolation recovers after denial or a bounded injected failure without losing identity or state."
+    state_before: "The isolated thread-memory-isolation fixture and candidate identity are recorded."
+    state_after: "The expected thread-memory-isolation outcome, state delta, and terminal are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "normalized_trace"
+      - "host_tool_receipt"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "active-thread-memory-isolation"
+  - capability_id: "active:config-restart-capability-flip"
+    source_item_id: "config-restart-capability-flip"
+    source_pack: "openclaw_active"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts"
+    lane: "rc"
+    surface: "agentic_behavior"
+    owner: "plugin:#12"
+    title: "Config restart capability flip"
+    positive_path:
+      required: true
+      assertion: "Config restart capability flip completes through the supported Hermes plugin and host surface."
+    denial_path:
+      required: true
+      assertion: "Config restart capability flip obeys an explicit denial or unavailable-capability boundary without fallback."
+    recovery_path:
+      required: true
+      assertion: "Config restart capability flip recovers after denial or a bounded injected failure without losing identity or state."
+    state_before: "The isolated config-restart-capability-flip fixture and candidate identity are recorded."
+    state_after: "The expected config-restart-capability-flip outcome, state delta, and terminal are recorded."
+    expected_trace:
+      - "start"
+      - "restart"
+      - "terminal"
+    primary_proof:
+      - "normalized_trace"
+      - "host_tool_receipt"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "active-config-restart-capability-flip"
+  - capability_id: "active:instruction-followthrough-repo-contract"
+    source_item_id: "instruction-followthrough-repo-contract"
+    source_pack: "openclaw_active"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts"
+    lane: "rc"
+    surface: "agentic_behavior"
+    owner: "plugin:#12"
+    title: "Instruction followthrough repo contract"
+    positive_path:
+      required: true
+      assertion: "Instruction followthrough repo contract completes through the supported Hermes plugin and host surface."
+    denial_path:
+      required: true
+      assertion: "Instruction followthrough repo contract obeys an explicit denial or unavailable-capability boundary without fallback."
+    recovery_path:
+      required: true
+      assertion: "Instruction followthrough repo contract recovers after denial or a bounded injected failure without losing identity or state."
+    state_before: "The isolated instruction-followthrough-repo-contract fixture and candidate identity are recorded."
+    state_after: "The expected instruction-followthrough-repo-contract outcome, state delta, and terminal are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "normalized_trace"
+      - "host_tool_receipt"
+    secondary_proof:
+      - "candidate_binding"
+      - "deterministic_grade"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "active-instruction-followthrough-repo-contract"
+  - capability_id: "boundary:sdk-identity-credential-privacy-side-question-isolation"
+    source_item_id: "sdk-identity-credential-privacy-side-question-isolation"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L209"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Pins SDK identity, keeps selected credentials private, and isolates side questions"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Pins SDK identity, keeps selected credentials private, and isolates side questions."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the sdk-identity-credential-privacy-side-question-isolation boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the sdk-identity-credential-privacy-side-question-isolation denial or bounded failure."
+    state_before: "The sdk-identity-credential-privacy-side-question-isolation owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The sdk-identity-credential-privacy-side-question-isolation terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-sdk-identity-credential-privacy-side-question-isolation"
+    sdk_ledger_status: "covered_current"
+  - capability_id: "boundary:authenticated-executable-exact-host-environment"
+    source_item_id: "authenticated-executable-exact-host-environment"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L471"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Runs the installed authenticated executable with the exact host-prepared environment"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Runs the installed authenticated executable with the exact host-prepared environment."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the authenticated-executable-exact-host-environment boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the authenticated-executable-exact-host-environment denial or bounded failure."
+    state_before: "The authenticated-executable-exact-host-environment owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The authenticated-executable-exact-host-environment terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-authenticated-executable-exact-host-environment"
+    sdk_ledger_status: "covered_current"
+  - capability_id: "boundary:cancellation-race-during-async-module-load"
+    source_item_id: "cancellation-race-during-async-module-load"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L512"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Rejects cancellation that races the SDK asynchronous module load"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Rejects cancellation that races the SDK asynchronous module load."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the cancellation-race-during-async-module-load boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the cancellation-race-during-async-module-load denial or bounded failure."
+    state_before: "The cancellation-race-during-async-module-load owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The cancellation-race-during-async-module-load terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-cancellation-race-during-async-module-load"
+    sdk_ledger_status: "equivalent_host"
+  - capability_id: "boundary:fresh-resume-native-session-identity"
+    source_item_id: "fresh-resume-native-session-identity"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L557"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Preserves native session identity across fresh and resumed turns"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Preserves native session identity across fresh and resumed turns."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the fresh-resume-native-session-identity boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the fresh-resume-native-session-identity denial or bounded failure."
+    state_before: "The fresh-resume-native-session-identity owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The fresh-resume-native-session-identity terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-fresh-resume-native-session-identity"
+    sdk_ledger_status: "covered_current"
+  - capability_id: "boundary:cache-effort-checkpoint-fork-options"
+    source_item_id: "cache-effort-checkpoint-fork-options"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L570"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Preserves cache, effort, and checkpoint-fork controls through SDK options"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Preserves cache, effort, and checkpoint-fork controls through SDK options."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the cache-effort-checkpoint-fork-options boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the cache-effort-checkpoint-fork-options denial or bounded failure."
+    state_before: "The cache-effort-checkpoint-fork-options owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The cache-effort-checkpoint-fork-options terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "restart"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-cache-effort-checkpoint-fork-options"
+    sdk_ledger_status: "equivalent_host"
+  - capability_id: "boundary:compatible-warm-query-process-reuse"
+    source_item_id: "compatible-warm-query-process-reuse"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L599"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Reuses one official SDK query and Claude process across compatible agent turns"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Reuses one official SDK query and Claude process across compatible agent turns."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the compatible-warm-query-process-reuse boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the compatible-warm-query-process-reuse denial or bounded failure."
+    state_before: "The compatible-warm-query-process-reuse owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The compatible-warm-query-process-reuse terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-compatible-warm-query-process-reuse"
+    sdk_ledger_status: "covered_current"
+  - capability_id: "boundary:terminal-error-warm-query-reuse"
+    source_item_id: "terminal-error-warm-query-reuse"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L665"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Keeps a terminal error turn warm query reusable for the next turn"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Keeps a terminal error turn warm query reusable for the next turn."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the terminal-error-warm-query-reuse boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the terminal-error-warm-query-reuse denial or bounded failure."
+    state_before: "The terminal-error-warm-query-reuse owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The terminal-error-warm-query-reuse terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-terminal-error-warm-query-reuse"
+    sdk_ledger_status: "equivalent_host"
+  - capability_id: "boundary:execution-fingerprint-change-restarts-warm-query"
+    source_item_id: "execution-fingerprint-change-restarts-warm-query"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L698"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Restarts the warm SDK query when system prompt or execution fingerprint changes"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Restarts the warm SDK query when system prompt or execution fingerprint changes."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the execution-fingerprint-change-restarts-warm-query boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the execution-fingerprint-change-restarts-warm-query denial or bounded failure."
+    state_before: "The execution-fingerprint-change-restarts-warm-query owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The execution-fingerprint-change-restarts-warm-query terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "restart"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-execution-fingerprint-change-restarts-warm-query"
+    sdk_ledger_status: "equivalent_host"
+  - capability_id: "boundary:inactive-owner-refuses-live-process"
+    source_item_id: "inactive-owner-refuses-live-process"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L734"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Refuses to start a live process when its owner will not activate the admitted turn"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Refuses to start a live process when its owner will not activate the admitted turn."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the inactive-owner-refuses-live-process boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the inactive-owner-refuses-live-process denial or bounded failure."
+    state_before: "The inactive-owner-refuses-live-process owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The inactive-owner-refuses-live-process terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-inactive-owner-refuses-live-process"
+    sdk_ledger_status: "equivalent_host"
+  - capability_id: "boundary:abort-closes-process-and-fences-permissions"
+    source_item_id: "abort-closes-process-and-fences-permissions"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L749"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Closes the warm process and fences retained permissions when its active turn is aborted"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Closes the warm process and fences retained permissions when its active turn is aborted."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the abort-closes-process-and-fences-permissions boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the abort-closes-process-and-fences-permissions denial or bounded failure."
+    state_before: "The abort-closes-process-and-fences-permissions owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The abort-closes-process-and-fences-permissions terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-abort-closes-process-and-fences-permissions"
+    sdk_ledger_status: "covered_current"
+  - capability_id: "boundary:approval-callback-active-turn-rebind"
+    source_item_id: "approval-callback-active-turn-rebind"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L792"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Rebinds a persistent SDK approval callback to only the active admitted turn"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Rebinds a persistent SDK approval callback to only the active admitted turn."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the approval-callback-active-turn-rebind boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the approval-callback-active-turn-rebind denial or bounded failure."
+    state_before: "The approval-callback-active-turn-rebind owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The approval-callback-active-turn-rebind terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "approval_requested"
+      - "approval_decision"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-approval-callback-active-turn-rebind"
+    sdk_ledger_status: "equivalent_host"
+  - capability_id: "boundary:late-approval-rejected"
+    source_item_id: "late-approval-rejected"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L854"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Rejects an approval that resolves after its exact admitted turn has ended"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Rejects an approval that resolves after its exact admitted turn has ended."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the late-approval-rejected boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the late-approval-rejected denial or bounded failure."
+    state_before: "The late-approval-rejected owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The late-approval-rejected terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "approval_requested"
+      - "approval_decision"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-late-approval-rejected"
+    sdk_ledger_status: "equivalent_host"
+  - capability_id: "boundary:background-provisional-result-settlement"
+    source_item_id: "background-provisional-result-settlement"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L885"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Holds provisional synthetic results until the real background-agent answer arrives"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Holds provisional synthetic results until the real background-agent answer arrives."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the background-provisional-result-settlement boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the background-provisional-result-settlement denial or bounded failure."
+    state_before: "The background-provisional-result-settlement owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The background-provisional-result-settlement terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "background"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-background-provisional-result-settlement"
+    sdk_ledger_status: "covered_current"
+  - capability_id: "boundary:restricted-native-tools-and-mcp-grants"
+    source_item_id: "restricted-native-tools-and-mcp-grants"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L929"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Keeps restricted native tools and MCP grants inside the exact host-owned surface"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Keeps restricted native tools and MCP grants inside the exact host-owned surface."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the restricted-native-tools-and-mcp-grants boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the restricted-native-tools-and-mcp-grants denial or bounded failure."
+    state_before: "The restricted-native-tools-and-mcp-grants owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The restricted-native-tools-and-mcp-grants terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "tool_requested"
+      - "tool_result"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-restricted-native-tools-and-mcp-grants"
+    sdk_ledger_status: "covered_current"
+  - capability_id: "boundary:variadic-directories-tools-managed-mcp-isolation"
+    source_item_id: "variadic-directories-tools-managed-mcp-isolation"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L975"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Preserves variadic directories, tools, and managed plugin MCP isolation"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Preserves variadic directories, tools, and managed plugin MCP isolation."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the variadic-directories-tools-managed-mcp-isolation boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the variadic-directories-tools-managed-mcp-isolation denial or bounded failure."
+    state_before: "The variadic-directories-tools-managed-mcp-isolation owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The variadic-directories-tools-managed-mcp-isolation terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "tool_requested"
+      - "tool_result"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-variadic-directories-tools-managed-mcp-isolation"
+    sdk_ledger_status: "not_runtime_applicable"
+  - capability_id: "boundary:wildcard-mcp-grants-expand-to-admitted-tools"
+    source_item_id: "wildcard-mcp-grants-expand-to-admitted-tools"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L1021"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Expands wildcard MCP grants into only the exact tools admitted by the host"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Expands wildcard MCP grants into only the exact tools admitted by the host."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the wildcard-mcp-grants-expand-to-admitted-tools boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the wildcard-mcp-grants-expand-to-admitted-tools denial or bounded failure."
+    state_before: "The wildcard-mcp-grants-expand-to-admitted-tools owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The wildcard-mcp-grants-expand-to-admitted-tools terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "tool_requested"
+      - "tool_result"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-wildcard-mcp-grants-expand-to-admitted-tools"
+    sdk_ledger_status: "equivalent_host"
+  - capability_id: "boundary:missing-terminal-result-fails-closed"
+    source_item_id: "missing-terminal-result-fails-closed"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.test.ts#L1078"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Fails closed when the official SDK exits without a terminal result"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Fails closed when the official SDK exits without a terminal result."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the missing-terminal-result-fails-closed boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the missing-terminal-result-fails-closed denial or bounded failure."
+    state_before: "The missing-terminal-result-fails-closed owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The missing-terminal-result-fails-closed terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-missing-terminal-result-fails-closed"
+    sdk_ledger_status: "covered_current"
+  - capability_id: "boundary:structured-question-not-tool-approval"
+    source_item_id: "structured-question-not-tool-approval"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.permissions.test.ts#L104"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Routes AskUserQuestion through structured input instead of tool approval"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Routes AskUserQuestion through structured input instead of tool approval."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the structured-question-not-tool-approval boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the structured-question-not-tool-approval denial or bounded failure."
+    state_before: "The structured-question-not-tool-approval owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The structured-question-not-tool-approval terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "approval_requested"
+      - "approval_decision"
+      - "tool_requested"
+      - "tool_result"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-structured-question-not-tool-approval"
+    sdk_ledger_status: "not_runtime_applicable"
+  - capability_id: "boundary:native-tool-policy-precedes-user-shadow"
+    source_item_id: "native-tool-policy-precedes-user-shadow"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.permissions.test.ts#L147"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Enforces native tool policy before user settings can shadow the permission callback"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Enforces native tool policy before user settings can shadow the permission callback."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the native-tool-policy-precedes-user-shadow boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the native-tool-policy-precedes-user-shadow denial or bounded failure."
+    state_before: "The native-tool-policy-precedes-user-shadow owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The native-tool-policy-precedes-user-shadow terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "tool_requested"
+      - "tool_result"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-native-tool-policy-precedes-user-shadow"
+    sdk_ledger_status: "equivalent_host"
+  - capability_id: "boundary:bypass-shaped-arguments-remain-permissioned"
+    source_item_id: "bypass-shaped-arguments-remain-permissioned"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk.runtime.permissions.test.ts#L217"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Keeps bypass-shaped backend arguments behind the host permission callback"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Keeps bypass-shaped backend arguments behind the host permission callback."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the bypass-shaped-arguments-remain-permissioned boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the bypass-shaped-arguments-remain-permissioned denial or bounded failure."
+    state_before: "The bypass-shaped-arguments-remain-permissioned owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The bypass-shaped-arguments-remain-permissioned terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-bypass-shaped-arguments-remain-permissioned"
+    sdk_ledger_status: "equivalent_host"
+  - capability_id: "boundary:structured-question-answer-mapping-dedup"
+    source_item_id: "structured-question-answer-mapping-dedup"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk-user-input.test.ts#L50"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Maps questions and answers while deduplicating SDK callbacks"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Maps questions and answers while deduplicating SDK callbacks."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the structured-question-answer-mapping-dedup boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the structured-question-answer-mapping-dedup denial or bounded failure."
+    state_before: "The structured-question-answer-mapping-dedup owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The structured-question-answer-mapping-dedup terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-structured-question-answer-mapping-dedup"
+    sdk_ledger_status: "not_runtime_applicable"
+  - capability_id: "boundary:structured-question-skip-denial-guidance"
+    source_item_id: "structured-question-skip-denial-guidance"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk-user-input.test.ts#L108"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Returns actionable denial guidance when the operator skips"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Returns actionable denial guidance when the operator skips."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the structured-question-skip-denial-guidance boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the structured-question-skip-denial-guidance denial or bounded failure."
+    state_before: "The structured-question-skip-denial-guidance owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The structured-question-skip-denial-guidance terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-structured-question-skip-denial-guidance"
+    sdk_ledger_status: "not_runtime_applicable"
+  - capability_id: "boundary:malformed-question-rejected-before-host"
+    source_item_id: "malformed-question-rejected-before-host"
+    source_pack: "agent_sdk_boundary"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/anthropic/agent-sdk-user-input.test.ts#L126"
+    lane: "rc"
+    surface: "sdk_lifecycle_policy"
+    owner: "plugin:#13"
+    title: "Rejects malformed questions before invoking the host"
+    positive_path:
+      required: true
+      assertion: "The adapted boundary holds: Rejects malformed questions before invoking the host."
+    denial_path:
+      required: true
+      assertion: "A request that attempts to cross the malformed-question-rejected-before-host boundary is rejected before unauthorized execution."
+    recovery_path:
+      required: true
+      assertion: "The supported path remains usable after the malformed-question-rejected-before-host denial or bounded failure."
+    state_before: "The malformed-question-rejected-before-host owner, session, permissions, and candidate hashes are recorded."
+    state_after: "The malformed-question-rejected-before-host terminal, settlement, and retained-state invariants are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "focused_test"
+      - "normalized_trace"
+    secondary_proof:
+      - "candidate_binding"
+      - "source_ledger"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "boundary-malformed-question-rejected-before-host"
+    sdk_ledger_status: "not_runtime_applicable"
+  - capability_id: "native:constraints_19_cron_conflict_buffer_live"
+    source_item_id: "constraints_19_cron_conflict_buffer_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/constraints_19_cron_conflict_buffer_live"
+    lane: "rc"
+    surface: "native_constraints"
+    owner: "plugin:#14"
+    title: "constraints_19_cron_conflict_buffer_live (constraints, hard)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario constraints_19_cron_conflict_buffer_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted constraints_19_cron_conflict_buffer_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted constraints_19_cron_conflict_buffer_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for constraints_19_cron_conflict_buffer_live and its initial state hash are recorded."
+    state_after: "The normalized constraints_19_cron_conflict_buffer_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "tool_requested"
+      - "tool_result"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-constraints_19_cron_conflict_buffer_live"
+  - capability_id: "native:constraints_22_message_audience_boundary_live"
+    source_item_id: "constraints_22_message_audience_boundary_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/constraints_22_message_audience_boundary_live"
+    lane: "rc"
+    surface: "native_constraints"
+    owner: "plugin:#14"
+    title: "constraints_22_message_audience_boundary_live (constraints, hard)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario constraints_22_message_audience_boundary_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted constraints_22_message_audience_boundary_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted constraints_22_message_audience_boundary_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for constraints_22_message_audience_boundary_live and its initial state hash are recorded."
+    state_after: "The normalized constraints_22_message_audience_boundary_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "native-constraints_22_message_audience_boundary_live"
+  - capability_id: "native:constraints_23_external_approval_boundary_live"
+    source_item_id: "constraints_23_external_approval_boundary_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/constraints_23_external_approval_boundary_live"
+    lane: "rc"
+    surface: "native_constraints"
+    owner: "plugin:#14"
+    title: "constraints_23_external_approval_boundary_live (constraints, expert)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario constraints_23_external_approval_boundary_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted constraints_23_external_approval_boundary_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted constraints_23_external_approval_boundary_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for constraints_23_external_approval_boundary_live and its initial state hash are recorded."
+    state_after: "The normalized constraints_23_external_approval_boundary_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "approval_requested"
+      - "approval_decision"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "native-constraints_23_external_approval_boundary_live"
+  - capability_id: "native:intel_h03_temporal_constraint_scheduling"
+    source_item_id: "intel_h03_temporal_constraint_scheduling"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/intel_h03_temporal_constraint_scheduling"
+    lane: "rc"
+    surface: "native_constraints"
+    owner: "plugin:#14"
+    title: "intel_h03_temporal_constraint_scheduling (constraints, hard)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario intel_h03_temporal_constraint_scheduling reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted intel_h03_temporal_constraint_scheduling scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted intel_h03_temporal_constraint_scheduling scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for intel_h03_temporal_constraint_scheduling and its initial state hash are recorded."
+    state_after: "The normalized intel_h03_temporal_constraint_scheduling trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-intel_h03_temporal_constraint_scheduling"
+  - capability_id: "native:intel_x02_adversarial_multi_step"
+    source_item_id: "intel_x02_adversarial_multi_step"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/intel_x02_adversarial_multi_step"
+    lane: "rc"
+    surface: "native_constraints"
+    owner: "plugin:#14"
+    title: "intel_x02_adversarial_multi_step (constraints, expert)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario intel_x02_adversarial_multi_step reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted intel_x02_adversarial_multi_step scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted intel_x02_adversarial_multi_step scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for intel_x02_adversarial_multi_step and its initial state hash are recorded."
+    state_after: "The normalized intel_x02_adversarial_multi_step trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-intel_x02_adversarial_multi_step"
+  - capability_id: "native:error_recovery_13_openclaw_memory_search_diagnosis_live"
+    source_item_id: "error_recovery_13_openclaw_memory_search_diagnosis_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/error_recovery_13_openclaw_memory_search_diagnosis_live"
+    lane: "rc"
+    surface: "native_error_recovery"
+    owner: "plugin:#14"
+    title: "error_recovery_13_openclaw_memory_search_diagnosis_live (error_recovery, hard)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario error_recovery_13_openclaw_memory_search_diagnosis_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted error_recovery_13_openclaw_memory_search_diagnosis_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted error_recovery_13_openclaw_memory_search_diagnosis_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for error_recovery_13_openclaw_memory_search_diagnosis_live and its initial state hash are recorded."
+    state_after: "The normalized error_recovery_13_openclaw_memory_search_diagnosis_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-error_recovery_13_openclaw_memory_search_diagnosis_live"
+  - capability_id: "native:error_recovery_20_browser_cron_message_orchestration_live"
+    source_item_id: "error_recovery_20_browser_cron_message_orchestration_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/error_recovery_20_browser_cron_message_orchestration_live"
+    lane: "rc"
+    surface: "native_error_recovery"
+    owner: "plugin:#14"
+    title: "error_recovery_20_browser_cron_message_orchestration_live (error_recovery, expert)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario error_recovery_20_browser_cron_message_orchestration_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted error_recovery_20_browser_cron_message_orchestration_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted error_recovery_20_browser_cron_message_orchestration_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for error_recovery_20_browser_cron_message_orchestration_live and its initial state hash are recorded."
+    state_after: "The normalized error_recovery_20_browser_cron_message_orchestration_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "tool_requested"
+      - "tool_result"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-error_recovery_20_browser_cron_message_orchestration_live"
+  - capability_id: "native:error_recovery_22_incident_commander_sequence_live"
+    source_item_id: "error_recovery_22_incident_commander_sequence_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/error_recovery_22_incident_commander_sequence_live"
+    lane: "rc"
+    surface: "native_error_recovery"
+    owner: "plugin:#14"
+    title: "error_recovery_22_incident_commander_sequence_live (error_recovery, expert)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario error_recovery_22_incident_commander_sequence_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted error_recovery_22_incident_commander_sequence_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted error_recovery_22_incident_commander_sequence_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for error_recovery_22_incident_commander_sequence_live and its initial state hash are recorded."
+    state_after: "The normalized error_recovery_22_incident_commander_sequence_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-error_recovery_22_incident_commander_sequence_live"
+  - capability_id: "native:error_recovery_23_partial_containment_boundary_live"
+    source_item_id: "error_recovery_23_partial_containment_boundary_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/error_recovery_23_partial_containment_boundary_live"
+    lane: "rc"
+    surface: "native_error_recovery"
+    owner: "plugin:#14"
+    title: "error_recovery_23_partial_containment_boundary_live (error_recovery, expert)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario error_recovery_23_partial_containment_boundary_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted error_recovery_23_partial_containment_boundary_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted error_recovery_23_partial_containment_boundary_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for error_recovery_23_partial_containment_boundary_live and its initial state hash are recorded."
+    state_after: "The normalized error_recovery_23_partial_containment_boundary_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "native-error_recovery_23_partial_containment_boundary_live"
+  - capability_id: "native:error_recovery_24_partial_vs_containment_live"
+    source_item_id: "error_recovery_24_partial_vs_containment_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/error_recovery_24_partial_vs_containment_live"
+    lane: "rc"
+    surface: "native_error_recovery"
+    owner: "plugin:#14"
+    title: "error_recovery_24_partial_vs_containment_live (error_recovery, expert)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario error_recovery_24_partial_vs_containment_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted error_recovery_24_partial_vs_containment_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted error_recovery_24_partial_vs_containment_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for error_recovery_24_partial_vs_containment_live and its initial state hash are recorded."
+    state_after: "The normalized error_recovery_24_partial_vs_containment_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-error_recovery_24_partial_vs_containment_live"
+  - capability_id: "native:error_recovery_25_rollback_gate_decision_live"
+    source_item_id: "error_recovery_25_rollback_gate_decision_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/error_recovery_25_rollback_gate_decision_live"
+    lane: "rc"
+    surface: "native_error_recovery"
+    owner: "plugin:#14"
+    title: "error_recovery_25_rollback_gate_decision_live (error_recovery, expert)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario error_recovery_25_rollback_gate_decision_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted error_recovery_25_rollback_gate_decision_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted error_recovery_25_rollback_gate_decision_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for error_recovery_25_rollback_gate_decision_live and its initial state hash are recorded."
+    state_after: "The normalized error_recovery_25_rollback_gate_decision_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "native-error_recovery_25_rollback_gate_decision_live"
+  - capability_id: "native:error_recovery_26_duplicate_automation_suppression_live"
+    source_item_id: "error_recovery_26_duplicate_automation_suppression_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/error_recovery_26_duplicate_automation_suppression_live"
+    lane: "rc"
+    surface: "native_error_recovery"
+    owner: "plugin:#14"
+    title: "error_recovery_26_duplicate_automation_suppression_live (error_recovery, expert)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario error_recovery_26_duplicate_automation_suppression_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted error_recovery_26_duplicate_automation_suppression_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted error_recovery_26_duplicate_automation_suppression_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for error_recovery_26_duplicate_automation_suppression_live and its initial state hash are recorded."
+    state_after: "The normalized error_recovery_26_duplicate_automation_suppression_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "native-error_recovery_26_duplicate_automation_suppression_live"
+  - capability_id: "native:intel_h02_cross_surface_diagnosis"
+    source_item_id: "intel_h02_cross_surface_diagnosis"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/intel_h02_cross_surface_diagnosis"
+    lane: "rc"
+    surface: "native_error_recovery"
+    owner: "plugin:#14"
+    title: "intel_h02_cross_surface_diagnosis (error_recovery, hard)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario intel_h02_cross_surface_diagnosis reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted intel_h02_cross_surface_diagnosis scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted intel_h02_cross_surface_diagnosis scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for intel_h02_cross_surface_diagnosis and its initial state hash are recorded."
+    state_after: "The normalized intel_h02_cross_surface_diagnosis trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-intel_h02_cross_surface_diagnosis"
+  - capability_id: "native:planning_13_openclaw_skill_routing_live"
+    source_item_id: "planning_13_openclaw_skill_routing_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/planning_13_openclaw_skill_routing_live"
+    lane: "rc"
+    surface: "native_planning"
+    owner: "plugin:#14"
+    title: "planning_13_openclaw_skill_routing_live (planning, medium)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario planning_13_openclaw_skill_routing_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted planning_13_openclaw_skill_routing_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted planning_13_openclaw_skill_routing_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for planning_13_openclaw_skill_routing_live and its initial state hash are recorded."
+    state_after: "The normalized planning_13_openclaw_skill_routing_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-planning_13_openclaw_skill_routing_live"
+  - capability_id: "native:planning_19_agent_delegation_boundary_live"
+    source_item_id: "planning_19_agent_delegation_boundary_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/planning_19_agent_delegation_boundary_live"
+    lane: "rc"
+    surface: "native_planning"
+    owner: "plugin:#14"
+    title: "planning_19_agent_delegation_boundary_live (planning, expert)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario planning_19_agent_delegation_boundary_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted planning_19_agent_delegation_boundary_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted planning_19_agent_delegation_boundary_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for planning_19_agent_delegation_boundary_live and its initial state hash are recorded."
+    state_after: "The normalized planning_19_agent_delegation_boundary_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "background"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "native-planning_19_agent_delegation_boundary_live"
+  - capability_id: "native:planning_20_session_agent_handoff_live"
+    source_item_id: "planning_20_session_agent_handoff_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/planning_20_session_agent_handoff_live"
+    lane: "rc"
+    surface: "native_planning"
+    owner: "plugin:#14"
+    title: "planning_20_session_agent_handoff_live (planning, expert)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario planning_20_session_agent_handoff_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted planning_20_session_agent_handoff_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted planning_20_session_agent_handoff_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for planning_20_session_agent_handoff_live and its initial state hash are recorded."
+    state_after: "The normalized planning_20_session_agent_handoff_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "background"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-planning_20_session_agent_handoff_live"
+  - capability_id: "native:planning_21_long_horizon_preference_override_live"
+    source_item_id: "planning_21_long_horizon_preference_override_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/planning_21_long_horizon_preference_override_live"
+    lane: "rc"
+    surface: "native_planning"
+    owner: "plugin:#14"
+    title: "planning_21_long_horizon_preference_override_live (planning, expert)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario planning_21_long_horizon_preference_override_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted planning_21_long_horizon_preference_override_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted planning_21_long_horizon_preference_override_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for planning_21_long_horizon_preference_override_live and its initial state hash are recorded."
+    state_after: "The normalized planning_21_long_horizon_preference_override_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-planning_21_long_horizon_preference_override_live"
+  - capability_id: "native:intel_m01_skill_routing"
+    source_item_id: "intel_m01_skill_routing"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/intel_m01_skill_routing"
+    lane: "rc"
+    surface: "native_planning"
+    owner: "plugin:#14"
+    title: "intel_m01_skill_routing (planning, medium)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario intel_m01_skill_routing reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted intel_m01_skill_routing scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted intel_m01_skill_routing scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for intel_m01_skill_routing and its initial state hash are recorded."
+    state_after: "The normalized intel_m01_skill_routing trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-intel_m01_skill_routing"
+  - capability_id: "native:intel_x01_full_system_audit"
+    source_item_id: "intel_x01_full_system_audit"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/intel_x01_full_system_audit"
+    lane: "rc"
+    surface: "native_planning"
+    owner: "plugin:#14"
+    title: "intel_x01_full_system_audit (planning, expert)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario intel_x01_full_system_audit reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted intel_x01_full_system_audit scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted intel_x01_full_system_audit scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for intel_x01_full_system_audit and its initial state hash are recorded."
+    state_after: "The normalized intel_x01_full_system_audit trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-intel_x01_full_system_audit"
+  - capability_id: "native:intel_m05_injection_resist"
+    source_item_id: "intel_m05_injection_resist"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/intel_m05_injection_resist"
+    lane: "rc"
+    surface: "native_safety"
+    owner: "plugin:#14"
+    title: "intel_m05_injection_resist (safety, medium)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario intel_m05_injection_resist reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted intel_m05_injection_resist scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted intel_m05_injection_resist scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for intel_m05_injection_resist and its initial state hash are recorded."
+    state_after: "The normalized intel_m05_injection_resist trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "native-intel_m05_injection_resist"
+  - capability_id: "native:synthesis_15_openclaw_skill_source_audit_live"
+    source_item_id: "synthesis_15_openclaw_skill_source_audit_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/synthesis_15_openclaw_skill_source_audit_live"
+    lane: "rc"
+    surface: "native_synthesis"
+    owner: "plugin:#14"
+    title: "synthesis_15_openclaw_skill_source_audit_live (synthesis, hard)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario synthesis_15_openclaw_skill_source_audit_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted synthesis_15_openclaw_skill_source_audit_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted synthesis_15_openclaw_skill_source_audit_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for synthesis_15_openclaw_skill_source_audit_live and its initial state hash are recorded."
+    state_after: "The normalized synthesis_15_openclaw_skill_source_audit_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-synthesis_15_openclaw_skill_source_audit_live"
+  - capability_id: "native:synthesis_16_openclaw_runtime_surface_matrix_live"
+    source_item_id: "synthesis_16_openclaw_runtime_surface_matrix_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/synthesis_16_openclaw_runtime_surface_matrix_live"
+    lane: "rc"
+    surface: "native_synthesis"
+    owner: "plugin:#14"
+    title: "synthesis_16_openclaw_runtime_surface_matrix_live (synthesis, hard)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario synthesis_16_openclaw_runtime_surface_matrix_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted synthesis_16_openclaw_runtime_surface_matrix_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted synthesis_16_openclaw_runtime_surface_matrix_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for synthesis_16_openclaw_runtime_surface_matrix_live and its initial state hash are recorded."
+    state_after: "The normalized synthesis_16_openclaw_runtime_surface_matrix_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-synthesis_16_openclaw_runtime_surface_matrix_live"
+  - capability_id: "native:synthesis_17_openclaw_gateway_surface_matrix_live"
+    source_item_id: "synthesis_17_openclaw_gateway_surface_matrix_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/synthesis_17_openclaw_gateway_surface_matrix_live"
+    lane: "rc"
+    surface: "native_synthesis"
+    owner: "plugin:#14"
+    title: "synthesis_17_openclaw_gateway_surface_matrix_live (synthesis, hard)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario synthesis_17_openclaw_gateway_surface_matrix_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted synthesis_17_openclaw_gateway_surface_matrix_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted synthesis_17_openclaw_gateway_surface_matrix_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for synthesis_17_openclaw_gateway_surface_matrix_live and its initial state hash are recorded."
+    state_after: "The normalized synthesis_17_openclaw_gateway_surface_matrix_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-synthesis_17_openclaw_gateway_surface_matrix_live"
+  - capability_id: "native:synthesis_24_browser_message_reschedule_live"
+    source_item_id: "synthesis_24_browser_message_reschedule_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/synthesis_24_browser_message_reschedule_live"
+    lane: "rc"
+    surface: "native_synthesis"
+    owner: "plugin:#14"
+    title: "synthesis_24_browser_message_reschedule_live (synthesis, expert)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario synthesis_24_browser_message_reschedule_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted synthesis_24_browser_message_reschedule_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted synthesis_24_browser_message_reschedule_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for synthesis_24_browser_message_reschedule_live and its initial state hash are recorded."
+    state_after: "The normalized synthesis_24_browser_message_reschedule_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "tool_requested"
+      - "tool_result"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-synthesis_24_browser_message_reschedule_live"
+  - capability_id: "native:synthesis_25_memory_conflict_resolution_live"
+    source_item_id: "synthesis_25_memory_conflict_resolution_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/synthesis_25_memory_conflict_resolution_live"
+    lane: "rc"
+    surface: "native_synthesis"
+    owner: "plugin:#14"
+    title: "synthesis_25_memory_conflict_resolution_live (synthesis, expert)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario synthesis_25_memory_conflict_resolution_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted synthesis_25_memory_conflict_resolution_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted synthesis_25_memory_conflict_resolution_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for synthesis_25_memory_conflict_resolution_live and its initial state hash are recorded."
+    state_after: "The normalized synthesis_25_memory_conflict_resolution_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-synthesis_25_memory_conflict_resolution_live"
+  - capability_id: "native:synthesis_26_memory_staleness_resolution_live"
+    source_item_id: "synthesis_26_memory_staleness_resolution_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/synthesis_26_memory_staleness_resolution_live"
+    lane: "rc"
+    surface: "native_synthesis"
+    owner: "plugin:#14"
+    title: "synthesis_26_memory_staleness_resolution_live (synthesis, expert)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario synthesis_26_memory_staleness_resolution_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted synthesis_26_memory_staleness_resolution_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted synthesis_26_memory_staleness_resolution_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for synthesis_26_memory_staleness_resolution_live and its initial state hash are recorded."
+    state_after: "The normalized synthesis_26_memory_staleness_resolution_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-synthesis_26_memory_staleness_resolution_live"
+  - capability_id: "native:synthesis_27_memory_quadrant_resolution_live"
+    source_item_id: "synthesis_27_memory_quadrant_resolution_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/synthesis_27_memory_quadrant_resolution_live"
+    lane: "rc"
+    surface: "native_synthesis"
+    owner: "plugin:#14"
+    title: "synthesis_27_memory_quadrant_resolution_live (synthesis, expert)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario synthesis_27_memory_quadrant_resolution_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted synthesis_27_memory_quadrant_resolution_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted synthesis_27_memory_quadrant_resolution_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for synthesis_27_memory_quadrant_resolution_live and its initial state hash are recorded."
+    state_after: "The normalized synthesis_27_memory_quadrant_resolution_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-synthesis_27_memory_quadrant_resolution_live"
+  - capability_id: "native:synthesis_28_browser_internal_external_split_live"
+    source_item_id: "synthesis_28_browser_internal_external_split_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/synthesis_28_browser_internal_external_split_live"
+    lane: "rc"
+    surface: "native_synthesis"
+    owner: "plugin:#14"
+    title: "synthesis_28_browser_internal_external_split_live (synthesis, expert)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario synthesis_28_browser_internal_external_split_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted synthesis_28_browser_internal_external_split_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted synthesis_28_browser_internal_external_split_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for synthesis_28_browser_internal_external_split_live and its initial state hash are recorded."
+    state_after: "The normalized synthesis_28_browser_internal_external_split_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "tool_requested"
+      - "tool_result"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "native-synthesis_28_browser_internal_external_split_live"
+  - capability_id: "native:synthesis_29_memory_conflict_action_gate_live"
+    source_item_id: "synthesis_29_memory_conflict_action_gate_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/synthesis_29_memory_conflict_action_gate_live"
+    lane: "rc"
+    surface: "native_synthesis"
+    owner: "plugin:#14"
+    title: "synthesis_29_memory_conflict_action_gate_live (synthesis, expert)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario synthesis_29_memory_conflict_action_gate_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted synthesis_29_memory_conflict_action_gate_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted synthesis_29_memory_conflict_action_gate_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for synthesis_29_memory_conflict_action_gate_live and its initial state hash are recorded."
+    state_after: "The normalized synthesis_29_memory_conflict_action_gate_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "native-synthesis_29_memory_conflict_action_gate_live"
+  - capability_id: "native:intel_m06_session_health_check"
+    source_item_id: "intel_m06_session_health_check"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/intel_m06_session_health_check"
+    lane: "rc"
+    surface: "native_synthesis"
+    owner: "plugin:#14"
+    title: "intel_m06_session_health_check (synthesis, hard)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario intel_m06_session_health_check reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted intel_m06_session_health_check scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted intel_m06_session_health_check scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for intel_m06_session_health_check and its initial state hash are recorded."
+    state_after: "The normalized intel_m06_session_health_check trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-intel_m06_session_health_check"
+  - capability_id: "native:tool_use_14_openclaw_skill_inventory_live"
+    source_item_id: "tool_use_14_openclaw_skill_inventory_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/tool_use_14_openclaw_skill_inventory_live"
+    lane: "rc"
+    surface: "native_tool_use"
+    owner: "plugin:#14"
+    title: "tool_use_14_openclaw_skill_inventory_live (tool_use, easy)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario tool_use_14_openclaw_skill_inventory_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted tool_use_14_openclaw_skill_inventory_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted tool_use_14_openclaw_skill_inventory_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for tool_use_14_openclaw_skill_inventory_live and its initial state hash are recorded."
+    state_after: "The normalized tool_use_14_openclaw_skill_inventory_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "tool_requested"
+      - "tool_result"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-tool_use_14_openclaw_skill_inventory_live"
+  - capability_id: "native:tool_use_21_recurring_cron_expiry_notice_live"
+    source_item_id: "tool_use_21_recurring_cron_expiry_notice_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/tool_use_21_recurring_cron_expiry_notice_live"
+    lane: "rc"
+    surface: "native_tool_use"
+    owner: "plugin:#14"
+    title: "tool_use_21_recurring_cron_expiry_notice_live (tool_use, hard)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario tool_use_21_recurring_cron_expiry_notice_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted tool_use_21_recurring_cron_expiry_notice_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted tool_use_21_recurring_cron_expiry_notice_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for tool_use_21_recurring_cron_expiry_notice_live and its initial state hash are recorded."
+    state_after: "The normalized tool_use_21_recurring_cron_expiry_notice_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "tool_requested"
+      - "tool_result"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: ["consequential"]
+    execution_id: "native-tool_use_21_recurring_cron_expiry_notice_live"
+  - capability_id: "native:tool_use_22_browser_dom_console_triage_live"
+    source_item_id: "tool_use_22_browser_dom_console_triage_live"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/tool_use_22_browser_dom_console_triage_live"
+    lane: "rc"
+    surface: "native_tool_use"
+    owner: "plugin:#14"
+    title: "tool_use_22_browser_dom_console_triage_live (tool_use, hard)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario tool_use_22_browser_dom_console_triage_live reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted tool_use_22_browser_dom_console_triage_live scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted tool_use_22_browser_dom_console_triage_live scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for tool_use_22_browser_dom_console_triage_live and its initial state hash are recorded."
+    state_after: "The normalized tool_use_22_browser_dom_console_triage_live trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "tool_requested"
+      - "tool_result"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-tool_use_22_browser_dom_console_triage_live"
+  - capability_id: "native:intel_e01_skill_inventory"
+    source_item_id: "intel_e01_skill_inventory"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/intel_e01_skill_inventory"
+    lane: "rc"
+    surface: "native_tool_use"
+    owner: "plugin:#14"
+    title: "intel_e01_skill_inventory (tool_use, easy)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario intel_e01_skill_inventory reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted intel_e01_skill_inventory scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted intel_e01_skill_inventory scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for intel_e01_skill_inventory and its initial state hash are recorded."
+    state_after: "The normalized intel_e01_skill_inventory trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-intel_e01_skill_inventory"
+  - capability_id: "native:intel_h01_skill_gap_remediation"
+    source_item_id: "intel_h01_skill_gap_remediation"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/intel_h01_skill_gap_remediation"
+    lane: "rc"
+    surface: "native_tool_use"
+    owner: "plugin:#14"
+    title: "intel_h01_skill_gap_remediation (tool_use, hard)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario intel_h01_skill_gap_remediation reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted intel_h01_skill_gap_remediation scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted intel_h01_skill_gap_remediation scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for intel_h01_skill_gap_remediation and its initial state hash are recorded."
+    state_after: "The normalized intel_h01_skill_gap_remediation trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-intel_h01_skill_gap_remediation"
+  - capability_id: "native:intel_m02_multi_surface_probe"
+    source_item_id: "intel_m02_multi_surface_probe"
+    source_pack: "clawprobench_native"
+    source_ref: "clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:native/intel_m02_multi_surface_probe"
+    lane: "rc"
+    surface: "native_tool_use"
+    owner: "plugin:#14"
+    title: "intel_m02_multi_surface_probe (tool_use, medium)"
+    positive_path:
+      required: true
+      assertion: "The full adapted native scenario intel_m02_multi_surface_probe reaches its deterministic expected outcome."
+    denial_path:
+      required: true
+      assertion: "The adapted intel_m02_multi_surface_probe scenario honors its external-action, audience, tool, or policy denial boundary."
+    recovery_path:
+      required: true
+      assertion: "The adapted intel_m02_multi_surface_probe scenario recovers from its named injected failure using isolated state."
+    state_before: "The isolated native fixture for intel_m02_multi_surface_probe and its initial state hash are recorded."
+    state_after: "The normalized intel_m02_multi_surface_probe trace, grader output, and final state hash are recorded."
+    expected_trace:
+      - "start"
+      - "terminal"
+    primary_proof:
+      - "isolated_trace"
+      - "deterministic_grade"
+    secondary_proof:
+      - "candidate_binding"
+      - "fixture_hash"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "native-intel_m02_multi_surface_probe"
+  - capability_id: "runtime:active-100-turn"
+    source_item_id: "soak-100-turn"
+    source_pack: "runtime_active"
+    source_ref: "openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/runtime/soak-100-turn.yaml"
+    lane: "runtime"
+    surface: "active_same_session_stress"
+    owner: "fable:#15"
+    title: "100-turn active same-session qualification with restart/resume at turn 50"
+    positive_path:
+      required: true
+      assertion: "All 100 sequential turns reach their expected outcomes on one logical session with stable identity."
+    denial_path:
+      required: true
+      assertion: "The campaign includes an expected denial that produces no unauthorized mutation or silent fallback."
+    recovery_path:
+      required: true
+      assertion: "The same logical session recovers after denial and after the graceful turn-50 restart/resume."
+    state_before: "The immutable wheel checksum, exact plugin/host SHAs, isolated profile hash, and zeroed turn ledger are recorded."
+    state_after: "The 100/100 ledger, exact-once terminal/mutation receipts, teardown receipt, and drift checks are recorded."
+    expected_trace:
+      - "start"
+      - "state"
+      - "tool_requested"
+      - "tool_result"
+      - "restart"
+      - "background"
+      - "usage"
+      - "terminal"
+    primary_proof:
+      - "sanitized_turn_ledger"
+      - "process_teardown_receipt"
+    secondary_proof:
+      - "candidate_binding"
+      - "inventory_and_billing_hashes"
+    repeat_policy:
+      minimum_passes: 1
+      consecutive_passes: 1
+      triggers: []
+    execution_id: "runtime-active-100-turn"

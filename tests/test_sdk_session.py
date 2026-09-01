@@ -7,7 +7,6 @@ from types import ModuleType
 
 from hermes_claude_agent_sdk.configuration import SDKSessionConfiguration
 from hermes_claude_agent_sdk.compaction import SessionCompactionPhase
-import hermes_claude_agent_sdk.sdk_session as sdk_session_module
 from hermes_claude_agent_sdk.sdk_session import (
     BackgroundSessionOutcome,
     SDKSession,
@@ -716,6 +715,73 @@ def test_idle_background_after_close_is_dropped_without_duplicate_disconnect() -
         await session.close()
 
         assert delivered == []
+        assert clients[0].disconnected == 1
+
+    asyncio.run(scenario())
+
+
+def test_terminal_error_turn_keeps_the_compatible_sdk_session_warm() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        scripts = [
+            [
+                SystemMessage("init", {"apiKeySource": "none"}),
+                ResultMessage(result="bounded failure", is_error=True),
+            ],
+            [
+                SystemMessage("init", {"apiKeySource": "none"}),
+                ResultMessage(result="recovered"),
+            ],
+        ]
+        session = SDKSession(_configuration(), sdk_module=_sdk(clients, scripts))
+
+        failed = await session.run_turn("fail this turn")
+        recovered = await session.run_turn("recover on the same session")
+        await session.close()
+
+        assert failed.outcome is SessionOutcome.FAILED
+        assert failed.error_code == "sdk_result_failed"
+        assert recovered.outcome is SessionOutcome.COMPLETE
+        assert recovered.final_text == "recovered"
+        assert len(clients) == 1
+        assert clients[0].connected == 1
+        assert clients[0].queries == [
+            "fail this turn",
+            "recover on the same session",
+        ]
+        assert clients[0].disconnected == 1
+
+    asyncio.run(scenario())
+
+
+def test_sdk_stream_without_a_terminal_result_fails_closed() -> None:
+    class _EndsWithoutTerminalClient(_FakeClient):
+        async def receive_messages(self):
+            self.receive_calls += 1
+            yield SystemMessage("init", {"apiKeySource": "none"})
+
+    async def scenario() -> None:
+        clients: list[_EndsWithoutTerminalClient] = []
+        sdk = ModuleType("claude_agent_sdk")
+        sdk.ClaudeAgentOptions = _Options
+        sdk.HookMatcher = _HookMatcher
+
+        def make_client(*, options: object) -> _EndsWithoutTerminalClient:
+            client = _EndsWithoutTerminalClient(options=options, scripts=[[]])
+            clients.append(client)
+            return client
+
+        sdk.ClaudeSDKClient = make_client
+        session = SDKSession(_configuration(), sdk_module=sdk)
+
+        result = await session.run_turn("terminal result is required")
+        await session.close()
+
+        assert result.outcome is SessionOutcome.FAILED
+        assert result.error_code == "sdk_stream_ended"
+        assert len(clients) == 1
+        assert clients[0].queries == ["terminal result is required"]
+        assert clients[0].receive_calls == 1
         assert clients[0].disconnected == 1
 
     asyncio.run(scenario())

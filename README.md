@@ -46,6 +46,62 @@ doctor never reads credentials or constructs an SDK client.
 - [Subscription-only security model](docs/subscription-only-security.md)
 - [Removal and rollback](docs/removal-and-rollback.md)
 
+## Feature-first parity v3
+
+The release-candidate quality gate is the repo-owned
+[`qa/parity-contract-v3.yaml`](qa/parity-contract-v3.yaml), not an idle
+48/49-hour wait. It pins and completely maps the frozen v2 non-soak set
+(`53/53`), OpenClaw's active behavior pack (`12/12`), the adapted Agent SDK
+boundary set (`23/23`), and the ClawProBench native slice (`36/36`). The
+separate runtime lane contains the active 100-turn same-session campaign.
+
+The installed console entry point exposes three fail-closed commands. Capture
+the isolated profile's complete tool surface through the real host bridge
+before validating or running it:
+
+```sh
+hermes-claude-agent-sdk-parity inventory --catalog qa/parity-contract-v3.yaml \
+  --capture --lane rc --profile fable-v3-isolated \
+  --profile-manifest ./profile.json --output ./tool-inventory.yaml
+
+hermes-claude-agent-sdk-parity inventory --catalog qa/parity-contract-v3.yaml \
+  --lane rc --profile fable-v3-isolated --profile-manifest ./profile.json \
+  --tool-inventory ./tool-inventory.yaml
+
+hermes-claude-agent-sdk-parity run --catalog qa/parity-contract-v3.yaml \
+  --lane rc --profile fable-v3-isolated --plugin-sha "$PLUGIN_SHA" \
+  --host-sha "$HOST_SHA" --profile-manifest ./profile.json \
+  --tool-inventory ./tool-inventory.yaml \
+  --output ./parity-results
+
+hermes-claude-agent-sdk-parity grade --catalog qa/parity-contract-v3.yaml \
+  --lane rc --profile fable-v3-isolated --plugin-sha "$PLUGIN_SHA" \
+  --host-sha "$HOST_SHA" --profile-manifest ./profile.json \
+  --tool-inventory ./tool-inventory.yaml \
+  --output ./parity-results --resume
+```
+
+Exit `0` means the requested gate passed, `1` is a verified scenario failure,
+`2` is a contract or safety violation, and `75` is pending or environment
+blocked. Unknown tools, changed schemas, missing executors, missing terminal
+events, unsafe billing evidence, proofless passes, and candidate drift never
+degrade to a pass. See [`qa/README.md`](qa/README.md) for the packet and runner
+contract.
+
+The active executors fail closed unless the plugin and host checkouts are clean
+at the supplied SHAs. Live RC execution additionally requires
+`HERMES_PARITY_LIVE=1`, `HERMES_PARITY_MODEL=claude-fable-5`, the exact host
+root, and the pinned ClawProBench root. The v2 source map also requires the
+immutable `33fe73a` reference checkout. These are execution inputs, not values
+written into result packets.
+
+The runtime lane has a stricter barrier. It accepts only a persistent
+`local_profile` manifest and requires an immutable wheel, its SHA-256 digest,
+and a sanitized issue-9 `release_ready` receipt matching
+[`qa/runtime-release-ready-receipt.schema.json`](qa/runtime-release-ready-receipt.schema.json).
+The executing package must byte-match that wheel. A successful bundle must
+bind exactly 100 turns; a 99-turn or partial campaign cannot grade as passed.
+
 ## Installation and activation
 
 Download the wheel attached to the compatible GitHub prerelease, verify its
@@ -81,5 +137,7 @@ Disabling or uninstalling this plugin does not remove built-in Hermes behavior.
 
 No package-index release is authorized. The first distributable candidate will
 be a checksummed GitHub prerelease tagged `v0.1.0-rc.1` only after the named host
-candidate, thin install/runtime/uninstall gate, frozen parity contract, package
-lifecycle, CI, and independent semantic review all pass.
+candidate, approval-followthrough thin gate, all feature-first parity-v3 RC
+packs, exact tool/schema inventory, package lifecycle, exact-head CI, and
+independent semantic review all pass. The active 100-turn campaign is a
+separate isolated-runtime qualification and does not block package RC closure.

@@ -1,0 +1,2 @@
+recursive-include qa *.json *.md *.yaml
+recursive-include tests/parity *.py

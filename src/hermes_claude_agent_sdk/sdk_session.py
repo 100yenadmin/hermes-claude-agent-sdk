@@ -30,6 +30,7 @@ from .compaction import (
     SessionCompactionEvent,
 )
 from .content_events import ClaudeSdkEventProjector, ProjectionResult
+from .turn_input import SDKTurnInput
 
 
 class SessionOutcome(str, Enum):
@@ -356,14 +357,17 @@ class SDKSession:
 
     async def run_turn(
         self,
-        prompt: str,
+        prompt: str | SDKTurnInput,
         *,
         projector: ClaudeSdkEventProjector | None = None,
         on_projection: Callable[[ProjectionResult], Any] | None = None,
         on_billing_decision: Callable[[BillingDecision], Any] | None = None,
         on_compaction_event: Callable[[SessionCompactionEvent], Any] | None = None,
     ) -> SessionTurnResult:
-        if not isinstance(prompt, str) or not prompt.strip():
+        if not (
+            (isinstance(prompt, str) and prompt.strip())
+            or isinstance(prompt, SDKTurnInput)
+        ):
             return SessionTurnResult(
                 SessionOutcome.FAILED, error_code="invalid_prompt"
             )

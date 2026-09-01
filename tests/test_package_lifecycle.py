@@ -81,6 +81,15 @@ def test_built_package_lifecycle(tmp_path: Path) -> None:
         sdist_notices = {Path(name).name for name in archive.getnames()}
     assert required_notices <= wheel_notices
     assert required_notices <= sdist_notices
+    with tarfile.open(sdist, mode="r:gz") as archive:
+        sdist_paths = {"/".join(Path(name).parts[1:]) for name in archive.getnames()}
+    assert {
+        "qa/parity-contract-v3.yaml",
+        "qa/agent-sdk-boundary-ledger-v3.yaml",
+        "qa/result-packet-v3.schema.json",
+        "qa/v2-to-v3-replacement-receipt.md",
+        "tests/parity/test_catalog.py",
+    } <= sdist_paths
 
     home = tmp_path / "home"
     hermes_home = tmp_path / "hermes-home"
@@ -131,6 +140,19 @@ assert len(matches) == 1
 entry_point = next(iter(matches))
 assert entry_point.value == "hermes_claude_agent_sdk"
 assert entry_point.load() is plugin
+parity_scripts = importlib.metadata.entry_points(
+    group="console_scripts", name="hermes-claude-agent-sdk-parity"
+)
+assert len(parity_scripts) == 1
+assert next(iter(parity_scripts)).value == "hermes_claude_agent_sdk.parity.cli:main"
+parity_executors = importlib.metadata.entry_points(
+    group="hermes_claude_agent_sdk.parity_executors",
+    name="v3",
+)
+assert len(parity_executors) == 1
+assert next(iter(parity_executors)).value == (
+    "hermes_claude_agent_sdk.parity.executors:EXECUTORS"
+)
 assert "claude_agent_sdk" not in sys.modules
 print("installed import passed")
 """
