@@ -36,6 +36,27 @@ contract:
     clawprobench_native:
       count: 36
       ids_sha256: "b0c79c09ea2f640962f875ecc222235f9f26df59cedb077fef740a03a8bd9048"
+  source_authority:
+    schema_version: 1
+    execution_authority: "parity-contract-v3.yaml"
+    accounting_sources:
+      v2_non_soak:
+        path: "parity/v3/source-packs/v2-non-soak.json"
+        sha256: "9e156d8b47c1c43784b2d7be2f5fd7ec8e1988cfd506dbafd576c50b03066344"
+      openclaw_active:
+        path: "parity/v3/source-packs/openclaw-active.json"
+        sha256: "201c875a1b559463995c1743e3a4fe62dbd188226f11e6e348b78508a5f4cac6"
+      agent_sdk_boundary:
+        path: "agent-sdk-boundary-ledger-v3.yaml"
+        sha256: "022d980eb9f4977e31044e061b9edbd45b4b677257ed285133b6e0642a91d457"
+      clawprobench_native:
+        path: "parity/v3/source-packs/clawprobench-native.json"
+        sha256: "4f49ffbf811a164327561f1a21415b860e53dc436cc61ac65209b4ff14250fd6"
+    excluded_preliminary_inputs:
+      - path: "parity/v3/source-packs/sdk-boundary.json"
+        reason_code: "PRELIMINARY_RUNTIME_TEST_ONLY_SELECTION"
+      - path: "parity/v3/sdk-ledger.json"
+        reason_code: "PRELIMINARY_TYPESCRIPT_VERSION_ASSUMPTION"
   tool_inventory:
     required: true
     declared_equals_observed: true

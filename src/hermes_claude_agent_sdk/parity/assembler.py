@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .canonical import CanonicalizationError, canonicalize
-from .contract import EXPECTED_PACK_COUNTS, SDK_STOP_ORDINALS, validate_catalog
+from .contract import EXPECTED_PACK_COUNTS, validate_catalog
 from .inventory import InventoryValidationError, validate_declared_inventory
 
 _PACK_ORDER = tuple(EXPECTED_PACK_COUNTS)
@@ -289,8 +289,8 @@ def inspect_source_fragments(source_fragments: Mapping[str, Any] | Sequence[Mapp
         diagnostics.append(AssemblyDiagnostic("SOURCE_ROW_SET_MISMATCH", "retained source keys differ from declared row ids"))
     source_keys.sort(key=lambda item: (_PACK_ORDER.index(item[0]) if item[0] in _PACK_ORDER else len(_PACK_ORDER), item[1]))
     rows.sort(key=lambda item: (_PACK_ORDER.index(item["pack_id"]) if item["pack_id"] in _PACK_ORDER else len(_PACK_ORDER), item["row_id"]))
-    stop_rows = sorted((row["row_id"] for row in rows if row["pack_id"] == "sdk_boundary" and row.get("sdk_classification") == "requires_0_3_239" and row["row_id"] in {f"SDK-BOUNDARY-{ordinal:02d}" for ordinal in SDK_STOP_ORDINALS}))
-    ledger_stop = [item.get("row_id") for item in (sdk_ledger.get("rows", []) if isinstance(sdk_ledger, Mapping) else []) if isinstance(item, Mapping) and item.get("ordinal") in SDK_STOP_ORDINALS and item.get("classification") == "requires_0_3_239" and item.get("executable") is True]
+    stop_rows = sorted((row["row_id"] for row in rows if row["pack_id"] == "sdk_boundary" and row.get("sdk_classification") == "requires_0_3_239"))
+    ledger_stop = [item.get("row_id") for item in (sdk_ledger.get("rows", []) if isinstance(sdk_ledger, Mapping) else []) if isinstance(item, Mapping) and item.get("classification") == "requires_0_3_239" and item.get("executable") is True]
     stop_rows = sorted(set(stop_rows) | {item for item in ledger_stop if isinstance(item, str)})
     if sdk_ledger is None:
         diagnostics.append(AssemblyDiagnostic("GAP-V4-SDK-LEDGER", "sdk ledger must be explicitly supplied for final assembly"))

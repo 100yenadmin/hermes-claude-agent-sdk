@@ -275,7 +275,7 @@ def _sdk_grade(value: Any, catalog: Mapping[str, Any]) -> dict[str, Any]:
     keys = [("sdk_boundary", row["row_id"] if isinstance(row, Mapping) else row) for row in source.get("row_ids", [])]
     ledger = validate_sdk_ledger(ledger, keys)
     rows = sorted(row["row_id"] for row in ledger["rows"] if row["classification"] == "requires_0_3_239")
-    derived = {"ledger_sha256": ledger["ledger_sha256"], "row_count": 23, "requires_0_3_239_rows": rows, "upgrade_issue_ref": "issue:16", "status": "STOP" if rows else "CLEAR"}
+    derived = {"ledger_sha256": ledger["ledger_sha256"], "row_count": 23, "requires_0_3_239_rows": rows, "upgrade_issue_ref": "issue:16" if rows else None, "status": "STOP" if rows else "CLEAR"}
     if result != derived: _fail("grade.sdk_ledger is not bound to catalog")
     return result
 
@@ -310,7 +310,7 @@ def validate_sdk_ledger(value: Any, source_keys: Sequence[tuple[str, str]] | Non
         seen.append(key); _bool(item["executable"], "sdk executable"); _enum(item["classification"], {"covered_current", "equivalent_host", "requires_0_3_239", "not_runtime_applicable"}, "sdk classification")
         if item["executable"] and item["classification"] == "not_runtime_applicable": _fail("executable SDK row is N/A")
         proof = _obj(item["proof"], {"ref", "sha256"}, "sdk proof"); _proof_ref(proof["ref"], "sdk proof ref"); _sha(proof["sha256"], "sdk proof hash")
-    if len(rows) != 23 or source_keys is not None and sorted(seen) != sorted(source_keys) or any(item["ordinal"] in (1, 9) and (not item["executable"] or item["classification"] != "requires_0_3_239") for item in rows): _fail("SDK ledger is not the exact 23-row source set or pinned STOP rows")
+    if len(rows) != 23 or source_keys is not None and sorted(seen) != sorted(source_keys): _fail("SDK ledger is not the exact 23-row source set")
     if result["rows_sha256"] != hash_projection("rows_sha256", result) or result["ledger_sha256"] != hash_projection("ledger_sha256", result): _fail("SDK ledger hash mismatch")
     return result
 

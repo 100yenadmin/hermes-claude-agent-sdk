@@ -123,7 +123,7 @@ def _catalog() -> dict[str, Any]:
                 "session_scope": "isolated_cell",
                 "sdk_classification": "not_runtime_applicable"
                 if pack_id != "sdk_boundary"
-                else ("requires_0_3_239" if row_id.endswith(("001", "009")) else "covered_current"),
+                else "covered_current",
                 "required": True,
             }
         )
@@ -162,7 +162,7 @@ def _catalog() -> dict[str, Any]:
     sdk_rows = []
     sdk_pack = next(pack for pack in packs if pack["id"] == "sdk_boundary")
     for ordinal, row_id in enumerate(sdk_pack["row_ids"], 1):
-        classification = "requires_0_3_239" if ordinal in (1, 9) else "covered_current"
+        classification = "covered_current"
         sdk_rows.append(
             {
                 "pack_id": "sdk_boundary",
@@ -322,14 +322,14 @@ def test_duplicate_scenario_ids_fail_closed() -> None:
         load_catalog(catalog)
 
 
-def test_sdk_ledger_requires_exact_set_and_pinned_stop_rows() -> None:
+def test_sdk_ledger_requires_exact_set_and_catalog_classification_match() -> None:
     catalog = _catalog()
     catalog["catalog_sha256"] = hash_catalog(catalog)
     del catalog["sdk_ledger"]["rows"][1]
     with pytest.raises(CatalogValidationError):
         load_catalog(catalog)
     catalog = _catalog()
-    catalog["sdk_ledger"]["rows"][8]["classification"] = "covered_current"
+    catalog["sdk_ledger"]["rows"][8]["classification"] = "equivalent_host"
     catalog["sdk_ledger"]["rows_sha256"], catalog["sdk_ledger"]["ledger_sha256"] = hash_sdk_ledger(catalog["sdk_ledger"])
     catalog["catalog_sha256"] = hash_catalog(catalog)
     with pytest.raises(CatalogValidationError):

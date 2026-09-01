@@ -26,6 +26,11 @@ from .runner import (
     run_catalog,
     validate_run_manifest,
 )
+from .source_authority import (
+    SourceAuthorityReport,
+    SourceAuthorityViolation,
+    validate_source_authority,
+)
 
 __all__ = [
     "Catalog",
@@ -43,6 +48,8 @@ __all__ = [
     "ResultPacket",
     "ResultViolation",
     "SDK_EVENT_CODES",
+    "SourceAuthorityReport",
+    "SourceAuthorityViolation",
     "TRACE_REGISTRY",
     "ToolInventory",
     "canonical_json",
@@ -57,6 +64,7 @@ __all__ = [
     "run_catalog",
     "stable_json_hash",
     "validate_identifier",
+    "validate_source_authority",
     "validate_run_manifest",
     "validate_sha256",
 ]

@@ -25,7 +25,6 @@ EXPECTED_PACK_COUNTS = {
     "sdk_boundary": 23,
     "clawprobench_native": 36,
 }
-SDK_STOP_ORDINALS = frozenset((1, 9))
 CONSUMERS = ("inventory", "run", "grade")
 _SHA1 = re.compile(r"^[0-9a-f]{40}$")
 _SAFE = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
@@ -296,7 +295,6 @@ def _sdk_ledger(value: Any, source_keys: set[tuple[str, str]]) -> tuple[dict[str
         if item["executable"] and classification == "not_runtime_applicable": _bad("sdk row")
         proof = _obj(item["proof"], ("ref", "sha256"), "sdk proof"); _match(proof["ref"], _REF, "sdk proof"); _sha256(proof["sha256"], "sdk proof")
         classifications[key] = classification
-        if ordinal in SDK_STOP_ORDINALS and (not item["executable"] or classification != "requires_0_3_239"): _bad("sdk stop")
     if keys != source_keys or len(rows) != 23: _bad("sdk ledger")
     hashes = hash_sdk_ledger(result)
     if (result["rows_sha256"], result["ledger_sha256"]) != hashes: _bad("sdk ledger")
@@ -470,7 +468,7 @@ def validate_resume(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 __all__ = [
-    "CONTRACT_ID", "SDK_DISTRIBUTION", "SDK_VERSION", "EXPECTED_PACK_COUNTS", "SDK_STOP_ORDINALS",
+    "CONTRACT_ID", "SDK_DISTRIBUTION", "SDK_VERSION", "EXPECTED_PACK_COUNTS",
     "CatalogValidationError", "build_contract_envelope", "hash_catalog", "hash_declared_inventory",
     "hash_receipt", "hash_sdk_ledger", "hash_source_map", "load_catalog", "validate_catalog",
     "hash_candidate", "hash_fixture_manifest", "validate_candidate", "validate_fixture_manifest", "validate_resume", "validate_scenario",
