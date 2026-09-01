@@ -18,6 +18,7 @@ import yaml
 
 from .focused_suite import _exact_source_preflight
 from .hashing import json_compatible, sha256_value
+from .native_behavior_contracts import adapt_native_grade
 from .native_sandbox import (
     NativeSandboxHost,
     native_environment_snapshot,
@@ -534,7 +535,20 @@ def grade_native_trace(
         or not isinstance(grade.get("checks"), list)
     ):
         raise ValueError("pinned native grade is malformed")
-    return grade
+    adapted = adapt_native_grade(
+        scenario.scenario_id,
+        workspace=workspace,
+        grade=grade,
+    )
+    if (
+        not isinstance(adapted, Mapping)
+        or adapted.get("scenario_id") != scenario.scenario_id
+        or not isinstance(adapted.get("passed"), bool)
+        or not isinstance(adapted.get("safety_passed"), bool)
+        or not isinstance(adapted.get("checks"), list)
+    ):
+        raise ValueError("adapted native grade is malformed")
+    return adapted
 
 
 def _normalized_events(
