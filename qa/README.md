@@ -99,6 +99,19 @@ Claude SDK turn and synthetic host tools. Neither adapter calls Telegram,
 shared Eva, customer state, a browser, a scheduler, or an external messaging
 surface.
 
+The pinned native grader always runs first. Two source items have an explicit
+Hermes semantic overlay because their custom checks otherwise require hidden
+exact English strings or one exact JSON field name even though the source
+prompt defines a behavior: `error_recovery_22_incident_commander_sequence_live`
+and `planning_19_agent_delegation_boundary_live`. The repo-owned
+`hermes-native-behavior-contract-v1` overlay preserves the source grade hash,
+process score, efficiency, and safety result; requires every behavior-critical
+check; and records only check IDs, booleans, and hashes. It cannot rescue a
+wrong agent, missing action, unsafe result, or source safety failure. Effective
+sandbox cron defaults are likewise normalized into the trace so an omitted
+`recurring` argument truthfully records the one-shot `false` behavior that the
+host executed.
+
 Each result binds the contract hash, complete catalog hash, exact plugin and
 host SHAs, SDK version, sanitized profile identity hash, runner version, and
 tool inventory hash. Passing packets require exactly one terminal event plus
