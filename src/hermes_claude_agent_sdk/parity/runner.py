@@ -467,6 +467,11 @@ async def run_catalog_async(
         path: packet for path, packet in zip(existing_paths, existing_packets, strict=True)
     }
     scenario_repeat_targets: dict[str, int] = {}
+    global_environment_block_reasons = {
+        "native_subscription_limit_reached",
+        "native_synthetic_provider_notice",
+    }
+    abort_run = False
 
     def build_packet(
         capability: Capability,
@@ -514,7 +519,11 @@ async def run_catalog_async(
         _write_manifest(manifest_path, manifest)
 
     for capability in capabilities:
+        if abort_run:
+            break
         for path in ("positive", "denial", "recovery"):
+            if abort_run:
+                break
             if not capability.path(path)["required"]:
                 continue
             triggers = set(capability.repeat_policy["triggers"])
@@ -644,6 +653,8 @@ async def run_catalog_async(
                     ExecutionClassification.PENDING,
                     ExecutionClassification.ENVIRONMENT_BLOCKED,
                 }:
+                    if packet.reason_code in global_environment_block_reasons:
+                        abort_run = True
                     break
                 trial_index += 1
 

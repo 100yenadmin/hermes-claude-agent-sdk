@@ -301,6 +301,42 @@ def test_text_turn_uses_public_options_one_reader_projection_and_exact_close() -
     asyncio.run(scenario())
 
 
+def test_subscription_limit_synthetic_notice_is_a_typed_failure_not_content() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        projections = []
+        session = SDKSession(
+            _configuration(),
+            sdk_module=_sdk(
+                clients,
+                [[
+                    SystemMessage("init", {"apiKeySource": "none"}),
+                    AssistantMessage(
+                        [TextBlock("Synthetic plan limit reached; resets later")],
+                        model="<synthetic>",
+                    ),
+                    ResultMessage(usage={"input_tokens": 0, "output_tokens": 0}),
+                ]],
+            ),
+            on_projection=projections.append,
+        )
+
+        result = await session.run_turn("bounded plan-limit notice")
+
+        assert result.outcome is SessionOutcome.FAILED
+        assert result.error_code == "sdk_subscription_limit_reached"
+        assert result.final_text is None
+        assert all(
+            not projection.events
+            and projection.final_text is None
+            and not projection.is_result
+            for projection in projections
+        )
+        assert clients[0].disconnected == 1
+
+    asyncio.run(scenario())
+
+
 def test_compaction_hook_boundary_and_turn_projection_are_ordered() -> None:
     async def scenario() -> None:
         clients: list[_FakeClient] = []

@@ -106,6 +106,21 @@ class _Client:
         if self.mode == "cancellation_probe_failure":
             await self._messages.put(AssistantMessage([TextBlock("queued before probe failure")]))
             return
+        if self.mode == "subscription_limit":
+            await self._messages.put(SystemMessage("init", {"apiKeySource": "none"}))
+            await self._messages.put(
+                AssistantMessage(
+                    [TextBlock("Synthetic plan limit reached; resets later")],
+                    model="<synthetic>",
+                )
+            )
+            await self._messages.put(
+                ResultMessage(
+                    result="Synthetic plan limit reached; resets later",
+                    usage={"input_tokens": 0, "output_tokens": 0},
+                )
+            )
+            return
         if self.mode not in {"unknown", "tool_failure"}:
             await self._messages.put(SystemMessage("init", {"apiKeySource": "none"}))
             await self._messages.put(AssistantMessage([TextBlock("hello")]))
@@ -563,6 +578,21 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
         assert fields["tools"] == ["Agent"]
         assert fields["mcp_servers"]["hermes-tools"]["tools"] == []
         assert clients[0].queries == ["hello runtime"]
+        assert clients[0].disconnected == 1
+
+    asyncio.run(scenario())
+
+
+def test_subscription_limit_notice_fails_before_content_or_completion() -> None:
+    async def scenario() -> None:
+        clients: list[_Client] = []
+        runtime = _runtime("subscription_limit", clients)
+
+        events = await _collect(runtime, _request(), _Host())
+        await runtime.close()
+
+        assert [event.kind.value for event in events] == ["failed"]
+        assert events[0].failure.code == "sdk_subscription_limit_reached"
         assert clients[0].disconnected == 1
 
     asyncio.run(scenario())

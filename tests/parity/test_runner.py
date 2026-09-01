@@ -203,6 +203,46 @@ def test_combined_executor_runs_once_for_positive_denial_and_recovery(
     assert manifest["executions"][0]["scope"] == "bundle"
 
 
+def test_global_subscription_limit_block_stops_the_remaining_catalog(
+    catalog, candidate_fields, tmp_path
+) -> None:
+    first = catalog.by_id["v2:parent-01"]
+    second = catalog.by_id["v2:parent-02"]
+    calls = []
+
+    def blocked(context):
+        calls.append(context.capability.capability_id)
+        return ExecutionBundle(
+            outcomes={
+                path: ExecutionOutcome(
+                    classification=ExecutionClassification.ENVIRONMENT_BLOCKED,
+                    billing_classification="none",
+                    reason_code="native_subscription_limit_reached",
+                    turn_count=1 if path == "positive" else 0,
+                )
+                for path in ("positive", "denial", "recovery")
+            },
+            turn_count=1,
+        )
+
+    registry = ExecutorRegistry()
+    registry.register(first.execution_id, blocked)
+    registry.register(second.execution_id, blocked)
+
+    packets, report = run_catalog(
+        catalog,
+        registry=registry,
+        resume=False,
+        capability_ids=(first.capability_id, second.capability_id),
+        **_run_fields(tmp_path, candidate_fields),
+    )
+
+    assert calls == [first.capability_id]
+    assert len(packets) == 1
+    assert len(list(tmp_path.glob("*__*__trial-*.json"))) == 3
+    assert report.exit_code == 75
+
+
 def test_interrupted_run_checkpoints_completed_bundle_for_resume(
     catalog, candidate_fields, tmp_path
 ) -> None:

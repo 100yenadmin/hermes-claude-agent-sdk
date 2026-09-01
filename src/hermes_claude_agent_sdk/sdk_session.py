@@ -98,6 +98,35 @@ _BACKGROUND_DEDUPLICATION_WINDOW = 64
 _BACKGROUND_CALLBACK_TIMEOUT_SECONDS = 5.0
 
 
+def _synthetic_provider_notice(message: Any) -> str | None:
+    """Classify Claude Code synthetic notices without exposing their text.
+
+    Claude Code emits plan-limit UI notices as ``AssistantMessage`` values
+    whose reported model is the sentinel ``<synthetic>``. They are provider
+    control messages, not completions from the requested model, and must never
+    be projected as successful assistant output.
+    """
+
+    if (
+        type(message).__name__ != "AssistantMessage"
+        or getattr(message, "model", None) != "<synthetic>"
+    ):
+        return None
+    text_parts: list[str] = []
+    content = getattr(message, "content", None)
+    if isinstance(content, list):
+        for block in content:
+            if type(block).__name__ != "TextBlock":
+                continue
+            text = getattr(block, "text", None)
+            if isinstance(text, str):
+                text_parts.append(text[:512])
+    normalized = " ".join(text_parts).lower()
+    if "limit" in normalized and "resets" in normalized:
+        return "sdk_subscription_limit_reached"
+    return "sdk_synthetic_provider_notice"
+
+
 def _bounded_background_text(value: Any) -> str:
     if not isinstance(value, str):
         return ""
@@ -440,6 +469,7 @@ class SDKSession:
             final_text: str | None = None
             state = SessionStateUpdate()
             turn_completed = False
+            provider_notice_error: str | None = None
             try:
                 loop = asyncio.get_running_loop()
                 deadline = loop.time() + self._configuration.turn_timeout_seconds
@@ -524,6 +554,10 @@ class SDKSession:
                             )
 
                     if type(message).__name__ != "ResultMessage":
+                        notice_error = _synthetic_provider_notice(message)
+                        if notice_error is not None:
+                            provider_notice_error = notice_error
+                            continue
                         projection = turn_projector.project(message)
                         await _call(turn_projection_callback, projection)
                         if projection.final_text is not None:
@@ -551,6 +585,17 @@ class SDKSession:
                             state_update=state,
                             billing_decision=decision,
                             error_code="sdk_billing_blocked",
+                        )
+                    if provider_notice_error is not None:
+                        # A provider control notice is not model output. Retire
+                        # this child so no later turn can silently continue on
+                        # an exhausted or otherwise unavailable route.
+                        await self.close()
+                        return SessionTurnResult(
+                            SessionOutcome.FAILED,
+                            state_update=state,
+                            billing_decision=decision,
+                            error_code=provider_notice_error,
                         )
                     self._foreground_billing_allowed = True
                     # Result projection contains RuntimeCompletedEvent, so it

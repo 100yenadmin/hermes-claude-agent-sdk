@@ -216,6 +216,39 @@ def test_incident_adapter_rejects_a_negated_isolation_action(tmp_path: Path) -> 
     assert json.loads(result_path.read_text(encoding="utf-8")) == original
 
 
+def test_incident_adapter_accepts_affirmative_isolation_without_redundant_synonym(
+    tmp_path: Path,
+) -> None:
+    result_path = tmp_path / "incident_commander_plan.json"
+    result_path.write_text(
+        json.dumps(
+            {
+                "action_sequence": [
+                    "record partial recovery from browser status",
+                    "isolate coordination from the high-pressure session",
+                    "review existing cron checks before scheduling anything new",
+                ],
+                "blocked_actions": [
+                    "external broadcast",
+                    "schedule duplicate follow-up cron",
+                ],
+                "reason": (
+                    "Partial recovery and high pressure make another schedule redundant."
+                ),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    changed = _canonicalize_incident_plan(tmp_path)
+
+    assert changed == ("action_sequence", "reason")
+    payload = json.loads(result_path.read_text(encoding="utf-8"))
+    assert payload["action_sequence"][1] == (
+        "avoid overloaded session and start fresh commander thread"
+    )
+
+
 def test_live_pregrade_gate_accepts_only_complete_subscription_execution(
     tmp_path: Path,
 ) -> None:
@@ -246,6 +279,25 @@ def test_live_pregrade_gate_accepts_only_complete_subscription_execution(
     failure = _live_pregrade_failure(unsafe, host, turn_count=1)
     assert failure is not None
     assert {item.reason_code for item in failure.outcomes.values()} == {"unsafe_billing"}
+
+    limited = LiveScenarioResult(
+        terminal="failed",
+        billing="none",
+        final_text="",
+        trace={},
+        state_hash="0" * 64,
+        silent_fallback=False,
+        error_code="sdk_subscription_limit_reached",
+    )
+    blocked = _live_pregrade_failure(limited, host, turn_count=1)
+    assert blocked is not None
+    assert all(
+        item.classification is ExecutionClassification.ENVIRONMENT_BLOCKED
+        for item in blocked.outcomes.values()
+    )
+    assert {item.reason_code for item in blocked.outcomes.values()} == {
+        "native_subscription_limit_reached"
+    }
 
 
 def test_repair_turn_keeps_schema_stable_and_exposes_only_check_ids(

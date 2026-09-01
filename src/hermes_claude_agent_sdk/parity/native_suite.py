@@ -165,6 +165,7 @@ class LiveScenarioResult:
     trace: Mapping[str, Any]
     state_hash: str
     silent_fallback: bool
+    error_code: str | None = None
 
 
 def native_execution_ids() -> tuple[str, ...]:
@@ -213,12 +214,41 @@ def _failed(reason: str, *, turn_count: int, billing: str = "none") -> Execution
     )
 
 
+def _environment_blocked(
+    reason: str, *, turn_count: int, billing: str = "none"
+) -> ExecutionBundle:
+    return ExecutionBundle(
+        outcomes={
+            path: ExecutionOutcome(
+                classification=ExecutionClassification.ENVIRONMENT_BLOCKED,
+                billing_classification=billing,
+                reason_code=reason,
+                turn_count=turn_count if path == "positive" else 0,
+            )
+            for path in ("positive", "denial", "recovery")
+        },
+        turn_count=turn_count,
+    )
+
+
 def _live_pregrade_failure(
     live: LiveScenarioResult,
     host: NativeSandboxHost,
     *,
     turn_count: int,
 ) -> ExecutionBundle | None:
+    if live.error_code == "sdk_subscription_limit_reached":
+        return _environment_blocked(
+            "native_subscription_limit_reached",
+            turn_count=turn_count,
+            billing=live.billing,
+        )
+    if live.error_code == "sdk_synthetic_provider_notice":
+        return _environment_blocked(
+            "native_synthetic_provider_notice",
+            turn_count=turn_count,
+            billing=live.billing,
+        )
     if live.billing == "unsafe":
         return ExecutionBundle(
             outcomes={
@@ -492,10 +522,6 @@ def _incident_action_kind(value: str) -> str | None:
     if (
         "session" in lowered
         and _contains_any(lowered, ("high", "pressure", "overload"))
-        and (
-            _contains_any(lowered, ("fresh", "new", "thread", "commander"))
-            or ("separate" in lowered and "coordination" in lowered)
-        )
         and _has_unnegated_incident_isolation(lowered)
     ):
         return "session_isolation"
@@ -703,6 +729,11 @@ async def _run_live_turn(
         if len(terminal_events) == 1
         else "failed"
     )
+    error_code = None
+    if terminal == "failed" and len(terminal_events) == 1:
+        failure = getattr(terminal_events[0], "failure", None)
+        value = getattr(failure, "code", None)
+        error_code = value if isinstance(value, str) else None
     final_text = ""
     silent_fallback = False
     if terminal == "completed":
@@ -757,6 +788,7 @@ async def _run_live_turn(
         trace=trace,
         state_hash=sha256_value(state_values),
         silent_fallback=silent_fallback,
+        error_code=error_code,
     )
 
 
