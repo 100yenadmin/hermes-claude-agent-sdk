@@ -8,6 +8,7 @@ from hermes_claude_agent_sdk.parity.active_suite import (
     LiveTurn,
     _normalize_event_tool_name,
     _source_docs_contract,
+    _subagent_contract,
     active_execution_ids,
 )
 from hermes_claude_agent_sdk.parity.executors import EXECUTORS
@@ -136,3 +137,41 @@ def test_source_docs_contract_uses_host_receipts_when_projection_is_deduplicated
     assert reason == "active_behavior_or_trace_failed"
     assert extra["projected_read_count"] == 1
     assert extra["host_successful_calls"] == 2
+
+
+def test_subagent_contract_reports_parent_marker_gap_without_content(tmp_path) -> None:
+    host = NativeSandboxHost(tmp_path, (), deny_first=False)
+    host.denial_observed = True
+    host.recovery_observed = True
+    turn = LiveTurn(
+        terminal="completed",
+        failure_code=None,
+        billing="subscription_included",
+        final_text="synthetic synthesis without contract markers",
+        final_hash=sha256_value("synthetic synthesis without contract markers"),
+        state=None,
+        state_hash="a" * 64,
+        tool_names=("read", "read", "Agent", "Agent"),
+        compaction_phases=(),
+        background_hashes=(),
+        event_hash="b" * 64,
+        silent_fallback=False,
+    )
+
+    ok, reason, extra = _subagent_contract(
+        (turn,),
+        host,
+        count=2,
+        final_marker="FANOUT_PASS",
+    )
+
+    assert ok is False
+    assert reason == "active_subagent_context_marker_missing"
+    assert extra == {
+        "agent_calls": 2,
+        "denial": True,
+        "recovery": True,
+        "context_marker": False,
+        "final_marker": False,
+        "provider_turns": 1,
+    }
