@@ -120,6 +120,89 @@ _V2_NODES: dict[str, tuple[EvidenceNode, ...]] = {
 }
 
 
+_V2_PATH_CONTROLS: dict[str, dict[str, tuple[EvidenceNode, ...]]] = {
+    "auth": {
+        "denial": _nodes(
+            P,
+            "tests/test_billing.py::test_conflicting_evidence_blocks_before_calls",
+        ),
+        "recovery": _nodes(
+            P,
+            "tests/test_billing.py::test_recognized_non_overage_evidence_is_included",
+        ),
+    },
+    "parent": {
+        "denial": _nodes(
+            P,
+            "tests/test_sdk_session.py::test_sdk_stream_without_a_terminal_result_fails_closed",
+        ),
+        "recovery": _nodes(
+            P,
+            "tests/test_runtime_sdk_integration.py::test_pre_set_interrupt_event_honored_then_next_turn_runs",
+        ),
+    },
+    "tool": {
+        "denial": _nodes(
+            P,
+            "tests/parity/test_native_sandbox.py::test_tool_schemas_are_bounded_and_unknown_tools_fail_closed",
+        ),
+        "recovery": _nodes(
+            P,
+            "tests/parity/test_native_sandbox.py::test_sandbox_denies_once_recovers_and_confines_files",
+        ),
+    },
+    "orch": {
+        "denial": _nodes(
+            V,
+            "tests/tools/test_delegate_routes.py::test_malformed_unknown_partial_and_credential_failures_are_atomic",
+        ),
+        "recovery": _nodes(
+            V,
+            "tests/tools/test_delegate_routes.py::test_valid_codex_route_receipt_and_precedence",
+        ),
+    },
+    "bg": {
+        "denial": _nodes(
+            V,
+            "tests/tools/test_async_delegation.py::test_stalled_runner_is_interrupted_then_finalized",
+        ),
+        "recovery": _nodes(
+            V,
+            "tests/tools/test_async_delegation.py::test_real_process_restart_restores_owned_completion_once",
+        ),
+    },
+    "ops": {
+        "denial": _nodes(
+            V,
+            "tests/hermes_cli/test_claude_sdk_cli_chat.py::test_quiet_single_query_metered_refusal_exits_nonzero",
+        ),
+        "recovery": _nodes(
+            V,
+            "tests/test_install_commit_pin_rollback.py::test_force_commit_still_rolls_back",
+        ),
+    },
+    "eff": {
+        "denial": _nodes(
+            P,
+            "tests/test_runtime_sdk_integration.py::test_unknown_billing_blocks_success_and_tool_side_effect_is_conservative",
+        ),
+        "recovery": _nodes(
+            P,
+            "tests/test_runtime_sdk_integration.py::test_billing_retirement_does_not_restart_runtime_session",
+        ),
+    },
+}
+
+
+def _nodes_for_path(capability_id: str, path: str) -> tuple[EvidenceNode, ...]:
+    base = _V2_NODES[capability_id]
+    if path == "positive":
+        return base
+    family = capability_id.split(":", 1)[1].split("-", 1)[0]
+    controls = _V2_PATH_CONTROLS[family][path]
+    return tuple(dict.fromkeys((*base, *controls)))
+
+
 def v2_execution_ids() -> tuple[str, ...]:
     return tuple(capability_id.replace(":", "-", 1) for capability_id in sorted(_V2_NODES))
 
@@ -135,16 +218,6 @@ def _blocked(reason: str) -> ExecutionBundle:
             for path in ("positive", "denial", "recovery")
         },
         turn_count=0,
-    )
-
-
-def _pending_path(reason: str) -> ExecutionOutcome:
-    """Leave a path unqualified until it has its own executable evidence."""
-
-    return ExecutionOutcome(
-        classification=ExecutionClassification.PENDING,
-        billing_classification="none",
-        reason_code=reason,
     )
 
 
@@ -202,8 +275,7 @@ def _executable_path(raw: str) -> Path:
 async def v2_mapped_suite(context: ExecutionContext) -> ExecutionBundle:
     """Run exact focused evidence for one frozen-v2 non-soak source row."""
 
-    nodes = _V2_NODES.get(context.capability.capability_id)
-    if nodes is None:
+    if context.capability.capability_id not in _V2_NODES:
         return _blocked("v2_evidence_mapping_missing")
     root = Path(context.repo_root).expanduser().resolve()
     blocked = _exact_source_preflight(context, root)
@@ -229,108 +301,120 @@ async def v2_mapped_suite(context: ExecutionContext) -> ExecutionBundle:
     if not host_python.is_file():
         return _blocked("v2_host_test_python_unavailable")
 
-    by_repo: dict[RepoName, list[str]] = defaultdict(list)
-    for node in nodes:
-        by_repo[node.repo].append(node.node_id)
     roots = {P: root, H: host_root, V: v2_root}
     executables = {P: Path(sys.executable), H: host_python, V: host_python}
-    receipts: list[dict[str, Any]] = []
-    passed = True
+    outcomes: dict[str, ExecutionOutcome] = {}
     try:
         with tempfile.TemporaryDirectory(prefix="hermes-parity-v3-v2-") as home_name:
             home = Path(home_name)
-            for repo_name in (P, H, V):
-                repo_nodes = by_repo.get(repo_name)
-                if not repo_nodes:
-                    continue
-                python_path = os.pathsep.join(
-                    value
-                    for value in (
-                        str(root / "src") if repo_name == P else str(roots[repo_name]),
-                        str(host_root),
+            for path in ("positive", "denial", "recovery"):
+                by_repo: dict[RepoName, list[str]] = defaultdict(list)
+                for node in _nodes_for_path(
+                    context.capability.capability_id,
+                    path,
+                ):
+                    by_repo[node.repo].append(node.node_id)
+                receipts: list[dict[str, Any]] = []
+                passed = True
+                for repo_name in (P, H, V):
+                    repo_nodes = by_repo.get(repo_name)
+                    if not repo_nodes:
+                        continue
+                    python_path = os.pathsep.join(
+                        value
+                        for value in (
+                            str(root / "src")
+                            if repo_name == P
+                            else str(roots[repo_name]),
+                            str(host_root),
+                        )
+                        if value
                     )
-                    if value
-                )
-                completed = _run_nodes(
-                    executables[repo_name],
-                    root=roots[repo_name],
-                    nodes=repo_nodes,
-                    environment=_safe_environment(
-                        home=home,
-                        python_path=python_path,
-                        host_root=host_root,
-                    ),
-                )
-                output_hash = sha256_value(
+                    completed = _run_nodes(
+                        executables[repo_name],
+                        root=roots[repo_name],
+                        nodes=repo_nodes,
+                        environment=_safe_environment(
+                            home=home,
+                            python_path=python_path,
+                            host_root=host_root,
+                        ),
+                    )
+                    output_hash = sha256_value(
+                        {
+                            "repo": repo_name,
+                            "returncode": completed.returncode,
+                            "stdout_hash": hashlib.sha256(
+                                completed.stdout[: 256 * 1024]
+                            ).hexdigest(),
+                            "stderr_hash": hashlib.sha256(
+                                completed.stderr[: 256 * 1024]
+                            ).hexdigest(),
+                        }
+                    )
+                    receipts.append(
+                        {
+                            "repo": repo_name,
+                            "nodes_hash": sha256_value(repo_nodes),
+                            "output_hash": output_hash,
+                        }
+                    )
+                    passed = passed and completed.returncode == 0
+
+                evidence_hash = sha256_value(
                     {
-                        "repo": repo_name,
-                        "returncode": completed.returncode,
-                        "stdout_hash": hashlib.sha256(completed.stdout[: 256 * 1024]).hexdigest(),
-                        "stderr_hash": hashlib.sha256(completed.stderr[: 256 * 1024]).hexdigest(),
+                        "capability_id": context.capability.capability_id,
+                        "path": path,
+                        "plugin_sha": context.plugin_sha,
+                        "host_sha": context.host_sha,
+                        "v2_sha": V2_SHA,
+                        "receipts": receipts,
                     }
                 )
-                receipts.append(
-                    {
-                        "repo": repo_name,
-                        "nodes_hash": sha256_value(repo_nodes),
-                        "output_hash": output_hash,
-                    }
-                )
-                passed = passed and completed.returncode == 0
+                if passed:
+                    classification = (
+                        ExecutionClassification.EXPECTED_NEGATIVE
+                        if path == "denial"
+                        else ExecutionClassification.COMPLETE
+                    )
+                    outcomes[path] = ExecutionOutcome(
+                        classification=classification,
+                        billing_classification="none",
+                        normalized_events=normalized_path_events(
+                            context.capability.expected_trace,
+                            path=path,
+                            evidence_hash=evidence_hash,
+                        ),
+                        primary_proof_hash=sha256_value(
+                            {"evidence": evidence_hash, "path": path}
+                        ),
+                        secondary_proof_hash=sha256_value(
+                            {
+                                "catalog_hash": context.catalog_hash,
+                                "profile_hash": context.profile_hash,
+                                "inventory_hash": context.inventory_hash,
+                                "path": path,
+                            }
+                        ),
+                        turn_count=0,
+                    )
+                else:
+                    outcomes[path] = ExecutionOutcome(
+                        classification=ExecutionClassification.VERIFIED_FAILURE,
+                        billing_classification="none",
+                        normalized_events=(
+                            {
+                                "sequence": 1,
+                                "kind": "terminal",
+                                "status": "failed",
+                                "terminal_outcome": "failed",
+                            },
+                        ),
+                        reason_code=f"v2_{path}_mapped_suite_failed",
+                        turn_count=0,
+                    )
     except (OSError, subprocess.TimeoutExpired):
         return _blocked("v2_focused_runner_unavailable")
-
-    evidence_hash = sha256_value(
-        {
-            "capability_id": context.capability.capability_id,
-            "plugin_sha": context.plugin_sha,
-            "host_sha": context.host_sha,
-            "v2_sha": V2_SHA,
-            "receipts": receipts,
-        }
-    )
-    if passed:
-        positive = ExecutionOutcome(
-            classification=ExecutionClassification.COMPLETE,
-            billing_classification="none",
-            normalized_events=normalized_path_events(
-                context.capability.expected_trace,
-                path="positive",
-                evidence_hash=evidence_hash,
-            ),
-            primary_proof_hash=sha256_value(
-                {"evidence": evidence_hash, "path": "positive"}
-            ),
-            secondary_proof_hash=sha256_value(
-                {
-                    "catalog_hash": context.catalog_hash,
-                    "profile_hash": context.profile_hash,
-                    "inventory_hash": context.inventory_hash,
-                    "path": "positive",
-                }
-            ),
-            turn_count=0,
-        )
-    else:
-        positive = ExecutionOutcome(
-            classification=ExecutionClassification.VERIFIED_FAILURE,
-            billing_classification="none",
-            normalized_events=(
-                {
-                    "sequence": 1,
-                    "kind": "terminal",
-                    "status": "failed",
-                    "terminal_outcome": "failed",
-                },
-            ),
-            reason_code="v2_mapped_focused_suite_failed",
-            turn_count=0,
-        )
-    outcomes = {
-        "positive": positive,
-        "denial": _pending_path("v2_denial_path_not_executed"),
-        "recovery": _pending_path("v2_recovery_path_not_executed"),
-    }
     return ExecutionBundle(outcomes=outcomes, turn_count=0)
 
 

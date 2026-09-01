@@ -7,6 +7,7 @@ from pathlib import Path
 from hermes_claude_agent_sdk.parity import v2_suite
 from hermes_claude_agent_sdk.parity.v2_suite import (
     _V2_NODES,
+    _V2_PATH_CONTROLS,
     _executable_path,
     v2_mapped_suite,
     v2_execution_ids,
@@ -44,10 +45,23 @@ def test_every_v2_non_soak_row_has_one_exact_mapping(catalog) -> None:
     assert set(_V2_NODES) == source_ids
     assert len(v2_execution_ids()) == 53
     assert len(set(v2_execution_ids())) == 53
+    assert set(_V2_PATH_CONTROLS) == {
+        "auth",
+        "parent",
+        "tool",
+        "orch",
+        "bg",
+        "ops",
+        "eff",
+    }
+    assert all(
+        controls["denial"] and controls["recovery"]
+        for controls in _V2_PATH_CONTROLS.values()
+    )
 
 
 def test_v2_mapping_never_names_forbidden_live_surfaces() -> None:
-    rendered = repr(_V2_NODES).lower()
+    rendered = repr((_V2_NODES, _V2_PATH_CONTROLS)).lower()
     assert "telegram" not in rendered
     assert "customer" not in rendered
     assert "shared-eva" not in rendered
@@ -67,7 +81,7 @@ def test_virtualenv_python_path_is_not_resolved_to_its_base_interpreter(
     assert _executable_path(str(link)) != link.resolve()
 
 
-def test_v2_successful_source_tests_do_not_fabricate_unexecuted_path_outcomes(
+def test_v2_successful_source_tests_execute_and_prove_each_path(
     catalog,
     monkeypatch,
     tmp_path: Path,
@@ -99,11 +113,17 @@ def test_v2_successful_source_tests_do_not_fabricate_unexecuted_path_outcomes(
 
     result = asyncio.run(v2_mapped_suite(_context(catalog, "v2:auth-02")))
 
-    assert len(calls) == 1
+    assert len(calls) == 5
     assert result.outcomes["positive"].classification is ExecutionClassification.COMPLETE
-    assert result.outcomes["denial"].classification is ExecutionClassification.PENDING
-    assert result.outcomes["recovery"].classification is ExecutionClassification.PENDING
-    assert result.outcomes["positive"].primary_proof_hash
-    assert result.outcomes["positive"].secondary_proof_hash
-    assert result.outcomes["denial"].primary_proof_hash is None
-    assert result.outcomes["recovery"].primary_proof_hash is None
+    assert (
+        result.outcomes["denial"].classification
+        is ExecutionClassification.EXPECTED_NEGATIVE
+    )
+    assert result.outcomes["recovery"].classification is ExecutionClassification.COMPLETE
+    assert all(
+        outcome.primary_proof_hash and outcome.secondary_proof_hash
+        for outcome in result.outcomes.values()
+    )
+    assert len(
+        {outcome.primary_proof_hash for outcome in result.outcomes.values()}
+    ) == 3

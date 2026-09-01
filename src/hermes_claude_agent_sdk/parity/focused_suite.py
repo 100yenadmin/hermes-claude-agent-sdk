@@ -93,6 +93,202 @@ _BOUNDARY_NODES: dict[str, tuple[str, ...]] = {
 }
 
 
+_BOUNDARY_PATH_CONTROLS: dict[str, dict[str, tuple[str, ...]]] = {
+    "boundary:sdk-identity-credential-privacy-side-question-isolation": {
+        "denial": (
+            "tests/test_auth.py::test_parser_fails_closed_for_unsupported_auth",
+        ),
+        "recovery": (
+            "tests/test_auth.py::test_parser_accepts_json_and_discards_identity_fields",
+        ),
+    },
+    "boundary:authenticated-executable-exact-host-environment": {
+        "denial": (
+            "tests/test_auth.py::test_probe_rejects_nonzero_oversized_and_nontext_output",
+        ),
+        "recovery": (
+            "tests/test_auth.py::test_probe_uses_bounded_no_shell_argv_and_minimal_noncredential_environment",
+        ),
+    },
+    "boundary:cancellation-race-during-async-module-load": {
+        "denial": (
+            "tests/test_runtime_sdk_integration.py::test_pre_set_interrupt_event_honored_then_next_turn_runs",
+        ),
+        "recovery": (
+            "tests/test_runtime_sdk_integration.py::test_pre_set_interrupt_event_honored_then_next_turn_runs",
+        ),
+    },
+    "boundary:fresh-resume-native-session-identity": {
+        "denial": (
+            "tests/test_runtime_sdk_integration.py::test_runtime_rejects_a_replacement_host_binding_without_query_or_reroute",
+        ),
+        "recovery": (
+            "tests/test_runtime_sdk_integration.py::test_successful_turn_then_cancelled_turn_reuses_current_resume_on_replacement",
+        ),
+    },
+    "boundary:cache-effort-checkpoint-fork-options": {
+        "denial": (
+            "tests/parity/test_boundary_adaptations.py::test_cache_receipts_and_resume_survive_while_unknown_fork_controls_fail_closed",
+        ),
+        "recovery": (
+            "tests/parity/test_boundary_adaptations.py::test_cache_receipts_and_resume_survive_while_unknown_fork_controls_fail_closed",
+        ),
+    },
+    "boundary:compatible-warm-query-process-reuse": {
+        "denial": (
+            "tests/test_sdk_session.py::test_terminal_error_turn_keeps_the_compatible_sdk_session_warm",
+        ),
+        "recovery": (
+            "tests/test_runtime_sdk_integration.py::test_runtime_reuses_one_client_reader_and_uses_host_only_for_idle_completion",
+        ),
+    },
+    "boundary:terminal-error-warm-query-reuse": {
+        "denial": (
+            "tests/test_sdk_session.py::test_terminal_error_turn_keeps_the_compatible_sdk_session_warm",
+        ),
+        "recovery": (
+            "tests/test_sdk_session.py::test_terminal_error_turn_keeps_the_compatible_sdk_session_warm",
+        ),
+    },
+    "boundary:execution-fingerprint-change-restarts-warm-query": {
+        "denial": (
+            "tests/test_runtime_sdk_integration.py::test_runtime_rejects_prompt_or_tool_contract_change_before_second_query",
+        ),
+        "recovery": (
+            "tests/test_runtime_sdk_integration.py::test_model_switch_requires_a_new_runtime_and_preserves_tool_schema",
+        ),
+    },
+    "boundary:inactive-owner-refuses-live-process": {
+        "denial": (
+            "tests/test_runtime_sdk_integration.py::test_runtime_rejects_a_replacement_host_binding_without_query_or_reroute",
+        ),
+        "recovery": (
+            "tests/test_runtime_sdk_integration.py::test_host_tool_bridge_and_resume_use_only_public_fields",
+        ),
+    },
+    "boundary:abort-closes-process-and-fences-permissions": {
+        "denial": (
+            "tests/test_runtime_sdk_integration.py::test_cancellation_interrupts_and_closes_once_with_one_terminal",
+        ),
+        "recovery": (
+            "tests/test_runtime_sdk_integration.py::test_pre_set_interrupt_event_honored_then_next_turn_runs",
+        ),
+    },
+    "boundary:approval-callback-active-turn-rebind": {
+        "denial": (
+            "tests/parity/test_boundary_adaptations.py::test_cancelled_or_late_tool_request_is_fenced_then_next_turn_rebinds",
+        ),
+        "recovery": (
+            "tests/test_tool_bridge.py::test_begin_turn_refreshes_tool_correlation_without_rebuilding_bridge",
+        ),
+    },
+    "boundary:late-approval-rejected": {
+        "denial": (
+            "tests/parity/test_boundary_adaptations.py::test_cancelled_or_late_tool_request_is_fenced_then_next_turn_rebinds",
+        ),
+        "recovery": (
+            "tests/parity/test_boundary_adaptations.py::test_cancelled_or_late_tool_request_is_fenced_then_next_turn_rebinds",
+        ),
+    },
+    "boundary:background-provisional-result-settlement": {
+        "denial": (
+            "tests/test_sdk_session.py::test_idle_background_after_close_is_dropped_without_duplicate_disconnect",
+        ),
+        "recovery": (
+            "tests/test_runtime_sdk_integration.py::test_queued_idle_burst_is_released_only_after_parent_terminal_is_observed",
+        ),
+    },
+    "boundary:restricted-native-tools-and-mcp-grants": {
+        "denial": (
+            "tests/test_tool_bridge.py::test_unknown_duplicate_and_excluded_names_fail_before_host_call",
+        ),
+        "recovery": (
+            "tests/test_tool_bridge.py::test_direct_call_delegates_once_and_preserves_correlation_and_name",
+        ),
+    },
+    "boundary:variadic-directories-tools-managed-mcp-isolation": {
+        "denial": (
+            "tests/parity/test_boundary_adaptations.py::test_variadic_sdk_surfaces_are_denied_without_weakening_tool_or_mcp_isolation",
+        ),
+        "recovery": (
+            "tests/test_tool_bridge.py::test_direct_call_delegates_once_and_preserves_correlation_and_name",
+        ),
+    },
+    "boundary:wildcard-mcp-grants-expand-to-admitted-tools": {
+        "denial": (
+            "tests/test_tool_bridge.py::test_unknown_duplicate_and_excluded_names_fail_before_host_call",
+        ),
+        "recovery": (
+            "tests/test_tool_bridge.py::test_anthropic_schema_maps_without_stripping_canonical_mcp_prefix",
+        ),
+    },
+    "boundary:missing-terminal-result-fails-closed": {
+        "denial": (
+            "tests/test_sdk_session.py::test_sdk_stream_without_a_terminal_result_fails_closed",
+        ),
+        "recovery": (
+            "tests/test_sdk_session.py::test_text_turn_uses_public_options_one_reader_projection_and_exact_close",
+        ),
+    },
+    "boundary:structured-question-not-tool-approval": {
+        "denial": (
+            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers",
+        ),
+        "recovery": (
+            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers",
+        ),
+    },
+    "boundary:native-tool-policy-precedes-user-shadow": {
+        "denial": (
+            "tests/test_tool_bridge.py::test_sdk_adapter_does_not_approve_or_execute_fallback",
+        ),
+        "recovery": (
+            "tests/test_tool_bridge.py::test_direct_call_delegates_once_and_preserves_correlation_and_name",
+        ),
+    },
+    "boundary:bypass-shaped-arguments-remain-permissioned": {
+        "denial": (
+            "tests/test_tool_bridge.py::test_malformed_arguments_fail_closed_before_host_call",
+        ),
+        "recovery": (
+            "tests/test_tool_bridge.py::test_host_schema_defaults_and_anyof_are_supported_and_enforced",
+        ),
+    },
+    "boundary:structured-question-answer-mapping-dedup": {
+        "denial": (
+            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers",
+        ),
+        "recovery": (
+            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers",
+        ),
+    },
+    "boundary:structured-question-skip-denial-guidance": {
+        "denial": (
+            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers",
+        ),
+        "recovery": (
+            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers",
+        ),
+    },
+    "boundary:malformed-question-rejected-before-host": {
+        "denial": (
+            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers",
+        ),
+        "recovery": (
+            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers",
+        ),
+    },
+}
+
+
+def _nodes_for_path(capability_id: str, path: str) -> tuple[str, ...]:
+    base = _BOUNDARY_NODES[capability_id]
+    if path == "positive":
+        return base
+    controls = _BOUNDARY_PATH_CONTROLS[capability_id][path]
+    return tuple(dict.fromkeys((*base, *controls)))
+
+
 def _safe_environment() -> dict[str, str]:
     allowed = (
         "PATH",
@@ -148,16 +344,6 @@ def _blocked(reason: str) -> ExecutionBundle:
     )
 
 
-def _pending_path(reason: str) -> ExecutionOutcome:
-    """Leave a path unqualified until it has its own executable evidence."""
-
-    return ExecutionOutcome(
-        classification=ExecutionClassification.PENDING,
-        billing_classification="none",
-        reason_code=reason,
-    )
-
-
 def _exact_source_preflight(context: ExecutionContext, root: Path) -> str | None:
     if (
         context.profile_id != "fable-v3-isolated"
@@ -198,94 +384,100 @@ def _exact_source_preflight(context: ExecutionContext, root: Path) -> str | None
 async def boundary_focused_suite(context: ExecutionContext) -> ExecutionBundle:
     """Run the exact focused tests mapped to one boundary source row."""
 
-    nodes = _BOUNDARY_NODES.get(context.capability.capability_id)
-    if nodes is None:
+    if context.capability.capability_id not in _BOUNDARY_NODES:
         return _blocked("boundary_evidence_mapping_missing")
     root = Path(context.repo_root).expanduser().resolve()
     blocked = _exact_source_preflight(context, root)
     if blocked is not None:
         return _blocked(blocked)
-    node_manifest_hash = sha256_value(nodes)
-    try:
-        completed = _run(
-            (
-                sys.executable,
-                "-m",
-                "pytest",
-                "-q",
-                "-p",
-                "no:cacheprovider",
-                "--disable-warnings",
-                *nodes,
-            ),
-            cwd=root,
-            timeout=300.0,
+    outcomes: dict[str, ExecutionOutcome] = {}
+    for path in ("positive", "denial", "recovery"):
+        path_nodes = _nodes_for_path(context.capability.capability_id, path)
+        node_manifest_hash = sha256_value(path_nodes)
+        try:
+            completed = _run(
+                (
+                    sys.executable,
+                    "-m",
+                    "pytest",
+                    "-q",
+                    "-p",
+                    "no:cacheprovider",
+                    "--disable-warnings",
+                    *path_nodes,
+                ),
+                cwd=root,
+                timeout=300.0,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return _blocked("focused_suite_runner_unavailable")
+        output_hash = sha256_value(
+            {
+                "returncode": completed.returncode,
+                "stdout_hash": hashlib.sha256(
+                    completed.stdout[: 256 * 1024]
+                ).hexdigest(),
+                "stderr_hash": hashlib.sha256(
+                    completed.stderr[: 256 * 1024]
+                ).hexdigest(),
+            }
         )
-    except (OSError, subprocess.TimeoutExpired):
-        return _blocked("focused_suite_runner_unavailable")
-    stdout_hash = hashlib.sha256(completed.stdout[: 256 * 1024]).hexdigest()
-    stderr_hash = hashlib.sha256(completed.stderr[: 256 * 1024]).hexdigest()
-    output_hash = sha256_value(
-        {
-            "returncode": completed.returncode,
-            "stdout_hash": stdout_hash,
-            "stderr_hash": stderr_hash,
-        }
-    )
-    passed = completed.returncode == 0
-    positive_proof = {
-        "capability_id": context.capability.capability_id,
-        "path": "positive",
-        "node_manifest_hash": node_manifest_hash,
-        "output_hash": output_hash,
-        "plugin_sha": context.plugin_sha,
-        "host_sha": context.host_sha,
-    }
-    if passed:
-        positive = ExecutionOutcome(
-            classification=ExecutionClassification.COMPLETE,
-            billing_classification="none",
-            normalized_events=normalized_path_events(
-                context.capability.expected_trace,
-                path="positive",
-                evidence_hash=sha256_value(
+        passed = completed.returncode == 0
+        if passed:
+            classification = (
+                ExecutionClassification.EXPECTED_NEGATIVE
+                if path == "denial"
+                else ExecutionClassification.COMPLETE
+            )
+            evidence_hash = sha256_value(
+                {
+                    "node_manifest_hash": node_manifest_hash,
+                    "output_hash": output_hash,
+                }
+            )
+            outcomes[path] = ExecutionOutcome(
+                classification=classification,
+                billing_classification="none",
+                normalized_events=normalized_path_events(
+                    context.capability.expected_trace,
+                    path=path,
+                    evidence_hash=evidence_hash,
+                ),
+                primary_proof_hash=sha256_value(
                     {
+                        "capability_id": context.capability.capability_id,
+                        "path": path,
                         "node_manifest_hash": node_manifest_hash,
                         "output_hash": output_hash,
+                        "plugin_sha": context.plugin_sha,
+                        "host_sha": context.host_sha,
                     }
                 ),
-            ),
-            primary_proof_hash=sha256_value(positive_proof),
-            secondary_proof_hash=sha256_value(
-                {
-                    "catalog_hash": context.catalog_hash,
-                    "inventory_hash": context.inventory_hash,
-                    "profile_hash": context.profile_hash,
-                    "path": "positive",
-                }
-            ),
-            turn_count=0,
-        )
-    else:
-        positive = ExecutionOutcome(
-            classification=ExecutionClassification.VERIFIED_FAILURE,
-            billing_classification="none",
-            normalized_events=(
-                {
-                    "sequence": 1,
-                    "kind": "terminal",
-                    "status": "failed",
-                    "terminal_outcome": "failed",
-                },
-            ),
-            reason_code="focused_suite_failed",
-            turn_count=0,
-        )
-    outcomes = {
-        "positive": positive,
-        "denial": _pending_path("focused_denial_path_not_executed"),
-        "recovery": _pending_path("focused_recovery_path_not_executed"),
-    }
+                secondary_proof_hash=sha256_value(
+                    {
+                        "catalog_hash": context.catalog_hash,
+                        "inventory_hash": context.inventory_hash,
+                        "profile_hash": context.profile_hash,
+                        "path": path,
+                    }
+                ),
+                turn_count=0,
+            )
+        else:
+            outcomes[path] = ExecutionOutcome(
+                classification=ExecutionClassification.VERIFIED_FAILURE,
+                billing_classification="none",
+                normalized_events=(
+                    {
+                        "sequence": 1,
+                        "kind": "terminal",
+                        "status": "failed",
+                        "terminal_outcome": "failed",
+                    },
+                ),
+                reason_code=f"focused_{path}_suite_failed",
+                turn_count=0,
+            )
     return ExecutionBundle(outcomes=outcomes, turn_count=0)
 
 
