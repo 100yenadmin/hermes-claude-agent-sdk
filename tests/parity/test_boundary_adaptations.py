@@ -156,6 +156,36 @@ def test_unavailable_structured_question_surface_fails_before_host_and_recovers(
     asyncio.run(scenario())
 
 
+def test_unavailable_structured_question_mapping_rejects_duplicate_callbacks_before_host_and_recovers() -> None:
+    """The not-runtime-applicable SDK surface fails closed without duplicate effects."""
+
+    async def scenario() -> None:
+        host = _Host()
+        bridge = HostToolBridge(host, [_SAFE_TOOL], correlation_id="question-dedup")
+        for request_id in ("question-duplicate", "question-duplicate"):
+            with pytest.raises(ToolBridgeRequestError) as rejected:
+                await bridge.handle_tool_call(
+                    request_id,
+                    "AskUserQuestion",
+                    {
+                        "questions": [{"question": "synthetic", "answer": "safe"}],
+                    },
+                )
+            assert rejected.value.code == "unknown"
+        assert host.calls == []
+
+        recovered = await bridge.handle_tool_call(
+            "question-dedup-recovery",
+            "parity_read_only",
+            {"marker": "safe"},
+        )
+        assert recovered.is_error is False
+        assert recovered.correlation_id == "question-dedup"
+        assert host.calls == [("parity_read_only", {"marker": "safe"})]
+
+    asyncio.run(scenario())
+
+
 def test_cancelled_or_late_tool_request_is_fenced_then_next_turn_rebinds() -> None:
     async def scenario() -> None:
         host = _Host()

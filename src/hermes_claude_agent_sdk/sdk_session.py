@@ -355,6 +355,37 @@ class SDKSession:
         async with self._background_delivery_lock:
             self._background_delivery_enabled = False
 
+    async def _retire_client_for_recovery(self) -> None:
+        """Retire a dead SDK stream without permanently closing the session."""
+
+        async with self._close_lock:
+            if self._closed:
+                return
+            client = self._client
+            reader = self._reader_task
+            self._client = None
+            self._reader_task = None
+            self._foreground_billing_allowed = False
+            self._background_text = ""
+            self._background_evidence = None
+            self._background_blocked = False
+            async with self._background_delivery_lock:
+                self._background_delivery_enabled = False
+                self._pending_background_results.clear()
+            if client is not None:
+                try:
+                    await asyncio.wait_for(
+                        client.disconnect(), self._configuration.close_timeout_seconds
+                    )
+                except Exception:
+                    pass
+            if reader is not None and reader is not asyncio.current_task():
+                if not reader.done():
+                    reader.cancel()
+                await asyncio.wait(
+                    {reader}, timeout=self._configuration.close_timeout_seconds
+                )
+
     async def run_turn(
         self,
         prompt: str | SDKTurnInput,
@@ -452,6 +483,7 @@ class SDKSession:
                             error_code="sdk_compaction_watchdog",
                         )
                     if isinstance(message, _StreamEnded):
+                        await self._retire_client_for_recovery()
                         return SessionTurnResult(
                             SessionOutcome.FAILED,
                             final_text=final_text,

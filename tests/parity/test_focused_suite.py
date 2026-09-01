@@ -39,14 +39,45 @@ def test_every_boundary_catalog_row_has_an_exact_executor_mapping(catalog) -> No
         if item.source_pack == "agent_sdk_boundary"
     }
     assert set(boundary_execution_ids()) == expected
+    assert set(focused_suite._BOUNDARY_PATH_CONTROLS) == {
+        item.capability_id
+        for item in catalog.capabilities
+        if item.source_pack == "agent_sdk_boundary"
+    }
+    assert all(
+        controls["denial"] and controls["recovery"]
+        for controls in focused_suite._BOUNDARY_PATH_CONTROLS.values()
+    )
     assert len(expected) == 23
 
 
-def test_focused_suite_does_not_fabricate_unexecuted_path_outcomes(
+def test_missing_terminal_recovery_uses_the_same_failure_lifecycle() -> None:
+    recovery = focused_suite._BOUNDARY_PATH_CONTROLS[
+        "boundary:missing-terminal-result-fails-closed"
+    ]["recovery"]
+
+    assert recovery == (
+        "tests/test_sdk_session.py::test_sdk_stream_without_terminal_result_retires_client_and_next_turn_recovers",
+    )
+
+
+def test_structured_question_dedup_uses_its_explicit_fail_closed_adaptation() -> None:
+    controls = focused_suite._BOUNDARY_PATH_CONTROLS[
+        "boundary:structured-question-answer-mapping-dedup"
+    ]
+    expected = (
+        "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_mapping_rejects_duplicate_callbacks_before_host_and_recovers",
+    )
+
+    assert controls == {"denial": expected, "recovery": expected}
+
+
+def test_focused_suite_executes_and_proves_each_path_independently(
     catalog,
     monkeypatch,
     tmp_path,
 ) -> None:
+    calls = []
     observed_environments = []
 
     def successful_preflight(_, __, environment):
@@ -59,7 +90,8 @@ def test_focused_suite_does_not_fabricate_unexecuted_path_outcomes(
 
     monkeypatch.setattr(focused_suite, "_exact_source_preflight", successful_preflight)
 
-    def successful_run(*_, environment, **__):
+    def successful_run(*args, environment, **kwargs):
+        calls.append((args, kwargs))
         observed_environments.append(environment)
         home = Path(environment["HOME"])
         assert home.is_dir()
@@ -73,11 +105,7 @@ def test_focused_suite_does_not_fabricate_unexecuted_path_outcomes(
             stderr=b"",
         )
 
-    monkeypatch.setattr(
-        focused_suite,
-        "_run",
-        successful_run,
-    )
+    monkeypatch.setattr(focused_suite, "_run", successful_run)
 
     result = asyncio.run(
         boundary_focused_suite(
@@ -89,27 +117,31 @@ def test_focused_suite_does_not_fabricate_unexecuted_path_outcomes(
     )
 
     assert result.turn_count == 0
+    assert len(calls) == 3
     assert result.outcomes["positive"].classification is ExecutionClassification.COMPLETE
     assert (
         result.outcomes["denial"].classification
-        is ExecutionClassification.PENDING
+        is ExecutionClassification.EXPECTED_NEGATIVE
     )
-    assert result.outcomes["recovery"].classification is ExecutionClassification.PENDING
-    assert result.outcomes["positive"].primary_proof_hash
-    assert result.outcomes["positive"].secondary_proof_hash
-    assert result.outcomes["denial"].primary_proof_hash is None
-    assert result.outcomes["denial"].secondary_proof_hash is None
-    assert result.outcomes["recovery"].primary_proof_hash is None
-    assert result.outcomes["recovery"].secondary_proof_hash is None
-    assert [event["kind"] for event in result.outcomes["positive"].normalized_events] == list(
-        catalog.by_id[
-            "boundary:terminal-error-warm-query-reuse"
-        ].expected_trace
+    assert result.outcomes["recovery"].classification is ExecutionClassification.COMPLETE
+    assert all(
+        outcome.primary_proof_hash and outcome.secondary_proof_hash
+        for outcome in result.outcomes.values()
     )
-    assert not result.outcomes["denial"].normalized_events
-    assert not result.outcomes["recovery"].normalized_events
-    assert len(observed_environments) == 2
-    assert observed_environments[0] is observed_environments[1]
+    assert len(
+        {outcome.primary_proof_hash for outcome in result.outcomes.values()}
+    ) == 3
+    for outcome in result.outcomes.values():
+        assert [event["kind"] for event in outcome.normalized_events] == list(
+            catalog.by_id[
+                "boundary:terminal-error-warm-query-reuse"
+            ].expected_trace
+        )
+    assert len(observed_environments) == 4
+    assert all(
+        environment is observed_environments[0]
+        for environment in observed_environments
+    )
     assert not Path(observed_environments[0]["HOME"]).exists()
     assert not Path(observed_environments[0]["HERMES_HOME"]).exists()
 
@@ -136,12 +168,13 @@ def test_focused_suite_test_failure_is_a_verified_failure(catalog, monkeypatch) 
         )
     )
 
-    assert result.outcomes["positive"].classification is ExecutionClassification.VERIFIED_FAILURE
-    assert result.outcomes["positive"].reason_code == "focused_suite_failed"
-    assert result.outcomes["denial"].classification is ExecutionClassification.PENDING
-    assert result.outcomes["denial"].reason_code == "focused_denial_path_not_executed"
-    assert result.outcomes["recovery"].classification is ExecutionClassification.PENDING
-    assert result.outcomes["recovery"].reason_code == "focused_recovery_path_not_executed"
+    assert all(
+        outcome.classification is ExecutionClassification.VERIFIED_FAILURE
+        for outcome in result.outcomes.values()
+    )
+    assert result.outcomes["positive"].reason_code == "focused_positive_suite_failed"
+    assert result.outcomes["denial"].reason_code == "focused_denial_suite_failed"
+    assert result.outcomes["recovery"].reason_code == "focused_recovery_suite_failed"
     assert all(outcome.primary_proof_hash is None for outcome in result.outcomes.values())
 
 
