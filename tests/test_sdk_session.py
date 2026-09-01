@@ -35,6 +35,12 @@ class AssistantMessage:
 
 
 @dataclass
+class UserMessage:
+    content: str
+    origin: dict[str, str] | None = None
+
+
+@dataclass
 class ResultMessage:
     subtype: str = "success"
     duration_ms: int = 1
@@ -46,6 +52,7 @@ class ResultMessage:
     usage: dict[str, int] | None = None
     total_cost_usd: float | None = None
     terminal_reason: str | None = "completed"
+    origin: dict[str, str] | None = None
 
 
 class _Options:
@@ -637,6 +644,67 @@ def test_concurrent_turns_are_serialized_on_one_reader() -> None:
         assert [first.final_text, second.final_text] == ["one", "two"]
         assert clients[0].max_active_queries == 1
         assert clients[0].receive_calls == 1
+
+    asyncio.run(scenario())
+
+
+def test_injected_background_turn_cannot_steal_active_foreground_result() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        delivered = []
+        session = SDKSession(
+            _configuration(),
+            sdk_module=_sdk(
+                clients,
+                [
+                    [
+                        SystemMessage("init", {"apiKeySource": "none"}),
+                        ResultMessage(result="first foreground"),
+                    ],
+                    [],
+                ],
+            ),
+            on_background_result=delivered.append,
+        )
+
+        first = await session.run_turn("first foreground")
+        second_task = asyncio.create_task(session.run_turn("second foreground"))
+        while len(clients[0].queries) < 2:
+            await asyncio.sleep(0)
+
+        client = clients[0]
+        for message in (
+            UserMessage(
+                "synthetic task notification",
+                origin={"kind": "task-notification"},
+            ),
+            AssistantMessage([TextBlock("background completion")]),
+            ResultMessage(
+                result="background completion",
+                session_id="synthetic-hidden-background",
+                origin={"kind": "task-notification"},
+            ),
+            SystemMessage("init", {"apiKeySource": "none"}),
+            AssistantMessage([TextBlock("second foreground")]),
+            ResultMessage(
+                result="second foreground",
+                session_id="synthetic-visible-foreground",
+            ),
+        ):
+            await client._messages.put(message)
+
+        second = await asyncio.wait_for(second_task, 0.1)
+        assert delivered == []
+        await session.release_background_results()
+        await session.close()
+
+        assert first.outcome is SessionOutcome.COMPLETE
+        assert first.final_text == "first foreground"
+        assert second.outcome is SessionOutcome.COMPLETE
+        assert second.final_text == "second foreground"
+        assert second.state_update.external_session_id == "synthetic-visible-foreground"
+        assert [item.content for item in delivered] == ["background completion"]
+        assert delivered[0].outcome is BackgroundSessionOutcome.COMPLETED
 
     asyncio.run(scenario())
 

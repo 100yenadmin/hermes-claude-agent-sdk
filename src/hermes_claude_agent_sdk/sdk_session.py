@@ -12,6 +12,7 @@ import hashlib
 import importlib
 import inspect
 from collections import deque
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable
@@ -93,6 +94,26 @@ _IMMEDIATE_BILLING_BLOCKS = {
     BillingBlockReason.OVERAGE,
     BillingBlockReason.CONFLICTING_EVIDENCE,
 }
+_TASK_LIFECYCLE_MESSAGES = frozenset(
+    {
+        "TaskStartedMessage",
+        "TaskProgressMessage",
+        "TaskNotificationMessage",
+        "TaskUpdatedMessage",
+    }
+)
+
+
+def _injected_origin(message: Any) -> bool:
+    """Whether the SDK attributed a message to a non-human injected turn."""
+
+    origin = getattr(message, "origin", None)
+    if not isinstance(origin, Mapping):
+        return False
+    kind = origin.get("kind")
+    return isinstance(kind, str) and kind != "human"
+
+
 _MAX_BACKGROUND_BYTES = 16_384
 _BACKGROUND_DEDUPLICATION_WINDOW = 64
 _BACKGROUND_CALLBACK_TIMEOUT_SECONDS = 5.0
@@ -221,6 +242,7 @@ class SDKSession:
         self._background_delivery_lock = asyncio.Lock()
         self._background_delivery_enabled = False
         self._pending_background_results: deque[_PendingBackgroundResult] = deque()
+        self._injected_turn_active = False
 
     @property
     def can_restart_after_cancel(self) -> bool:
@@ -269,10 +291,22 @@ class SDKSession:
         failed = False
         try:
             async for message in self._client.receive_messages():
+                message_name = type(message).__name__
+                if message_name == "UserMessage" and _injected_origin(message):
+                    self._injected_turn_active = True
+                if (
+                    self._injected_turn_active
+                    or _injected_origin(message)
+                    or message_name in _TASK_LIFECYCLE_MESSAGES
+                ):
+                    await self._handle_background_message(message)
+                    if message_name == "ResultMessage":
+                        self._injected_turn_active = False
+                    continue
                 inbox = self._active_inbox
                 if inbox is not None:
                     inbox.put_nowait(message)
-                    if type(message).__name__ == "ResultMessage":
+                    if message_name == "ResultMessage":
                         # The reader owns the turn boundary.  Later messages
                         # are idle completions, never the next turn's answer.
                         if self._active_inbox is inbox:
@@ -404,6 +438,7 @@ class SDKSession:
             self._background_text = ""
             self._background_evidence = None
             self._background_blocked = False
+            self._injected_turn_active = False
             async with self._background_delivery_lock:
                 self._background_delivery_enabled = False
                 self._pending_background_results.clear()
@@ -673,6 +708,7 @@ class SDKSession:
             if self._closed:
                 return
             self._closed = True
+            self._injected_turn_active = False
             await self._compaction.end_turn(completed=False)
             async with self._background_delivery_lock:
                 self._background_delivery_enabled = False
