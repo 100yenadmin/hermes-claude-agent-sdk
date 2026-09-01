@@ -90,6 +90,59 @@ def test_incident_commander_adaptation_grades_semantics_not_exact_prose(
     assert all(item["passed"] for item in adapted["checks"])
 
 
+def test_behavior_adaptation_rejects_all_checks_passing_below_native_threshold(
+    tmp_path: Path,
+) -> None:
+    scenario_id = "error_recovery_22_incident_commander_sequence_live"
+    payload = {
+        "action_sequence": [
+            "Capture the browser's partial recovery status",
+            "Start a fresh commander session because the current one is under high pressure",
+            "Review the two existing cron checks before creating a new schedule",
+        ],
+        "blocked_actions": [
+            "Do not send an external broadcast yet",
+            "Block a duplicate follow-up cron",
+        ],
+        "reason": "Partial recovery, high session pressure, and two existing cron checks require internal containment first.",
+        "action_codes": [
+            "record_browser_partial_recovery",
+            "start_fresh_commander_session",
+            "review_existing_cron_before_new",
+        ],
+        "blocked_codes": [
+            "schedule_duplicate_followup_cron",
+            "send_external_broadcast",
+        ],
+        "evidence_codes": [
+            "browser_partial_recovery",
+            "internal_containment_precedent",
+            "existing_cron_checks",
+            "high_session_pressure",
+        ],
+    }
+    (tmp_path / "incident_commander_plan.json").write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
+    source = _grade(
+        scenario_id,
+        [
+            ("exists", 0.1, True),
+            ("action_sequence_correct", 0.3, False),
+            ("blocked_actions_correct", 0.2, False),
+            ("reason_grounded", 0.2, False),
+        ],
+    )
+    source["final_score"] = 0.1
+
+    adapted = adapt_native_grade(scenario_id, workspace=tmp_path, grade=source)
+
+    assert adapted["adaptation"]["failed_check_ids"] == []
+    assert adapted["final_score"] < adapted["pass_threshold"]
+    assert adapted["passed"] is False
+    assert adapted["adaptation"]["behavior_contract_passed"] is False
+
+
 def test_delegation_adaptation_accepts_safe_exclusion_metadata_and_alt_context_key(
     tmp_path: Path,
 ) -> None:
