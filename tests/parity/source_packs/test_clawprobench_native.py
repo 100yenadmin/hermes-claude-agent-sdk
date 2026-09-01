@@ -140,6 +140,14 @@ def test_native_pack_has_exact_pinned_coverage_and_provenance():
     assert digest == pack["source_pack"]["row_ids_sha256"]
     assert pack["source_pack"]["expected_count"] == 36
     assert pack["source_pack"]["row_ids"] == source_rows
+    assert pack["source_pack"]["source_fragment_map_sha256"] == "71f92d0522255fadf91dc52dd98a936c38a0020d9ef0969bbcd274b1d90e450e"
+    assert pack["source_pack"]["provenance"] == {
+        "origin_id": "clawprobench-c4b8395854fe0752eef435b44f140366efd44d8e",
+        "license_id": "Apache-2.0",
+        "license_sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "attribution_ref": "src:clawprobench@c4b8395854fe0752eef435b44f140366efd44d8e:README.md#Citation",
+        "redistribution": "No benchmark implementation, fixture data, or checker code copied.",
+    }
 
 
 def test_native_pack_aliases_are_bounded_collision_checked_and_reversible():

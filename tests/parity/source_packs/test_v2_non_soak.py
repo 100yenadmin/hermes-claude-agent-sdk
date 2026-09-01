@@ -22,7 +22,7 @@ SDK_EVENT_CODES = _CANONICAL.SDK_EVENT_CODES
 TRACE_REGISTRY = _CANONICAL.TRACE_REGISTRY
 CONTRACT_SHA256 = "e4842f3a78c855f18af59a8024c4360bde59143987d133724b81594d0f0bfe2e"
 SOURCE_ARTIFACT_SHA256 = "c124ac8f7cdf6d9253efcac472769a6bd0efb1e2a0264c8ca2493d31f84e1b75"
-SOURCE_MAP_SHA256 = "2014e6df2f88f7bf0b02fc70b1cdc741f4381bfe68d3e56c4a6dd3cf12f23503"
+SOURCE_MAP_SHA256 = "abfbf5c36836e4a2eca8205077aa2ecacf45c0379cfa1c32467c2bf253ef2ae8"
 SORTED_ROW_IDS_SHA256 = "6933d6abe587ffafdf20d63485445851f2ab0c0b2c12ab2e21b146271e72f861"
 
 EXPECTED_ROW_IDS = [
@@ -213,7 +213,7 @@ def test_v2_non_soak_pack_is_exhaustive_closed_and_fail_closed() -> None:
     assert pack["source_pack"]["provenance"] == {
         "origin_id": "hermes-v2-frozen-source",
         "license_id": "proprietary-approved",
-        "attribution_ref": "evidence:v2-parity-contract",
+        "attribution_ref": "evidence:hermes-claude-agent-sdk-plugin-20260831/source-snapshot/parity-contract-v2.json",
     }
 
     rows = pack["rows"]
