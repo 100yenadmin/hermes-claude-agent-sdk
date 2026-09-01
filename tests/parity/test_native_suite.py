@@ -14,6 +14,7 @@ from hermes_claude_agent_sdk.parity.native_sandbox import (
 )
 from hermes_claude_agent_sdk.parity.native_suite import (
     CLAWPROBENCH_SHA,
+    NATIVE_OUTPUT_GUIDANCE,
     NATIVE_READ_WRITE_ADAPTATIONS,
     NATIVE_SOURCE_IDS,
     grade_native_trace,
@@ -55,6 +56,19 @@ def test_all_36_pinned_native_sources_load_with_bounded_tools() -> None:
     assert len(loaded) == 36
     assert {scenario.scenario_id for scenario in loaded} == set(NATIVE_SOURCE_IDS)
     assert all(set(scenario.tools) <= {"read", "write", "exec", "cron"} for scenario in loaded)
+
+
+def test_incident_commander_source_ambiguity_has_bounded_output_guidance() -> None:
+    assert set(NATIVE_OUTPUT_GUIDANCE) == {
+        "error_recovery_22_incident_commander_sequence_live"
+    }
+    guidance = NATIVE_OUTPUT_GUIDANCE[
+        "error_recovery_22_incident_commander_sequence_live"
+    ]
+    assert "exactly three" in guidance
+    assert "external broadcast" in guidance
+    assert "schedule duplicate follow-up cron" in guidance
+    assert all(term in guidance for term in ("partial", "high", "duplicate"))
 
 
 def _pinned_root() -> Path:
