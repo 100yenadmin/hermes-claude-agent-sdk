@@ -182,7 +182,10 @@ def _provenance_check(packs: Sequence[tuple[str, Mapping[str, Any], list[Any]]],
     record = _canonical(supplied)
     if not isinstance(record, Mapping):
         diagnostics.append(AssemblyDiagnostic("PROVENANCE_NOT_OBJECT", "source provenance must be canonical metadata")); return {"status": "PENDING", "supplied": True}
-    pack_records = record.get("packs")
+    source_packs, legacy_packs = record.get("source_packs"), record.get("packs")
+    if source_packs is not None and legacy_packs is not None and _canonical(source_packs) != _canonical(legacy_packs):
+        diagnostics.append(AssemblyDiagnostic("PROVENANCE_CONTRADICTION", "source provenance supplies conflicting pack shapes", None)); return {"status": "CONTRADICTORY", "supplied": True, "mismatch_count": 1}
+    pack_records = source_packs if source_packs is not None else legacy_packs
     by_id = {item.get("id"): item for item in pack_records if isinstance(item, Mapping)} if isinstance(pack_records, list) else {}
     mismatches: list[str] = []
     scope = record.get("scope")
@@ -210,12 +213,9 @@ def inspect_source_fragments(source_fragments: Mapping[str, Any] | Sequence[Mapp
     """Inspect heterogeneous fragments without producing a catalog or hash."""
     diagnostics: list[AssemblyDiagnostic] = []
     if isinstance(source_fragments, Mapping):
-        if any(key in source_fragments for key in _PACK_ORDER):
-            values = [source_fragments[key] for key in _PACK_ORDER if key in source_fragments]
-        else:
-            values = [source_fragments]
-    elif isinstance(source_fragments, Sequence) and not isinstance(source_fragments, (str, bytes)):
-        values = list(source_fragments)
+        if any(key in source_fragments for key in _PACK_ORDER): values = [source_fragments[key] for key in _PACK_ORDER if key in source_fragments]
+        else: values = [source_fragments]
+    elif isinstance(source_fragments, Sequence) and not isinstance(source_fragments, (str, bytes)): values = list(source_fragments)
     else:
         values = []
         diagnostics.append(AssemblyDiagnostic("PACK_SET_NOT_ARRAY", "source fragments must be an array or keyed mapping"))

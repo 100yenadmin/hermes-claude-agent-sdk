@@ -28,7 +28,7 @@ def _inputs() -> tuple[list[dict], dict]:
     return [json.loads(path.read_text(encoding="utf-8")) for path in paths], json.loads(LEDGER.read_text(encoding="utf-8"))
 
 
-def _provenance_record(packs: list[dict]) -> dict:
+def _provenance_record(packs: list[dict], *, key: str = "packs") -> dict:
     records = []
     counts = {}
     for pack in packs:
@@ -40,7 +40,10 @@ def _provenance_record(packs: list[dict]) -> dict:
             "source": copy.deepcopy(metadata["source"]),
             "provenance": copy.deepcopy(metadata["provenance"]),
         })
-    return {"schema_version": 1, "scope": {"pack_counts": counts}, "packs": records}
+    record = {"schema_version": 1, key: records}
+    if key == "packs":
+        record["scope"] = {"pack_counts": counts}
+    return record
 
 
 def test_inspection_accounts_all_rows_and_preserves_current_gates() -> None:
@@ -86,14 +89,33 @@ def test_inspection_is_order_independent_and_mapping_compatible() -> None:
 
 def test_source_gaps_and_provenance_reconciliation_are_not_synthesized() -> None:
     packs, ledger = _inputs()
-    provenance = _provenance_record(packs)
-    provenance["packs"][0]["provenance"]["origin_id"] = "contradictory-origin"
+    provenance = _provenance_record(packs, key="source_packs")
+    provenance["source_packs"][0]["provenance"]["origin_id"] = "contradictory-origin"
     report = inspect_source_fragments(packs, ledger, provenance=provenance)
 
     assert report.provenance["status"] == "CONTRADICTORY"
     assert {item.code for item in report.diagnostics} == {"PROVENANCE_CONTRADICTION"}
     assert report["gap_counts"]["GAP-V4-SDK-PROOF-KIND"] == 23
     assert report["gap_counts"]["SDK-STOP-ISSUE-16"] == 2
+
+
+def test_source_packs_and_legacy_packs_provenance_shapes_are_compatible() -> None:
+    packs, ledger = _inputs()
+    dual = _provenance_record(packs, key="source_packs")
+    dual["packs"] = copy.deepcopy(dual["source_packs"])
+    for provenance in (_provenance_record(packs, key="source_packs"), _provenance_record(packs), dual):
+        report = inspect_source_fragments(packs, ledger, provenance=provenance)
+        assert report.provenance["status"] == "PASS"
+
+
+def test_contradictory_dual_provenance_keys_fail_closed() -> None:
+    packs, ledger = _inputs()
+    provenance = _provenance_record(packs, key="source_packs")
+    provenance["packs"] = copy.deepcopy(_provenance_record(packs)["packs"])
+    provenance["packs"][0]["provenance"]["origin_id"] = "contradictory-origin"
+    report = inspect_source_fragments(packs, ledger, provenance=provenance)
+    assert report.provenance["status"] == "CONTRADICTORY"
+    assert {item.code for item in report.diagnostics} == {"PROVENANCE_CONTRADICTION"}
 
 
 def test_duplicate_source_key_is_reported_and_guard_rejects() -> None:
