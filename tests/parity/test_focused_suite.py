@@ -54,6 +54,7 @@ def test_focused_suite_does_not_fabricate_unexecuted_path_outcomes(
         home = Path(environment["HOME"])
         assert home.is_dir()
         assert Path(environment["HERMES_HOME"]).is_dir()
+        assert environment["PYTHONPATH"] == "/synthetic/repo/src"
         return None
 
     monkeypatch.setattr(focused_suite, "_exact_source_preflight", successful_preflight)
@@ -64,6 +65,7 @@ def test_focused_suite_does_not_fabricate_unexecuted_path_outcomes(
         assert home.is_dir()
         assert Path(environment["HERMES_HOME"]).is_dir()
         assert home != tmp_path
+        assert environment["PYTHONPATH"] == "/synthetic/repo/src"
         return subprocess.CompletedProcess(
             args=("pytest",),
             returncode=0,
@@ -147,12 +149,14 @@ def test_focused_suite_environment_does_not_forward_secret_shaped_keys(monkeypat
     monkeypatch.setenv("ANTHROPIC_API_KEY", "not-a-real-secret")
     monkeypatch.setenv("HERMES_HOME", "/ambient/hermes")
     monkeypatch.setenv("PATH", "/usr/bin")
+    monkeypatch.setenv("PYTHONPATH", "/ambient/shadow")
     environment = focused_suite._safe_environment()
 
     assert environment["PATH"] == "/usr/bin"
     assert "ANTHROPIC_API_KEY" not in environment
     assert "HOME" not in environment
     assert "HERMES_HOME" not in environment
+    assert "PYTHONPATH" not in environment
     assert environment["PYTHONDONTWRITEBYTECODE"] == "1"
 
 
@@ -171,7 +175,9 @@ def test_source_preflight_forwards_isolated_environment_to_git_subprocesses(
     home = tmp_path / "home"
     hermes_home = home / ".hermes"
     hermes_home.mkdir(parents=True)
-    environment = focused_suite._safe_environment(home=home)
+    monkeypatch.setenv("PYTHONPATH", "/ambient/shadow")
+    environment = focused_suite._safe_environment(home=home, source_root=root)
+    assert environment["PYTHONPATH"] == str(root / "src")
     calls = []
 
     def successful_run(argv, *, cwd, timeout, environment):

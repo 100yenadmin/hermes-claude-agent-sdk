@@ -94,10 +94,13 @@ _BOUNDARY_NODES: dict[str, tuple[str, ...]] = {
 }
 
 
-def _safe_environment(*, home: Path | None = None) -> dict[str, str]:
+def _safe_environment(
+    *,
+    home: Path | None = None,
+    source_root: Path | None = None,
+) -> dict[str, str]:
     allowed = (
         "PATH",
-        "PYTHONPATH",
         "TMPDIR",
         "LANG",
         "LC_ALL",
@@ -121,6 +124,8 @@ def _safe_environment(*, home: Path | None = None) -> dict[str, str]:
                 "HERMES_HOME": str(home / ".hermes"),
             }
         )
+    if source_root is not None:
+        environment["PYTHONPATH"] = str(source_root / "src")
     return environment
 
 
@@ -227,7 +232,7 @@ async def boundary_focused_suite(context: ExecutionContext) -> ExecutionBundle:
             home = Path(home_name)
             hermes_home = home / ".hermes"
             hermes_home.mkdir()
-            environment = _safe_environment(home=home)
+            environment = _safe_environment(home=home, source_root=root)
             blocked = _exact_source_preflight(context, root, environment)
             if blocked is not None:
                 return _blocked(blocked)
