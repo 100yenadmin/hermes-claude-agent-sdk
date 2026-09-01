@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -14,8 +15,12 @@ from hermes_claude_agent_sdk.parity.native_sandbox import (
 )
 from hermes_claude_agent_sdk.parity.native_suite import (
     CLAWPROBENCH_SHA,
+    NATIVE_OUTPUT_GUIDANCE,
     NATIVE_READ_WRITE_ADAPTATIONS,
     NATIVE_SOURCE_IDS,
+    LiveScenarioResult,
+    _live_pregrade_failure,
+    _run_live_turn,
     grade_native_trace,
     load_native_scenario,
     native_execution_ids,
@@ -55,6 +60,110 @@ def test_all_36_pinned_native_sources_load_with_bounded_tools() -> None:
     assert len(loaded) == 36
     assert {scenario.scenario_id for scenario in loaded} == set(NATIVE_SOURCE_IDS)
     assert all(set(scenario.tools) <= {"read", "write", "exec", "cron"} for scenario in loaded)
+
+
+def test_ambiguous_native_sources_have_bounded_output_guidance() -> None:
+    assert set(NATIVE_OUTPUT_GUIDANCE) == {
+        "error_recovery_22_incident_commander_sequence_live",
+        "planning_19_agent_delegation_boundary_live",
+    }
+    assert "required_local_context" in NATIVE_OUTPUT_GUIDANCE[
+        "planning_19_agent_delegation_boundary_live"
+    ]
+    assert "exactly three" in NATIVE_OUTPUT_GUIDANCE[
+        "error_recovery_22_incident_commander_sequence_live"
+    ]
+
+
+def test_live_pregrade_gate_accepts_only_complete_subscription_execution(
+    tmp_path: Path,
+) -> None:
+    from hermes_claude_agent_sdk.parity.native_sandbox import NativeSandboxHost
+
+    host = NativeSandboxHost(tmp_path, (), deny_first=False)
+    host.denial_observed = True
+    host.recovery_observed = True
+    host.successful_calls = 1
+    live = LiveScenarioResult(
+        terminal="completed",
+        billing="subscription_included",
+        final_text="",
+        trace={},
+        state_hash="0" * 64,
+        silent_fallback=False,
+    )
+    assert _live_pregrade_failure(live, host, turn_count=1) is None
+
+    unsafe = LiveScenarioResult(
+        terminal="completed",
+        billing="unsafe",
+        final_text="",
+        trace={},
+        state_hash="0" * 64,
+        silent_fallback=False,
+    )
+    failure = _live_pregrade_failure(unsafe, host, turn_count=1)
+    assert failure is not None
+    assert {item.reason_code for item in failure.outcomes.values()} == {"unsafe_billing"}
+
+
+def test_repair_turn_keeps_schema_stable_and_exposes_only_check_ids(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from agent.runtime_api import RuntimeCompletedEvent, RuntimeUsageEvent, RuntimeUsageReceipt
+    from hermes_claude_agent_sdk.parity.native_sandbox import NativeSandboxHost
+
+    class FakeRuntime:
+        def __init__(self) -> None:
+            self.requests: list[Any] = []
+
+        async def run_turn(self, request: Any, host: Any):
+            del host
+            self.requests.append(request)
+            yield RuntimeUsageEvent(
+                receipt=RuntimeUsageReceipt(
+                    runtime_id="claude-agent-sdk",
+                    provider="claude-agent-sdk",
+                    model="claude-fable-5",
+                    billing_mode="subscription_included",
+                    cost_status="included",
+                )
+            )
+            yield RuntimeCompletedEvent(
+                result={
+                    "text": "",
+                    "provider": "claude-agent-sdk",
+                    "model": "claude-fable-5",
+                }
+            )
+
+    monkeypatch.setenv("HERMES_PARITY_MODEL", "claude-fable-5")
+    scenario = load_native_scenario(
+        _pinned_root(), "planning_19_agent_delegation_boundary_live"
+    )
+    host = NativeSandboxHost(tmp_path, (), deny_first=False)
+    runtime = FakeRuntime()
+    import asyncio
+
+    result = asyncio.run(
+        _run_live_turn(
+            scenario,
+            workspace=tmp_path,
+            host=host,
+            runtime=runtime,
+            turn_index=2,
+            repair_check_ids=("selected_agent_is_correct",),
+        )
+    )
+    assert result.billing == "subscription_included"
+    assert len(runtime.requests) == 1
+    request = runtime.requests[0]
+    prompt = request.messages[0]["content"]
+    assert "selected_agent_is_correct" in prompt
+    assert "required_local_context" in prompt
+    assert "detail_hash" not in prompt
+    assert request.correlation_id.endswith("turn-2")
 
 
 def _pinned_root() -> Path:
