@@ -3,10 +3,13 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
+import pytest
+
 from hermes_claude_agent_sdk.parity import active_suite as active_suite_module
 from hermes_claude_agent_sdk.parity.active_suite import (
     ACTIVE_SOURCE_IDS,
     LiveTurn,
+    _active_provider_environment_block,
     _normalize_event_tool_name,
     _inventory_matches,
     _source_docs_contract,
@@ -152,6 +155,41 @@ def test_live_case_timeout_is_environment_blocked_and_cancels(
     assert result.billing == "none"
     assert result.turn_count == 0
     assert cleaned is True
+
+
+@pytest.mark.parametrize(
+    ("failure_code", "expected"),
+    (
+        (
+            "sdk_subscription_limit_reached",
+            "active_subscription_limit_reached",
+        ),
+        (
+            "sdk_synthetic_provider_notice",
+            "active_synthetic_provider_notice",
+        ),
+    ),
+)
+def test_active_provider_notices_fail_closed_as_environment_blocks(
+    failure_code: str, expected: str
+) -> None:
+    turn = LiveTurn(
+        terminal="failed",
+        failure_code=failure_code,
+        billing="none",
+        final_text="",
+        final_hash=sha256_value(""),
+        state=None,
+        state_hash="a" * 64,
+        tool_names=(),
+        compaction_phases=(),
+        background_hashes=(),
+        event_hash="b" * 64,
+        silent_fallback=False,
+    )
+
+    assert _active_provider_environment_block((turn,)) == expected
+    assert _active_provider_environment_block(()) is None
 
 
 def test_source_docs_contract_uses_host_receipts_when_projection_is_deduplicated(

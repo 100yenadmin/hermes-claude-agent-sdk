@@ -468,6 +468,8 @@ async def run_catalog_async(
     }
     scenario_repeat_targets: dict[str, int] = {}
     global_environment_block_reasons = {
+        "active_subscription_limit_reached",
+        "active_synthetic_provider_notice",
         "native_subscription_limit_reached",
         "native_synthetic_provider_notice",
     }

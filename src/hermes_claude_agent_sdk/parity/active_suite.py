@@ -68,6 +68,10 @@ _ACTIVE_SYSTEM_PROMPT = (
 )
 _ACTIVE_CASE_TIMEOUT_SECONDS = 300.0
 _MCP_EVENT_PREFIX = "mcp__hermes-tools__"
+_PROVIDER_ENVIRONMENT_BLOCKS = {
+    "sdk_subscription_limit_reached": "active_subscription_limit_reached",
+    "sdk_synthetic_provider_notice": "active_synthetic_provider_notice",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,6 +109,16 @@ class ActiveCaseResult:
     turn_count: int
     evidence_hash: str | None
     state_hash: str | None
+
+
+def _active_provider_environment_block(turns: Sequence[LiveTurn]) -> str | None:
+    """Return the first fail-closed provider notice from an active case."""
+
+    for turn in turns:
+        reason = _PROVIDER_ENVIRONMENT_BLOCKS.get(turn.failure_code)
+        if reason is not None:
+            return reason
+    return None
 
 
 def active_execution_ids() -> tuple[str, ...]:
@@ -1004,6 +1018,16 @@ async def _run_live_case(
         )
 
     provider_turns = sum(turn.billing != "none" for turn in turns)
+    environment_block = _active_provider_environment_block(turns)
+    if environment_block is not None:
+        return ActiveCaseResult(
+            ExecutionClassification.ENVIRONMENT_BLOCKED,
+            environment_block,
+            "subscription_included" if provider_turns else "none",
+            provider_turns,
+            _case_receipt(source_id, turns, extra),
+            sha256_value([turn.state_hash for turn in turns]),
+        )
     if any(turn.billing == "unsafe" or turn.silent_fallback for turn in turns):
         return ActiveCaseResult(
             ExecutionClassification.VERIFIED_FAILURE,

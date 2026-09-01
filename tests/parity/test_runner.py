@@ -203,8 +203,17 @@ def test_combined_executor_runs_once_for_positive_denial_and_recovery(
     assert manifest["executions"][0]["scope"] == "bundle"
 
 
+@pytest.mark.parametrize(
+    "reason_code",
+    (
+        "active_subscription_limit_reached",
+        "active_synthetic_provider_notice",
+        "native_subscription_limit_reached",
+        "native_synthetic_provider_notice",
+    ),
+)
 def test_global_subscription_limit_block_stops_the_remaining_catalog(
-    catalog, candidate_fields, tmp_path
+    catalog, candidate_fields, tmp_path, reason_code
 ) -> None:
     first = catalog.by_id["v2:parent-01"]
     second = catalog.by_id["v2:parent-02"]
@@ -217,7 +226,7 @@ def test_global_subscription_limit_block_stops_the_remaining_catalog(
                 path: ExecutionOutcome(
                     classification=ExecutionClassification.ENVIRONMENT_BLOCKED,
                     billing_classification="none",
-                    reason_code="native_subscription_limit_reached",
+                    reason_code=reason_code,
                     turn_count=1 if path == "positive" else 0,
                 )
                 for path in ("positive", "denial", "recovery")
