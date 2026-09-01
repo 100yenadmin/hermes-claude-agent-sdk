@@ -5,6 +5,7 @@ import json
 import zipfile
 from pathlib import Path
 
+import hermes_claude_agent_sdk.parity.runtime_suite as runtime_suite
 from hermes_claude_agent_sdk.parity.executors import EXECUTORS
 from hermes_claude_agent_sdk.parity.results import ExecutionClassification
 from hermes_claude_agent_sdk.parity.runner import ExecutionContext
@@ -98,18 +99,43 @@ def test_release_ready_receipt_binds_issue_artifact_and_exact_heads(
     assert not _load_release_receipt(path, context=context, wheel_hash=wheel_hash)
 
 
-def test_running_package_must_byte_match_the_immutable_wheel(tmp_path: Path) -> None:
-    import hermes_claude_agent_sdk
+def test_running_package_must_byte_match_the_immutable_wheel(
+    tmp_path: Path, monkeypatch
+) -> None:
+    package_root = tmp_path / "hermes_claude_agent_sdk"
+    package_root.mkdir()
+    (package_root / "__init__.py").write_bytes(b"package\n")
+    (package_root / "runtime.py").write_bytes(b"runtime\n")
+    runtime_module = package_root / "parity" / "runtime_suite.py"
+    runtime_module.parent.mkdir()
+    runtime_module.write_bytes(b"runtime suite\n")
 
-    installed = Path(hermes_claude_agent_sdk.__file__).resolve()
-    wheel = tmp_path / "candidate.whl"
-    with zipfile.ZipFile(wheel, "w") as archive:
-        archive.writestr(
-            "hermes_claude_agent_sdk/__init__.py",
-            installed.read_bytes(),
-        )
-    assert _running_package_matches_wheel(wheel)
+    def write_wheel(path: Path, *, include: tuple[str, ...]) -> None:
+        with zipfile.ZipFile(path, "w") as archive:
+            for relative in include:
+                archive.writestr(
+                    f"hermes_claude_agent_sdk/{relative}",
+                    (package_root / relative).read_bytes(),
+                )
 
-    with zipfile.ZipFile(wheel, "w") as archive:
-        archive.writestr("hermes_claude_agent_sdk/__init__.py", b"tampered")
-    assert not _running_package_matches_wheel(wheel)
+    monkeypatch.setattr(runtime_suite, "__file__", str(runtime_module))
+    exact_wheel = tmp_path / "exact.whl"
+    members = ("__init__.py", "runtime.py", "parity/runtime_suite.py")
+    write_wheel(exact_wheel, include=members)
+    assert _running_package_matches_wheel(exact_wheel)
+
+    partial_wheel = tmp_path / "partial.whl"
+    write_wheel(partial_wheel, include=("__init__.py",))
+    assert not _running_package_matches_wheel(partial_wheel)
+
+    (package_root / "extra.py").write_bytes(b"extra\n")
+    assert not _running_package_matches_wheel(exact_wheel)
+
+    tampered_wheel = tmp_path / "tampered.whl"
+    with zipfile.ZipFile(tampered_wheel, "w") as archive:
+        for relative in (*members, "extra.py"):
+            payload = b"tampered" if relative == "__init__.py" else (
+                package_root / relative
+            ).read_bytes()
+            archive.writestr(f"hermes_claude_agent_sdk/{relative}", payload)
+    assert not _running_package_matches_wheel(tampered_wheel)

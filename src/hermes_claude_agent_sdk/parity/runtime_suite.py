@@ -143,11 +143,25 @@ def _load_release_receipt(
 
 
 def _running_package_matches_wheel(wheel: Path) -> bool:
-    """Compare every packaged source file to the currently executing package."""
+    """Compare the wheel's package files to the executing package exactly.
+
+    The comparison boundary is the ``hermes_claude_agent_sdk`` package tree;
+    wheel metadata and files outside that package are intentionally ignored.
+    Within that boundary, both sides must contain the same regular-file
+    manifest and each corresponding file must have identical bytes.
+    """
 
     package_root = Path(__file__).resolve().parents[1]
-    compared = 0
+    installed_files: dict[str, Path] = {}
     try:
+        if not package_root.is_dir() or package_root.is_symlink():
+            return False
+        for path in package_root.rglob("*"):
+            if path.is_file() and not path.is_symlink():
+                relative = path.relative_to(package_root).as_posix()
+                installed_files[relative] = path
+
+        wheel_files: dict[str, zipfile.ZipInfo] = {}
         with zipfile.ZipFile(wheel) as archive:
             for info in archive.infolist():
                 member = PurePosixPath(info.filename)
@@ -157,22 +171,29 @@ def _running_package_matches_wheel(wheel: Path) -> bool:
                     or member.parts[0] != "hermes_claude_agent_sdk"
                 ):
                     continue
-                if member.is_absolute() or ".." in member.parts:
+                if (
+                    member.is_absolute()
+                    or ".." in member.parts
+                    or len(member.parts) < 2
+                    or (info.external_attr >> 16) & 0o170000 == 0o120000
+                ):
                     return False
+                relative = PurePosixPath(*member.parts[1:]).as_posix()
+                if relative in wheel_files:
+                    return False
+                wheel_files[relative] = info
+
+        if not wheel_files or set(wheel_files) != set(installed_files):
+            return False
+        with zipfile.ZipFile(wheel) as archive:
+            for relative, info in wheel_files.items():
                 if info.file_size > 4 * 1024 * 1024:
                     return False
-                relative = Path(*member.parts[1:])
-                installed = package_root / relative
-                if not installed.is_file() or installed.is_symlink():
+                if archive.read(info) != installed_files[relative].read_bytes():
                     return False
-                if hashlib.sha256(archive.read(info)).digest() != hashlib.sha256(
-                    installed.read_bytes()
-                ).digest():
-                    return False
-                compared += 1
     except (OSError, ValueError, zipfile.BadZipFile):
         return False
-    return compared > 0
+    return True
 
 
 def _inventory_is_exact(context: ExecutionContext) -> bool:
