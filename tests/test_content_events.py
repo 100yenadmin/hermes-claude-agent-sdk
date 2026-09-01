@@ -12,7 +12,7 @@ import sys
 import types
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Mapping
+from typing import Any, Iterator, Mapping
 
 
 def _install_runtime_api_test_compat() -> None:
@@ -175,6 +175,55 @@ class ExplodingMessage:
     @property
     def content(self) -> Any:
         raise RuntimeError("raw exception should not cross the projector")
+
+
+class UnboundedModelUsage(Mapping[str, Mapping[str, str]]):
+    """Expose an infinite mapping iterator to prove bounded SDK traversal."""
+
+    def __init__(self) -> None:
+        self.visited = 0
+
+    def __getitem__(self, key: str) -> Mapping[str, str]:
+        return {"canonicalModel": "claude-fable-5-1"}
+
+    def __iter__(self) -> Iterator[str]:
+        index = 0
+        while True:
+            self.visited += 1
+            yield f"claude-fable-{index}"
+            index += 1
+
+    def __len__(self) -> int:
+        return 10**12
+
+
+class EagerItemsModelUsage(Mapping[str, Mapping[str, str]]):
+    """Make ``items()`` eagerly allocate so production must not call it."""
+
+    def __init__(self) -> None:
+        self.items_called = 0
+        self.visited = 0
+
+    def __getitem__(self, key: str) -> Mapping[str, str]:
+        return {"canonicalModel": "claude-fable-5-1"}
+
+    def __iter__(self) -> Iterator[str]:
+        for index in range(1_000):
+            self.visited += 1
+            yield f"claude-fable-{index}"
+
+    def __len__(self) -> int:
+        return 1_000
+
+    def items(self) -> list[tuple[str, Mapping[str, str]]]:
+        self.items_called += 1
+        return [
+            (
+                f"claude-fable-{index}",
+                {"canonicalModel": "claude-fable-5-1"},
+            )
+            for index in range(1_000)
+        ]
 
 
 def _events(projector: ClaudeSdkEventProjector, message: Any) -> list[Any]:
@@ -419,6 +468,67 @@ def test_model_provenance_malformed_or_ambiguous_usage_fails_closed() -> None:
         assert result.events[-1].result["effective_model"] == "unknown"
         assert result.events[-1].result["canonical_model"] == "unknown"
         assert result.events[-1].result["model_resolution"] == "ambiguous"
+
+
+def test_multiple_usage_keys_with_same_canonical_model_fail_closed() -> None:
+    result = ClaudeSdkEventProjector(model="claude-fable-5-1").project(
+        ResultMessage(
+            result="ambiguous",
+            usage={"input_tokens": 1},
+            model=None,
+            model_usage={
+                "claude-fable-5": {"canonicalModel": "claude-fable-5-1"},
+                "claude-fable-5-1": {"canonicalModel": "claude-fable-5-1"},
+            },
+        )
+    )
+
+    assert result.effective_model is None
+    assert result.canonical_model is None
+    assert result.model_resolution == "ambiguous"
+    assert result.events[1].receipt.model == "unknown"
+    assert result.events[-1].result["model"] == "unknown"
+    assert result.events[-1].result["effective_model"] == "unknown"
+    assert result.events[-1].result["canonical_model"] == "unknown"
+
+
+def test_model_usage_iteration_is_bounded_and_overflow_fails_closed() -> None:
+    model_usage = UnboundedModelUsage()
+    result = ClaudeSdkEventProjector(model="claude-fable-5-1").project(
+        ResultMessage(
+            result="overflow",
+            usage={"input_tokens": 1},
+            model="claude-fable-5-1",
+            model_usage=model_usage,
+        )
+    )
+
+    assert model_usage.visited == 33
+    assert result.effective_model is None
+    assert result.canonical_model is None
+    assert result.model_resolution == "ambiguous"
+    assert result.events[1].receipt.model == "unknown"
+    assert result.events[-1].result["model"] == "unknown"
+
+
+def test_model_usage_never_calls_an_eager_items_override() -> None:
+    model_usage = EagerItemsModelUsage()
+    result = ClaudeSdkEventProjector(model="claude-fable-5-1").project(
+        ResultMessage(
+            result="overflow",
+            usage={"input_tokens": 1},
+            model="claude-fable-5-1",
+            model_usage=model_usage,
+        )
+    )
+
+    assert model_usage.items_called == 0
+    assert model_usage.visited == 33
+    assert result.effective_model is None
+    assert result.canonical_model is None
+    assert result.model_resolution == "ambiguous"
+    assert result.events[1].receipt.model == "unknown"
+    assert result.events[-1].result["model"] == "unknown"
 
 
 def test_literal_unknown_canonical_model_is_absent_not_an_identity() -> None:

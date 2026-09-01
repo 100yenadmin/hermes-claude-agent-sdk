@@ -112,7 +112,7 @@ class _Client:
             await self._messages.put(SystemMessage("init", {"apiKeySource": "none"}))
             assistant_model = (
                 None
-                if self.mode == "missing_model"
+                if self.mode in {"missing_model", "model_ambiguous_same_canonical"}
                 else "claude-fable-5"
                 if self.mode == "model_canonical"
                 else "claude-fable-synthetic"
@@ -142,6 +142,19 @@ class _Client:
                         }
                     }
                     if self.mode == "model_canonical"
+                    else {
+                        "claude-fable-5": {
+                            "canonicalModel": "claude-fable-5-1",
+                            "inputTokens": 2,
+                            "outputTokens": 3,
+                        },
+                        "claude-fable-5-1": {
+                            "canonicalModel": "claude-fable-5-1",
+                            "inputTokens": 2,
+                            "outputTokens": 3,
+                        },
+                    }
+                    if self.mode == "model_ambiguous_same_canonical"
                     else None
                 ),
             )
@@ -628,6 +641,27 @@ def test_runtime_does_not_use_selected_model_when_sdk_reports_no_model() -> None
         assert terminal_result["effective_model"] == "unknown"
         assert terminal_result["canonical_model"] == "unknown"
         assert terminal_result["model_resolution"] == "unknown"
+
+    asyncio.run(scenario())
+
+
+def test_runtime_erases_model_identity_for_ambiguous_shared_canonical() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("model_ambiguous_same_canonical", clients)
+        events = await _collect(runtime, _request(), _Host())
+        await runtime.close()
+
+        receipt = next(event.receipt for event in events if event.kind.value == "usage")
+        assert receipt.model == "unknown"
+        terminal_result = next(
+            event.result for event in events if event.kind.value == "completed"
+        )
+        assert terminal_result["model"] == "unknown"
+        assert terminal_result["selected_model"] == "claude-fable-5"
+        assert terminal_result["effective_model"] == "unknown"
+        assert terminal_result["canonical_model"] == "unknown"
+        assert terminal_result["model_resolution"] == "ambiguous"
 
     asyncio.run(scenario())
 

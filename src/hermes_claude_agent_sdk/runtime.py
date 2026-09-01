@@ -403,11 +403,18 @@ class ClaudeAgentSDKRuntime:
                 except asyncio.TimeoutError:
                     continue
                 if projection.is_result:
-                    terminal_model_provenance = {
-                        "effective_model": projection.effective_model or "unknown",
-                        "canonical_model": projection.canonical_model or "unknown",
-                        "model_resolution": projection.model_resolution,
-                    }
+                    if projection.model_resolution == "ambiguous":
+                        terminal_model_provenance = {
+                            "effective_model": "unknown",
+                            "canonical_model": "unknown",
+                            "model_resolution": "ambiguous",
+                        }
+                    else:
+                        terminal_model_provenance = {
+                            "effective_model": projection.effective_model or "unknown",
+                            "canonical_model": projection.canonical_model or "unknown",
+                            "model_resolution": projection.model_resolution,
+                        }
                 for event in projection.events:
                     if isinstance(event, RuntimeCompletedEvent):
                         continue

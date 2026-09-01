@@ -25,6 +25,7 @@ import math
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from itertools import islice
 from typing import Any
 
 from agent.runtime_api import (
@@ -336,14 +337,22 @@ class ClaudeSdkEventProjector:
             self._usage_malformed = True
             return
         try:
-            entries = list(model_usage.items())
+            keys = list(islice(model_usage, _MAX_ARGUMENT_ITEMS + 1))
         except Exception:
             self._usage_malformed = True
             return
-        if not entries:
+        if len(keys) > _MAX_ARGUMENT_ITEMS:
             self._usage_malformed = True
             return
-        for model, usage in entries:
+        if not keys:
+            self._usage_malformed = True
+            return
+        for model in keys:
+            try:
+                usage = model_usage[model]
+            except Exception:
+                self._usage_malformed = True
+                continue
             safe_model = _safe_model_identifier(model)
             if safe_model is None or not isinstance(usage, Mapping):
                 self._usage_malformed = True
@@ -374,8 +383,9 @@ class ClaudeSdkEventProjector:
         canonical = next(iter(self._canonical_models), None)
         if len(usage_models) > 1:
             # Multiple model_usage keys do not identify one effective model.
-            # A unique canonicalModel remains useful and is retained as such.
-            return None, canonical, "ambiguous"
+            # Even a shared canonicalModel cannot prove which effective route
+            # produced the turn, so erase both identities fail closed.
+            return None, None, "ambiguous"
 
         usage_model = next(iter(usage_models), None)
         reported_models = self._reported_models
