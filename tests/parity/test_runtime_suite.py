@@ -132,14 +132,18 @@ def test_running_package_must_byte_match_the_immutable_wheel(
     write_wheel(partial_wheel, include=("__init__.py",))
     assert not _running_package_matches_wheel(partial_wheel)
 
-    (package_root / "extra.py").write_bytes(b"extra\n")
+    extra_source = package_root / "extra.py"
+    extra_source.write_bytes(b"extra\n")
     assert not _running_package_matches_wheel(exact_wheel)
-    (package_root / "extra.json").write_bytes(b'{"extra": true}\n')
+    extra_source.unlink()
+
+    extra_data = package_root / "extra.json"
+    extra_data.write_bytes(b'{"extra": true}\n')
     assert not _running_package_matches_wheel(exact_wheel)
 
     tampered_wheel = tmp_path / "tampered.whl"
     with zipfile.ZipFile(tampered_wheel, "w") as archive:
-        for relative in (*members, "extra.py", "extra.json"):
+        for relative in (*members, "extra.json"):
             payload = b"tampered" if relative == "__init__.py" else (
                 package_root / relative
             ).read_bytes()
