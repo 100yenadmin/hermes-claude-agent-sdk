@@ -415,6 +415,38 @@ def test_cli_inventory_passes_only_with_exact_dynamic_tool_schema(tmp_path) -> N
     assert output.is_file()
 
 
+def test_cli_inventory_capture_accepts_an_explicit_yaml_target(tmp_path) -> None:
+    profile, _ = _write_cli_manifests(tmp_path)
+    output = tmp_path / "captured-tools.yaml"
+    exit_code = main(
+        [
+            "inventory",
+            "--capture",
+            "--catalog",
+            str(CATALOG_PATH),
+            "--lane",
+            "rc",
+            "--profile",
+            "fable-v3-isolated",
+            "--profile-manifest",
+            str(profile),
+            "--output",
+            str(output),
+        ]
+    )
+    assert exit_code == 0
+    assert output.is_file()
+    assert (tmp_path / "inventory-rc.json").is_file()
+    captured = yaml.safe_load(output.read_text(encoding="utf-8"))
+    assert [item["name"] for item in captured["observed_tools"]] == [
+        "cron",
+        "exec",
+        "parity_harmless_tool",
+        "read",
+        "write",
+    ]
+
+
 def test_cli_run_without_registered_executor_is_pending_not_false_green(tmp_path) -> None:
     profile, inventory = _write_cli_manifests(tmp_path)
     output = tmp_path / "results"

@@ -142,7 +142,12 @@ def _inventory(args: argparse.Namespace) -> int:
         exit_code = 0
     if args.output:
         output = Path(args.output).expanduser().resolve()
-        target = output if output.suffix == ".json" else output / f"inventory-{args.lane}.json"
+        if output.suffix == ".json":
+            target = output
+        elif args.capture and output.suffix in {".yaml", ".yml"}:
+            target = output.with_name(f"inventory-{args.lane}.json")
+        else:
+            target = output / f"inventory-{args.lane}.json"
         _write_json(target, report)
     print(json.dumps(report, ensure_ascii=False, sort_keys=True))
     return exit_code
