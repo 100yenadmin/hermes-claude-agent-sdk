@@ -120,7 +120,16 @@ class _Gateway:
         )
         self._reader = threading.Thread(target=self._pump_stdout, daemon=True)
         self._reader.start()
-        self._wait_ready()
+        try:
+            self._wait_ready()
+        except BaseException as exc:
+            cleanup_error = self._teardown()
+            if cleanup_error is not None:
+                exc.add_note(
+                    "gateway teardown also failed: "
+                    f"{type(cleanup_error).__name__}: {cleanup_error}"
+                )
+            raise
 
     def _pump_stdout(self) -> None:
         assert self._process.stdout is not None
@@ -185,18 +194,38 @@ class _Gateway:
             _require(isinstance(result, dict), f"installed gateway {method} returned no result")
             return result
 
-    def close(self) -> None:
-        if self._process.stdin is not None:
-            self._process.stdin.close()
+    def _teardown(self) -> BaseException | None:
+        """Stop the gateway without masking the failure that triggered cleanup."""
+
+        cleanup_error: BaseException | None = None
         try:
-            self._process.wait(timeout=20)
-        except subprocess.TimeoutExpired as exc:
-            self._process.terminate()
-            self._process.wait(timeout=10)
-            raise AssertionError("installed gateway did not stop after stdin EOF") from exc
+            if self._process.stdin is not None and not self._process.stdin.closed:
+                self._process.stdin.close()
+            try:
+                self._process.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                self._process.terminate()
+                try:
+                    self._process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    self._process.kill()
+                    self._process.wait(timeout=10)
+        except BaseException as exc:
+            cleanup_error = exc
         finally:
-            self._stderr.close()
-        _require(self._process.returncode == 0, "installed gateway exited unsuccessfully")
+            if self._process.stdout is not None and not self._process.stdout.closed:
+                self._process.stdout.close()
+            if not self._stderr.closed:
+                self._stderr.close()
+        return cleanup_error
+
+    def close(self) -> None:
+        active_exception = sys.exc_info()[0] is not None
+        cleanup_error = self._teardown()
+        if cleanup_error is not None and not active_exception:
+            raise AssertionError("installed gateway teardown failed") from cleanup_error
+        if not active_exception:
+            _require(self._process.returncode == 0, "installed gateway exited unsuccessfully")
 
 
 def _console_script(bin_dir: Path, name: str) -> Path:
