@@ -136,3 +136,30 @@ def test_v2_successful_source_tests_execute_and_prove_each_path(
     assert len(
         {outcome.primary_proof_hash for outcome in result.outcomes.values()}
     ) == 3
+
+
+def test_cross_stage_rows_remain_pending_without_the_bound_receipt(
+    catalog,
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(v2_suite, "_exact_source_preflight", lambda *_: None)
+    monkeypatch.setattr(v2_suite, "_exact_git_checkout", lambda *_: True)
+    host_root = tmp_path / "host"
+    v2_root = tmp_path / "v2"
+    host_root.mkdir()
+    v2_root.mkdir()
+    host_python = host_root / "python"
+    host_python.write_text("synthetic", encoding="utf-8")
+    monkeypatch.setenv("HERMES_AGENT_HOST_ROOT", str(host_root))
+    monkeypatch.setenv("HERMES_PARITY_V2_ROOT", str(v2_root))
+    monkeypatch.setenv("HERMES_PARITY_HOST_PYTHON", str(host_python))
+    monkeypatch.delenv("HERMES_PARITY_LEAN_RECEIPT", raising=False)
+
+    result = asyncio.run(v2_mapped_suite(_context(catalog, "v2:eff-01")))
+
+    assert all(
+        outcome.classification is ExecutionClassification.ENVIRONMENT_BLOCKED
+        and outcome.reason_code == "v2_cross_stage_receipt_pending"
+        for outcome in result.outcomes.values()
+    )

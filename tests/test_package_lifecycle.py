@@ -88,6 +88,7 @@ def test_built_package_lifecycle(tmp_path: Path) -> None:
         "qa/agent-sdk-boundary-ledger-v3.yaml",
         "qa/dependency-restore-manifest-v3.txt",
         "qa/result-packet-v3.schema.json",
+        "qa/runtime-candidate-ready-receipt.schema.json",
         "qa/v2-to-v3-replacement-receipt.md",
         "tests/parity/test_catalog.py",
     } <= sdist_paths

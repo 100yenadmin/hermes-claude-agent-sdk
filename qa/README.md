@@ -99,10 +99,18 @@ surface.
 
 `v2:ops-08` validates `dependency-restore-manifest-v3.txt` before invoking an
 offline resolver, and then performs a real dry run against the candidate
-environment; the manifest pins `claude-agent-sdk==0.2.144`. `v2:eff-03` binds
-its RC denial and recovery paths to the conservative nearest-rank p95 grader.
-The live usage/soak portion of EFF-03 is not inferred from those unit controls:
-it is a mandatory invariant of the runtime campaign below.
+environment; the manifest pins `claude-agent-sdk==0.2.144`. The six rows whose
+named behavior exists only across stages (`OPS-03`, `OPS-06`, `OPS-09`, and
+`EFF-01` through `EFF-03`) remain `PENDING` until an exact-candidate sanitized
+receipt is supplied. Unit controls can reject malformed evidence; they cannot
+turn a missing live/shared observation into a pass.
+
+The lean-efficiency denominator is comparable non-cache parent-plus-worker
+traffic. It is not Fable cache hit rate. Every one of the 100 jobs must contain
+attributed Hermes worker usage, at most two Fable model turns, and zero native
+Claude children. The p95 Fable share must be at most 25 percent over a real
+48-hour window; Fable and worker cache-read/cache-write totals are retained as
+separate safe aggregates.
 
 Each result binds the contract hash, complete catalog hash, exact plugin and
 host SHAs, SDK version, sanitized profile identity hash, runner version, and
@@ -115,15 +123,21 @@ exactly match the catalog's `expected_trace`; a proof hash attached to the wrong
 trace grades as a verified failure. Expected denials must end in one explicit
 denied terminal.
 
-## Runtime release-ready receipt
+## Runtime admission receipts
 
 The runtime executor will not start from a branch name, editable install, or
-unverified artifact. `HERMES_PARITY_RELEASE_READY_RECEIPT` must point to a
-sanitized JSON document conforming to
-`runtime-release-ready-receipt.schema.json`; `HERMES_PARITY_IMMUTABLE_WHEEL`
-and `HERMES_PARITY_WHEEL_SHA256` must identify the same regular wheel file.
-The receipt binds issue #9, exact plugin/host SHAs, SDK version, contract and
-catalog hashes, and the immutable wheel digest. It contains no credentials,
+unverified artifact. A final `HERMES_PARITY_RELEASE_READY_RECEIPT` may conform
+to `runtime-release-ready-receipt.schema.json`. Before cross-stage evidence is
+available, `HERMES_PARITY_CANDIDATE_READY_RECEIPT` may instead conform to
+`runtime-candidate-ready-receipt.schema.json`, accompanied by the exact
+`HERMES_PARITY_RC_GRADE`. Candidate admission succeeds only when the RC grade
+has zero failures, has spent live turns, and its only pending paths are the 18
+positive/denial/recovery paths belonging to the six named cross-stage rows.
+This receipt means immutable candidate ready for isolated qualification; it is
+not `release_ready` or `runtime_safe`.
+
+Both forms bind issue #9, exact plugin/host SHAs, SDK version, contract and
+catalog hashes, and the immutable wheel digest. They contain no credentials,
 prompts, sessions, or customer data.
 
 The campaign performs 100 main-session turns, injects and recovers from a host
@@ -133,12 +147,19 @@ background task, closes and resumes at turn 50, and verifies process teardown.
 Only the 100 main-session turns count against the runtime budget; fail-closed
 state and teardown probes do not reach the provider.
 
-Every completed live turn contributes one safe usage sample. The campaign
-fails unless nearest-rank p95 non-cache input share is at most 25 percent. It
-writes one `runtime-usage-summary.json` containing only aggregate token counts,
-the threshold/result, exact candidate hashes, and its own digest; cache-read
-and cache-write traffic are reported separately. Raw prompts, responses,
-sessions, identities, and per-turn transcripts are never written.
+Every completed live turn contributes one safe parent-runtime cache sample.
+The campaign writes one `runtime-usage-summary.json` containing only aggregate
+token counts, the threshold/result, exact candidate hashes, and its own digest;
+cache-read and cache-write traffic are reported separately. This is a runtime
+cache/continuity invariant, not the EFF-03 parent-versus-worker metric. Raw
+prompts, responses, sessions, identities, and per-turn transcripts are never
+written.
+
+After isolated qualification, the 100-job lean receipt and shared-Eva
+operations receipt are validated by exact fields, self-hashes, candidate
+hashes, safe billing values, zero fallback/metered/unknown counts, unchanged
+saved defaults, the full stopped/restarted process-set hash, and all four
+rollback components. Only then may the deferred RC rows become complete.
 
 `result-packet-v3.schema.json` is the portable shape. Python validation is
 intentionally stricter: it recalculates trace, candidate, and packet hashes;

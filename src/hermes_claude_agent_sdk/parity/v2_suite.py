@@ -23,7 +23,7 @@ from typing import Any, Literal, NamedTuple
 from .focused_suite import _exact_source_preflight
 from .hashing import sha256_value
 from .native_suite import _exact_git_checkout
-from .results import ExecutionClassification
+from .results import ExecutionClassification, candidate_hash
 from .runner import ExecutionBundle, ExecutionContext, ExecutionOutcome
 from .trace import normalized_path_events
 
@@ -68,7 +68,10 @@ _V2_NODES: dict[str, tuple[EvidenceNode, ...]] = {
         "tests/test_billing.py::test_metered_or_unknown_evidence_returns_typed_block",
         "tests/test_billing.py::test_conflicting_evidence_blocks_before_calls",
     ),
-    "v2:auth-10": _nodes(V, "tests/tools/test_delegate_routes.py::test_metered_and_unknown_billing_fail_closed"),
+    "v2:auth-10": _nodes(
+        P,
+        "tests/parity/test_v2_specific_controls.py::test_glm_5_3_route_is_rejected_before_spawn_then_codex_route_recovers",
+    ),
     "v2:auth-11": _nodes(V, "tests/tools/test_delegate.py::TestFallbackModelInheritance::test_pinned_provider_disables_parent_fallback_chain"),
     "v2:parent-01": _nodes(P, "tests/test_runtime_sdk_integration.py::test_text_projection_usage_state_terminal_and_public_options"),
     "v2:parent-02": _nodes(P, "tests/test_runtime_sdk_integration.py::test_native_image_turn_uses_the_public_sdk_streaming_input"),
@@ -103,20 +106,51 @@ _V2_NODES: dict[str, tuple[EvidenceNode, ...]] = {
     "v2:bg-01": _nodes(V, "tests/tools/test_async_delegation.py::test_routed_batch_completion_preserves_safe_receipts"),
     "v2:bg-02": _nodes(V, "tests/tools/test_async_delegation.py::test_real_process_restart_restores_owned_completion_once"),
     "v2:bg-03": _nodes(P, "tests/test_runtime_sdk_integration.py::test_cancellation_interrupts_and_closes_once_with_one_terminal"),
-    "v2:bg-04": _nodes(P, "tests/test_sdk_session.py::test_sdk_stream_without_a_terminal_result_fails_closed"),
+    "v2:bg-04": _nodes(
+        P,
+        "tests/parity/test_v2_specific_controls.py::test_owner_loss_is_outcome_unknown_then_unchanged_runtime_recovers",
+    ),
     "v2:ops-01": _nodes(V, "tests/hermes_cli/test_apply_profile_override.py::TestSupervisedChildIgnoresStickyProfile::test_supervised_named_profile_flag_still_wins"),
     # Telegram is intentionally replaced by the permitted local CLI canary.
     "v2:ops-02": _nodes(V, "tests/hermes_cli/test_claude_sdk_cli_chat.py::test_quiet_single_query_reaches_sdk_runtime_and_exits_zero"),
-    "v2:ops-03": _nodes(H, "tests/agent/test_runtime_dispatch.py::test_runtime_and_host_binding_are_reused_until_session_close"),
+    "v2:ops-03": _nodes(
+        P,
+        "tests/parity/test_external_receipts.py::test_external_shared_operations_receipt_from_environment",
+    ),
     "v2:ops-04": _nodes(P, "tests/test_runtime_sdk_integration.py::test_successful_turn_then_cancelled_turn_reuses_current_resume_on_replacement"),
     "v2:ops-05": _nodes(H, "tests/agent/test_runtime_dispatch.py::test_host_persists_runtime_state_and_idempotent_usage_for_selected_runtime"),
-    "v2:ops-06": _nodes(V, "tests/hermes_cli/test_profiles.py::TestGetProfileDir::test_default_returns_hermes_home"),
+    "v2:ops-06": _nodes(
+        P,
+        "tests/parity/test_external_receipts.py::test_external_shared_operations_receipt_from_environment",
+    ),
     "v2:ops-07": _nodes(V, "tests/hermes_cli/test_profiles.py::TestProfileIsolation::test_separate_config_paths"),
     "v2:ops-08": _nodes(P, "tests/parity/test_dependency_restore.py::test_dependency_restore_manifest_dry_run_retains_exact_sdk_pin"),
-    "v2:ops-09": _nodes(V, "tests/test_install_commit_pin_rollback.py::test_force_commit_still_rolls_back"),
-    "v2:eff-01": _nodes(P, "tests/test_runtime_sdk_integration.py::test_text_projection_usage_state_terminal_and_public_options"),
-    "v2:eff-02": _nodes(P, "tests/test_runtime_sdk_integration.py::test_runtime_reuses_one_client_reader_and_uses_host_only_for_idle_completion"),
-    "v2:eff-03": _nodes(P, "tests/parity/test_efficiency.py::test_live_sample_math_reports_cache_traffic_and_accepts_p95_at_limit"),
+    "v2:ops-09": _nodes(
+        P,
+        "tests/parity/test_external_receipts.py::test_external_shared_operations_receipt_from_environment",
+    ),
+    "v2:eff-01": _nodes(
+        P,
+        "tests/parity/test_external_receipts.py::test_external_lean_receipt_from_environment",
+    ),
+    "v2:eff-02": _nodes(
+        P,
+        "tests/parity/test_external_receipts.py::test_external_lean_receipt_from_environment",
+    ),
+    "v2:eff-03": _nodes(
+        P,
+        "tests/parity/test_external_receipts.py::test_external_lean_receipt_from_environment",
+    ),
+}
+
+
+_EXTERNAL_RECEIPT_ENV = {
+    "v2:ops-03": "HERMES_PARITY_SHARED_OPS_RECEIPT",
+    "v2:ops-06": "HERMES_PARITY_SHARED_OPS_RECEIPT",
+    "v2:ops-09": "HERMES_PARITY_SHARED_OPS_RECEIPT",
+    "v2:eff-01": "HERMES_PARITY_LEAN_RECEIPT",
+    "v2:eff-02": "HERMES_PARITY_LEAN_RECEIPT",
+    "v2:eff-03": "HERMES_PARITY_LEAN_RECEIPT",
 }
 
 
@@ -204,11 +238,13 @@ _V2_PATH_CONTROLS: dict[str, dict[str, tuple[EvidenceNode, ...]]] = {
         ),
     ),
     "v2:auth-10": _controls(
-        _nodes(V, "tests/tools/test_delegate_routes.py::test_metered_and_unknown_billing_fail_closed"),
         _nodes(
-            V,
-            "tests/tools/test_delegate_routes.py::test_defaults_and_schema_are_opaque",
-            "tests/tools/test_delegate_routes.py::test_valid_codex_route_receipt_and_precedence",
+            P,
+            "tests/parity/test_v2_specific_controls.py::test_glm_5_3_route_is_rejected_before_spawn_then_codex_route_recovers",
+        ),
+        _nodes(
+            P,
+            "tests/parity/test_v2_specific_controls.py::test_glm_5_3_route_is_rejected_before_spawn_then_codex_route_recovers",
         ),
     ),
     "v2:auth-11": _controls(
@@ -355,10 +391,10 @@ _V2_PATH_CONTROLS: dict[str, dict[str, tuple[EvidenceNode, ...]]] = {
     ),
     "v2:bg-04": _controls(
         (
-            *_nodes(P, "tests/test_sdk_session.py::test_sdk_stream_without_a_terminal_result_fails_closed"),
+            *_nodes(P, "tests/parity/test_v2_specific_controls.py::test_owner_loss_is_outcome_unknown_then_unchanged_runtime_recovers"),
             *_nodes(V, "tests/tools/test_async_delegation.py::test_stalled_runner_is_interrupted_then_finalized"),
         ),
-        _nodes(H, "tests/agent/test_runtime_dispatch.py::test_dispatch_returns_classified_failure_without_authorizing_fallback"),
+        _nodes(P, "tests/parity/test_v2_specific_controls.py::test_owner_loss_is_outcome_unknown_then_unchanged_runtime_recovers"),
     ),
     "v2:ops-01": _controls(
         _nodes(V, "tests/hermes_cli/test_claude_sdk_cli_chat.py::test_quiet_single_query_metered_refusal_exits_nonzero"),
@@ -373,8 +409,8 @@ _V2_PATH_CONTROLS: dict[str, dict[str, tuple[EvidenceNode, ...]]] = {
         _nodes(V, "tests/hermes_cli/test_claude_sdk_cli_chat.py::test_quiet_single_query_reaches_sdk_runtime_and_exits_zero"),
     ),
     "v2:ops-03": _controls(
-        _nodes(H, "tests/agent/test_runtime_dispatch.py::test_host_rejects_state_and_usage_for_a_different_runtime"),
-        _nodes(H, "tests/agent/test_runtime_dispatch.py::test_runtime_and_host_binding_are_reused_until_session_close"),
+        _nodes(P, "tests/parity/test_external_receipts.py::test_shared_operations_receipt_rejects_partial_restore_or_default_drift"),
+        _nodes(P, "tests/parity/test_external_receipts.py::test_external_shared_operations_receipt_from_environment"),
     ),
     "v2:ops-04": _controls(
         _nodes(P, "tests/test_runtime_sdk_integration.py::test_state_v1_rejects_extra_fields_before_auth_or_sdk"),
@@ -385,8 +421,8 @@ _V2_PATH_CONTROLS: dict[str, dict[str, tuple[EvidenceNode, ...]]] = {
         _nodes(H, "tests/agent/test_runtime_dispatch.py::test_host_persists_runtime_state_and_idempotent_usage_for_selected_runtime"),
     ),
     "v2:ops-06": _controls(
-        _nodes(V, "tests/hermes_cli/test_profiles.py::TestValidateProfileName::test_invalid_names_rejected"),
-        _nodes(V, "tests/hermes_cli/test_profiles.py::TestGetProfileDir::test_default_returns_hermes_home"),
+        _nodes(P, "tests/parity/test_external_receipts.py::test_shared_operations_receipt_rejects_partial_restore_or_default_drift"),
+        _nodes(P, "tests/parity/test_external_receipts.py::test_external_shared_operations_receipt_from_environment"),
     ),
     "v2:ops-07": _controls(
         _nodes(V, "tests/hermes_cli/test_profiles.py::TestValidateProfileName::test_invalid_names_rejected"),
@@ -397,20 +433,20 @@ _V2_PATH_CONTROLS: dict[str, dict[str, tuple[EvidenceNode, ...]]] = {
         _nodes(P, "tests/parity/test_dependency_restore.py::test_dependency_restore_manifest_dry_run_retains_exact_sdk_pin"),
     ),
     "v2:ops-09": _controls(
-        _nodes(V, "tests/test_install_commit_pin_rollback.py::test_stale_pin_does_not_rewind_a_newer_checkout"),
-        _nodes(V, "tests/test_install_commit_pin_rollback.py::test_force_commit_still_rolls_back"),
+        _nodes(P, "tests/parity/test_external_receipts.py::test_shared_operations_receipt_rejects_partial_restore_or_default_drift"),
+        _nodes(P, "tests/parity/test_external_receipts.py::test_external_shared_operations_receipt_from_environment"),
     ),
     "v2:eff-01": _controls(
-        _nodes(P, "tests/test_tool_bridge.py::test_unknown_duplicate_and_excluded_names_fail_before_host_call"),
-        _nodes(P, "tests/test_runtime_sdk_integration.py::test_text_projection_usage_state_terminal_and_public_options"),
+        _nodes(P, "tests/parity/test_efficiency.py::test_native_child_overuse_fails_then_zero_child_sample_recovers"),
+        _nodes(P, "tests/parity/test_efficiency.py::test_native_child_overuse_fails_then_zero_child_sample_recovers"),
     ),
     "v2:eff-02": _controls(
-        _nodes(P, "tests/test_runtime_sdk_integration.py::test_runtime_rejects_prompt_or_tool_contract_change_before_second_query"),
-        _nodes(P, "tests/test_runtime_sdk_integration.py::test_runtime_reuses_one_client_reader_and_uses_host_only_for_idle_completion"),
+        _nodes(P, "tests/parity/test_efficiency.py::test_third_fable_turn_fails_then_two_turn_sample_recovers"),
+        _nodes(P, "tests/parity/test_efficiency.py::test_third_fable_turn_fails_then_two_turn_sample_recovers"),
     ),
     "v2:eff-03": _controls(
-        _nodes(P, "tests/parity/test_efficiency.py::test_over_limit_or_malformed_samples_fail_closed"),
-        _nodes(P, "tests/parity/test_efficiency.py::test_sample_can_recover_after_an_early_over_limit_window"),
+        _nodes(P, "tests/parity/test_efficiency.py::test_orchestration_attribution_is_required_and_can_recover_at_p95"),
+        _nodes(P, "tests/parity/test_efficiency.py::test_orchestration_attribution_is_required_and_can_recover_at_p95"),
     ),
 }
 
@@ -441,16 +477,43 @@ def _blocked(reason: str) -> ExecutionBundle:
     )
 
 
-def _safe_environment(*, home: Path, python_path: str, host_root: Path) -> dict[str, str]:
+def _safe_environment(
+    *,
+    home: Path,
+    python_path: str,
+    host_root: Path,
+    v2_root: Path,
+    context: ExecutionContext,
+    external_receipt: tuple[str, str] | None,
+) -> dict[str, str]:
     environment = {
         "HOME": str(home),
         "HERMES_HOME": str(home / ".hermes"),
         "HERMES_AGENT_HOST_ROOT": str(host_root),
+        "HERMES_PARITY_V2_ROOT": str(v2_root),
+        "HERMES_PARITY_CANDIDATE_HASH": candidate_hash(
+            catalog_hash=context.catalog_hash,
+            plugin_sha=context.plugin_sha,
+            host_sha=context.host_sha,
+            sdk_version=context.sdk_version,
+            profile_hash=context.profile_hash,
+            runner_version=context.runner_version,
+            inventory_hash=context.inventory_hash,
+        ),
+        "HERMES_PARITY_CONTRACT_HASH": context.contract_hash,
+        "HERMES_PARITY_CATALOG_HASH": context.catalog_hash,
+        "HERMES_PARITY_PLUGIN_SHA": context.plugin_sha,
+        "HERMES_AGENT_HOST_SHA": context.host_sha,
+        "HERMES_PARITY_SDK_VERSION": context.sdk_version,
+        "HERMES_PARITY_PROFILE_HASH": context.profile_hash,
+        "HERMES_PARITY_INVENTORY_HASH": context.inventory_hash,
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
         "PYTHONPATH": python_path,
         "PYTHONDONTWRITEBYTECODE": "1",
         "PYTHONHASHSEED": "0",
     }
+    if external_receipt is not None:
+        environment[external_receipt[0]] = external_receipt[1]
     for key in ("LANG", "LC_ALL", "TMPDIR"):
         value = os.environ.get(key)
         if value:
@@ -521,6 +584,23 @@ async def v2_mapped_suite(context: ExecutionContext) -> ExecutionBundle:
     if not host_python.is_file():
         return _blocked("v2_host_test_python_unavailable")
 
+    external_receipt: tuple[str, str] | None = None
+    external_env_name = _EXTERNAL_RECEIPT_ENV.get(context.capability.capability_id)
+    if external_env_name is not None:
+        external_raw = os.environ.get(external_env_name, "")
+        if not external_raw:
+            return _blocked("v2_cross_stage_receipt_pending")
+        supplied_external_path = Path(external_raw).expanduser()
+        if supplied_external_path.is_symlink():
+            return _blocked("v2_cross_stage_receipt_invalid")
+        external_path = supplied_external_path.resolve()
+        if (
+            not external_path.is_file()
+            or external_path.stat().st_size > 64 * 1024
+        ):
+            return _blocked("v2_cross_stage_receipt_invalid")
+        external_receipt = (external_env_name, str(external_path))
+
     roots = {P: root, H: host_root, V: v2_root}
     executables = {P: Path(sys.executable), H: host_python, V: host_python}
     outcomes: dict[str, ExecutionOutcome] = {}
@@ -558,6 +638,9 @@ async def v2_mapped_suite(context: ExecutionContext) -> ExecutionBundle:
                             home=home,
                             python_path=python_path,
                             host_root=host_root,
+                            v2_root=v2_root,
+                            context=context,
+                            external_receipt=external_receipt,
                         ),
                     )
                     output_hash = sha256_value(

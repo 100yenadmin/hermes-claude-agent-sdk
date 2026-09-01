@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/100yenadmin/hermes-claude-agent-sdk/qa/runtime-candidate-ready-receipt.schema.json",
+  "title": "Hermes Agent SDK parity v3 immutable candidate admission receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "issue",
+    "status",
+    "artifact_immutable",
+    "plugin_sha",
+    "host_sha",
+    "sdk_version",
+    "wheel_sha256",
+    "contract_hash",
+    "catalog_hash",
+    "rc_grade_sha256",
+    "deferred_paths"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "issue": {"const": 9},
+    "status": {"const": "candidate_ready"},
+    "artifact_immutable": {"const": true},
+    "plugin_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "host_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "sdk_version": {"const": "0.2.144"},
+    "wheel_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "contract_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "catalog_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "rc_grade_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "deferred_paths": {
+      "type": "array",
+      "uniqueItems": true,
+      "minItems": 18,
+      "maxItems": 18,
+      "items": {
+        "enum": [
+          "v2:eff-01:positive",
+          "v2:eff-01:denial",
+          "v2:eff-01:recovery",
+          "v2:eff-02:positive",
+          "v2:eff-02:denial",
+          "v2:eff-02:recovery",
+          "v2:eff-03:positive",
+          "v2:eff-03:denial",
+          "v2:eff-03:recovery",
+          "v2:ops-03:positive",
+          "v2:ops-03:denial",
+          "v2:ops-03:recovery",
+          "v2:ops-06:positive",
+          "v2:ops-06:denial",
+          "v2:ops-06:recovery",
+          "v2:ops-09:positive",
+          "v2:ops-09:denial",
+          "v2:ops-09:recovery"
+        ]
+      }
+    }
+  }
+}

@@ -1,9 +1,12 @@
 """Guarded 100-turn active same-session runtime qualification.
 
 This executor is intentionally unavailable until a sanitized issue-9 receipt
-binds an immutable wheel to the exact release-ready plugin and host SHAs.  It
-then sends exactly 100 sequential subscription-included turns through one
-logical SDK session, with a graceful close/resume boundary after turn 50.
+binds an immutable wheel to the exact plugin and host SHAs. A final
+release-ready receipt is accepted; before cross-stage proof exists, a narrower
+candidate-ready receipt is accepted only when the full live RC grade has zero
+failures and exactly the versioned external-receipt paths pending. It then
+sends exactly 100 sequential subscription-included turns through one logical
+SDK session, with a graceful close/resume boundary after turn 50.
 """
 
 from __future__ import annotations
@@ -55,6 +58,22 @@ _RELEASE_RECEIPT_FIELDS = frozenset(
         "contract_hash",
         "catalog_hash",
     }
+)
+_CANDIDATE_RECEIPT_FIELDS = _RELEASE_RECEIPT_FIELDS | {
+    "rc_grade_sha256",
+    "deferred_paths",
+}
+_DEFERRED_RC_PATHS = tuple(
+    f"{capability_id}:{path}"
+    for capability_id in (
+        "v2:eff-01",
+        "v2:eff-02",
+        "v2:eff-03",
+        "v2:ops-03",
+        "v2:ops-06",
+        "v2:ops-09",
+    )
+    for path in ("positive", "denial", "recovery")
 )
 _RUNTIME_SYSTEM_PROMPT = (
     "You are running the isolated Hermes active-runtime qualification. All "
@@ -168,6 +187,103 @@ def _load_release_receipt(
         and raw["contract_hash"] == context.contract_hash
         and raw["catalog_hash"] == context.catalog_hash
     )
+
+
+def _load_candidate_ready_receipt(
+    path: Path,
+    *,
+    grade_path: Path,
+    context: ExecutionContext,
+    wheel_hash: str,
+) -> bool:
+    """Admit runtime qualification with only named cross-stage rows deferred."""
+
+    if (
+        not path.is_file()
+        or path.is_symlink()
+        or path.stat().st_size > _MAX_RECEIPT_BYTES
+        or not grade_path.is_file()
+        or grade_path.is_symlink()
+        or grade_path.stat().st_size > 2 * 1024 * 1024
+    ):
+        return False
+    try:
+        raw = json_compatible(json.loads(path.read_text(encoding="utf-8")))
+        grade = json_compatible(json.loads(grade_path.read_text(encoding="utf-8")))
+    except (OSError, UnicodeError, json.JSONDecodeError, TypeError):
+        return False
+    exact_candidate = candidate_hash(
+        catalog_hash=context.catalog_hash,
+        plugin_sha=context.plugin_sha,
+        host_sha=context.host_sha,
+        sdk_version=context.sdk_version,
+        profile_hash=context.profile_hash,
+        runner_version=context.runner_version,
+        inventory_hash=context.inventory_hash,
+    )
+    if not isinstance(raw, Mapping) or set(raw) != _CANDIDATE_RECEIPT_FIELDS:
+        return False
+    if not isinstance(grade, Mapping) or not isinstance(grade.get("path_grades"), Sequence):
+        return False
+    deferred = raw.get("deferred_paths")
+    if not isinstance(deferred, list) or not all(
+        isinstance(item, str) for item in deferred
+    ):
+        return False
+    pending: list[str] = []
+    complete_required = 0
+    not_required = 0
+    for entry in grade["path_grades"]:
+        if not isinstance(entry, Mapping):
+            return False
+        required = entry.get("required")
+        status = entry.get("status")
+        if required is True and status == "PENDING":
+            capability_id = entry.get("capability_id")
+            path_name = entry.get("path")
+            if not isinstance(capability_id, str) or not isinstance(path_name, str):
+                return False
+            pending.append(f"{capability_id}:{path_name}")
+        elif required is True and status == "COMPLETE":
+            complete_required += 1
+        elif required is False and status == "NOT_REQUIRED":
+            not_required += 1
+        else:
+            return False
+    run_manifest = grade.get("run_manifest")
+    return bool(
+        raw["schema_version"] == 1
+        and raw["issue"] == 9
+        and raw["status"] == "candidate_ready"
+        and raw["artifact_immutable"] is True
+        and raw["plugin_sha"] == context.plugin_sha
+        and raw["host_sha"] == context.host_sha
+        and raw["sdk_version"] == context.sdk_version
+        and raw["wheel_sha256"] == wheel_hash
+        and raw["contract_hash"] == context.contract_hash
+        and raw["catalog_hash"] == context.catalog_hash
+        and raw["rc_grade_sha256"] == _sha256_file(grade_path)
+        and tuple(sorted(deferred)) == tuple(sorted(_DEFERRED_RC_PATHS))
+        and tuple(sorted(pending)) == tuple(sorted(_DEFERRED_RC_PATHS))
+        and grade.get("candidate_hash") == exact_candidate
+        and grade.get("contract_hash") == context.contract_hash
+        and grade.get("catalog_hash") == context.catalog_hash
+        and grade.get("lane") == "rc"
+        and grade.get("status") == "PENDING"
+        and grade.get("failed_paths") == 0
+        and grade.get("pending_paths") == len(_DEFERRED_RC_PATHS)
+        and grade.get("required_paths") == 367
+        and grade.get("passed_paths") == 367 - len(_DEFERRED_RC_PATHS)
+        and len(grade["path_grades"]) == 372
+        and complete_required == 367 - len(_DEFERRED_RC_PATHS)
+        and not_required == 5
+        and isinstance(run_manifest, Mapping)
+        and _bounded_runtime_turns(run_manifest.get("turns_used"))
+    )
+
+
+def _bounded_runtime_turns(value: Any) -> bool:
+    return type(value) is int and 0 < value <= 180
 
 
 def _write_runtime_usage_summary(
@@ -738,14 +854,28 @@ async def active_runtime_100_turn(context: ExecutionContext) -> ExecutionBundle:
 
     wheel_raw = os.environ.get("HERMES_PARITY_IMMUTABLE_WHEEL", "")
     expected_wheel_hash = os.environ.get("HERMES_PARITY_WHEEL_SHA256", "")
-    receipt_raw = os.environ.get("HERMES_PARITY_RELEASE_READY_RECEIPT", "")
-    if not wheel_raw or not receipt_raw or len(expected_wheel_hash) != 64:
+    release_receipt_raw = os.environ.get(
+        "HERMES_PARITY_RELEASE_READY_RECEIPT", ""
+    )
+    candidate_receipt_raw = os.environ.get(
+        "HERMES_PARITY_CANDIDATE_READY_RECEIPT", ""
+    )
+    if (
+        not wheel_raw
+        or bool(release_receipt_raw) == bool(candidate_receipt_raw)
+        or len(expected_wheel_hash) != 64
+    ):
         return _blocked("runtime_release_artifact_unconfigured")
-    wheel = Path(wheel_raw).expanduser().resolve()
-    receipt = Path(receipt_raw).expanduser().resolve()
+    supplied_wheel = Path(wheel_raw).expanduser()
+    supplied_receipt = Path(
+        release_receipt_raw or candidate_receipt_raw
+    ).expanduser()
+    if supplied_wheel.is_symlink() or supplied_receipt.is_symlink():
+        return _blocked("runtime_release_artifact_invalid")
+    wheel = supplied_wheel.resolve()
+    receipt = supplied_receipt.resolve()
     if (
         not wheel.is_file()
-        or wheel.is_symlink()
         or wheel.suffix != ".whl"
         or wheel.stat().st_size > _MAX_WHEEL_BYTES
     ):
@@ -753,12 +883,27 @@ async def active_runtime_100_turn(context: ExecutionContext) -> ExecutionBundle:
     wheel_hash = _sha256_file(wheel)
     if wheel_hash != expected_wheel_hash:
         return _blocked("runtime_wheel_checksum_mismatch")
-    if not _load_release_receipt(
-        receipt,
-        context=context,
-        wheel_hash=wheel_hash,
-    ):
-        return _blocked("runtime_release_ready_receipt_invalid")
+    if release_receipt_raw:
+        admitted = _load_release_receipt(
+            receipt,
+            context=context,
+            wheel_hash=wheel_hash,
+        )
+    else:
+        grade_raw = os.environ.get("HERMES_PARITY_RC_GRADE", "")
+        supplied_grade = Path(grade_raw).expanduser() if grade_raw else None
+        admitted = bool(
+            supplied_grade is not None
+            and not supplied_grade.is_symlink()
+            and _load_candidate_ready_receipt(
+                receipt,
+                grade_path=supplied_grade.resolve(),
+                context=context,
+                wheel_hash=wheel_hash,
+            )
+        )
+    if not admitted:
+        return _blocked("runtime_candidate_admission_receipt_invalid")
     if not _running_package_matches_wheel(wheel):
         return _blocked("runtime_running_package_does_not_match_wheel")
 

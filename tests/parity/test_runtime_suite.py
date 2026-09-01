@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import zipfile
 from pathlib import Path
@@ -9,11 +10,16 @@ import pytest
 
 import hermes_claude_agent_sdk.parity.runtime_suite as runtime_suite
 from hermes_claude_agent_sdk.parity.executors import EXECUTORS
-from hermes_claude_agent_sdk.parity.results import ExecutionClassification
+from hermes_claude_agent_sdk.parity.results import (
+    ExecutionClassification,
+    candidate_hash,
+)
 from hermes_claude_agent_sdk.parity.efficiency import evaluate_fable_cache_efficiency
 from hermes_claude_agent_sdk.parity.runner import ExecutionContext
 from hermes_claude_agent_sdk.parity.runtime_suite import (
     RUNTIME_EXECUTION_ID,
+    _DEFERRED_RC_PATHS,
+    _load_candidate_ready_receipt,
     _load_release_receipt,
     _running_package_matches_wheel,
     _turn_content,
@@ -51,6 +57,14 @@ def test_runtime_executor_is_registered_as_one_exact_campaign() -> None:
     assert len(set(markers)) == 100
     for index, marker in enumerate(markers, 1):
         assert marker in str(_turn_content(index))
+
+
+def test_candidate_ready_deferrals_match_the_versioned_contract(catalog) -> None:
+    declared = set(catalog.contract["cross_stage_policy"]["deferred_capabilities"])
+    encoded = {item.rsplit(":", 1)[0] for item in _DEFERRED_RC_PATHS}
+
+    assert encoded == declared
+    assert len(_DEFERRED_RC_PATHS) == len(declared) * 3
 
 
 def test_runtime_executor_fails_closed_for_nonpersistent_fixture_profile(
@@ -101,6 +115,97 @@ def test_release_ready_receipt_binds_issue_artifact_and_exact_heads(
     receipt["artifact_immutable"] = False
     path.write_text(json.dumps(receipt), encoding="utf-8")
     assert not _load_release_receipt(path, context=context, wheel_hash=wheel_hash)
+
+
+def test_candidate_ready_receipt_allows_only_exact_cross_stage_deferrals(
+    catalog, candidate_fields, tmp_path: Path
+) -> None:
+    context = _context(catalog, candidate_fields)
+    exact_candidate = candidate_hash(
+        catalog_hash=context.catalog_hash,
+        plugin_sha=context.plugin_sha,
+        host_sha=context.host_sha,
+        sdk_version=context.sdk_version,
+        profile_hash=context.profile_hash,
+        runner_version=context.runner_version,
+        inventory_hash=context.inventory_hash,
+    )
+    pending = [
+        {
+            "capability_id": item.rsplit(":", 1)[0],
+            "path": item.rsplit(":", 1)[1],
+            "required": True,
+            "status": "PENDING",
+        }
+        for item in _DEFERRED_RC_PATHS
+    ]
+    complete = [
+        {
+            "capability_id": f"synthetic:complete-{index}",
+            "path": "positive",
+            "required": True,
+            "status": "COMPLETE",
+        }
+        for index in range(367 - len(pending))
+    ]
+    excluded = [
+        {
+            "capability_id": f"synthetic:excluded-{index}",
+            "path": "positive",
+            "required": False,
+            "status": "NOT_REQUIRED",
+        }
+        for index in range(5)
+    ]
+    grade = {
+        "candidate_hash": exact_candidate,
+        "catalog_hash": context.catalog_hash,
+        "contract_hash": context.contract_hash,
+        "lane": "rc",
+        "status": "PENDING",
+        "failed_paths": 0,
+        "pending_paths": len(pending),
+        "passed_paths": len(complete),
+        "required_paths": 367,
+        "path_grades": complete + pending + excluded,
+        "run_manifest": {"turns_used": 83},
+    }
+    grade_path = tmp_path / "grade-rc.json"
+    grade_path.write_text(json.dumps(grade), encoding="utf-8")
+    wheel_hash = "a" * 64
+    receipt = {
+        "schema_version": 1,
+        "issue": 9,
+        "status": "candidate_ready",
+        "artifact_immutable": True,
+        "plugin_sha": context.plugin_sha,
+        "host_sha": context.host_sha,
+        "sdk_version": context.sdk_version,
+        "wheel_sha256": wheel_hash,
+        "contract_hash": context.contract_hash,
+        "catalog_hash": context.catalog_hash,
+        "rc_grade_sha256": hashlib.sha256(grade_path.read_bytes()).hexdigest(),
+        "deferred_paths": list(_DEFERRED_RC_PATHS),
+    }
+    receipt_path = tmp_path / "candidate-ready.json"
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+
+    assert _load_candidate_ready_receipt(
+        receipt_path,
+        grade_path=grade_path,
+        context=context,
+        wheel_hash=wheel_hash,
+    )
+    grade["path_grades"][0]["status"] = "PENDING"
+    grade_path.write_text(json.dumps(grade), encoding="utf-8")
+    receipt["rc_grade_sha256"] = hashlib.sha256(grade_path.read_bytes()).hexdigest()
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    assert not _load_candidate_ready_receipt(
+        receipt_path,
+        grade_path=grade_path,
+        context=context,
+        wheel_hash=wheel_hash,
+    )
 
 
 def test_running_package_must_byte_match_the_immutable_wheel(

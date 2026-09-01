@@ -72,6 +72,23 @@ contract:
     raw_content_forbidden: true
     partial_gate_pass_forbidden: true
     silent_fallback_forbidden: true
+  cross_stage_policy:
+    candidate_ready_schema: "runtime-candidate-ready-receipt.schema.json"
+    final_release_ready_schema: "runtime-release-ready-receipt.schema.json"
+    deferred_capabilities:
+      - "v2:ops-03"
+      - "v2:ops-06"
+      - "v2:ops-09"
+      - "v2:eff-01"
+      - "v2:eff-02"
+      - "v2:eff-03"
+    lean_efficiency_denominator: "fable_non_cache/(fable_non_cache+worker_non_cache)"
+    lean_sample_count: 100
+    lean_window_seconds: 172800
+    max_fable_turns: 2
+    max_native_claude_children: 0
+    max_p95_fable_share_ppm: 250000
+    missing_receipt_status: "PENDING"
   deduplication_key: "execution_id"
   proof_boundary: "RC evidence is exact-candidate release readiness; runtime evidence is isolated-profile runtime safety. Neither authorizes publication, shared Eva, fleet, or customer use."
 capabilities:
