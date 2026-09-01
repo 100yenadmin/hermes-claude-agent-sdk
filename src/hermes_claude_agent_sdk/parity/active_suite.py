@@ -461,6 +461,7 @@ async def _run_live_case(
 
     turns: list[LiveTurn] = []
     billing = "subscription_included"
+    failure_reason = "active_behavior_or_trace_failed"
     try:
         if source_id == "source-docs-discovery-report":
             readme = workspace / "README.md"
@@ -497,23 +498,41 @@ async def _run_live_case(
             finally:
                 await runtime.close()
             turns.extend((source_turn, docs_turn))
+            source_stage_ok = _live_ok(
+                source_turn,
+                markers=("SOURCE_OK", "SOURCE_STAGE_PASS"),
+            )
+            docs_stage_ok = _live_ok(
+                docs_turn,
+                markers=("SOURCE_OK", "DOCS_OK", "SOURCE_DOCS_PASS"),
+            )
+            read_call_count = sum(
+                name == "read"
+                for name in (*source_turn.tool_names, *docs_turn.tool_names)
+            )
+            if not source_stage_ok:
+                failure_reason = "active_source_stage_failed"
+            elif not docs_stage_ok:
+                failure_reason = "active_docs_or_session_recall_failed"
+            elif read_call_count < 2:
+                failure_reason = "active_source_docs_tool_trace_incomplete"
+            elif not host.denial_observed:
+                failure_reason = "active_source_docs_denial_missing"
+            elif not host.recovery_observed:
+                failure_reason = "active_source_docs_recovery_missing"
             ok = (
-                _live_ok(source_turn, markers=("SOURCE_OK", "SOURCE_STAGE_PASS"))
-                and _live_ok(
-                    docs_turn,
-                    markers=("SOURCE_OK", "DOCS_OK", "SOURCE_DOCS_PASS"),
-                )
-                and sum(
-                    name == "read"
-                    for name in (*source_turn.tool_names, *docs_turn.tool_names)
-                )
-                >= 3
+                source_stage_ok
+                and docs_stage_ok
+                and read_call_count >= 2
                 and host.denial_observed
                 and host.recovery_observed
             )
             extra = {
                 "denial": host.denial_observed,
                 "recovery": host.recovery_observed,
+                "read_call_count": read_call_count,
+                "source_stage_ok": source_stage_ok,
+                "docs_stage_ok": docs_stage_ok,
                 "source_state_stable": source_turn.state_hash == docs_turn.state_hash,
             }
 
@@ -833,7 +852,7 @@ async def _run_live_case(
     state_hash = sha256_value([turn.state_hash for turn in turns])
     return ActiveCaseResult(
         ExecutionClassification.COMPLETE if ok else ExecutionClassification.VERIFIED_FAILURE,
-        None if ok else "active_behavior_or_trace_failed",
+        None if ok else failure_reason,
         billing,
         provider_turns,
         evidence_hash,
