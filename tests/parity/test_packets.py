@@ -113,6 +113,23 @@ def test_packet_inventory_accepts_max_length_qualified_drift_names() -> None:
     assert packet_impl._inventory(inventory)["missing_names"] == inventory["missing_names"]
 
 
+def test_packet_inventory_keeps_tool_and_mcp_server_names_in_separate_namespaces() -> None:
+    from hermes_claude_agent_sdk.parity import packets as packet_impl
+
+    inventory = _inventory(D)
+    entry = {"name": "shared", "schema_sha256": D, "enabled": True}
+    inventory["tools"] = [entry]
+    inventory["mcp_servers"] = [entry]
+    inventory["declared_inventory_sha256"] = canonical_sha256(
+        {key: inventory[key] for key in ("tools", "mcp_servers")}
+    )
+    inventory["observed_inventory_sha256"] = canonical_sha256(
+        {key: inventory[key] for key in ("candidate_sha256", "tools", "mcp_servers")}
+    )
+
+    assert packet_impl._inventory(inventory) == inventory
+
+
 def _ledger() -> dict[str, Any]:
     rows = [{"pack_id": "sdk_boundary", "row_id": f"row{n}", "ordinal": n, "executable": True, "classification": "requires_0_3_239" if n in (1, 9) else "covered_current", "proof": {"ref": f"proof:row{n}", "sha256": D}} for n in range(1, 24)]
     value = {"schema_version": 1, "rows": rows}

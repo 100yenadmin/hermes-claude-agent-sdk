@@ -220,14 +220,12 @@ def _inventory(value: Any) -> dict[str, Any]:
     keys = {"candidate_sha256", "declared_inventory_sha256", "tools", "mcp_servers", "observed_inventory_sha256", "unknown_names", "missing_names", "schema_drift_names"}
     result = _obj(value, keys, "inventory")
     _sha(result["candidate_sha256"], "inventory.candidate_sha256"); _sha(result["declared_inventory_sha256"], "inventory.declared_inventory_sha256")
-    names: list[str] = []
     for group in ("tools", "mcp_servers"):
         previous = ""
         for entry in _arr(result[group], f"inventory.{group}"):
             item = _obj(entry, {"name", "schema_sha256", "enabled"}, f"inventory.{group}"); name = _id(item["name"], "inventory.name")
             if name <= previous: _fail("inventory group is not sorted/unique")
-            previous = name; names.append(name); _sha(item["schema_sha256"], "inventory.schema_sha256"); _bool(item["enabled"], "inventory.enabled")
-    if len(names) != len(set(names)): _fail("inventory names overlap")
+            previous = name; _sha(item["schema_sha256"], "inventory.schema_sha256"); _bool(item["enabled"], "inventory.enabled")
     for key in ("unknown_names", "missing_names", "schema_drift_names"):
         values = _arr(result[key], f"inventory.{key}"); [_drift_id(item, f"inventory.{key}") for item in values]; _sorted(values, f"inventory.{key}")
     if result["declared_inventory_sha256"] != hash_projection("declared_inventory_sha256", result) or result["observed_inventory_sha256"] != hash_projection("observed_inventory_sha256", result): _fail("inventory hash does not match")
