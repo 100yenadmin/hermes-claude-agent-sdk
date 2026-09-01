@@ -28,8 +28,16 @@ def _run_doctor(*args: str, host: bool = False) -> subprocess.CompletedProcess[s
         "PYTHONNOUSERSITE": "1",
         "PYTHONPATH": os.pathsep.join(pythonpath),
     }
+    command = [sys.executable]
+    if not host:
+        # The CI contract installs the exact Hermes host so the positive
+        # integration path has its declared dependencies.  Suppress all
+        # site-packages only for this negative probe so an editable host
+        # install cannot make the deliberately absent-host case compatible.
+        command.append("-S")
+    command.extend(["-m", "hermes_claude_agent_sdk", *args])
     return subprocess.run(
-        [sys.executable, "-m", "hermes_claude_agent_sdk", *args],
+        command,
         cwd=ROOT,
         env=env,
         capture_output=True,
