@@ -228,7 +228,7 @@ _BOUNDARY_PATH_CONTROLS: dict[str, dict[str, tuple[str, ...]]] = {
             "tests/test_sdk_session.py::test_sdk_stream_without_a_terminal_result_fails_closed",
         ),
         "recovery": (
-            "tests/test_sdk_session.py::test_text_turn_uses_public_options_one_reader_projection_and_exact_close",
+            "tests/test_sdk_session.py::test_sdk_stream_without_terminal_result_retires_client_and_next_turn_recovers",
         ),
     },
     "boundary:structured-question-not-tool-approval": {
@@ -257,10 +257,10 @@ _BOUNDARY_PATH_CONTROLS: dict[str, dict[str, tuple[str, ...]]] = {
     },
     "boundary:structured-question-answer-mapping-dedup": {
         "denial": (
-            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers",
+            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_mapping_rejects_duplicate_callbacks_before_host_and_recovers",
         ),
         "recovery": (
-            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_surface_fails_before_host_and_recovers",
+            "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_mapping_rejects_duplicate_callbacks_before_host_and_recovers",
         ),
     },
     "boundary:structured-question-skip-denial-guidance": {

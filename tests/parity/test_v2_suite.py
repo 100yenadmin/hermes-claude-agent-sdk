@@ -45,19 +45,28 @@ def test_every_v2_non_soak_row_has_one_exact_mapping(catalog) -> None:
     assert set(_V2_NODES) == source_ids
     assert len(v2_execution_ids()) == 53
     assert len(set(v2_execution_ids())) == 53
-    assert set(_V2_PATH_CONTROLS) == {
-        "auth",
-        "parent",
-        "tool",
-        "orch",
-        "bg",
-        "ops",
-        "eff",
-    }
+    assert set(_V2_PATH_CONTROLS) == source_ids
     assert all(
         controls["denial"] and controls["recovery"]
         for controls in _V2_PATH_CONTROLS.values()
     )
+
+
+def test_codex_route_paths_use_capability_specific_controls() -> None:
+    controls = _V2_PATH_CONTROLS["v2:auth-02"]
+
+    assert {
+        node.node_id for node in controls["denial"]
+    } >= {
+        "tests/tools/test_delegate_routes.py::test_malformed_unknown_partial_and_credential_failures_are_atomic",
+        "tests/tools/test_delegate_routes.py::test_metered_and_unknown_billing_fail_closed",
+    }
+    assert {
+        node.node_id for node in controls["recovery"]
+    } >= {
+        "tests/tools/test_delegate_routes.py::test_valid_codex_route_receipt_and_precedence",
+    }
+    assert all(node.repo == "v2" for path in controls.values() for node in path)
 
 
 def test_v2_mapping_never_names_forbidden_live_surfaces() -> None:
@@ -113,7 +122,7 @@ def test_v2_successful_source_tests_execute_and_prove_each_path(
 
     result = asyncio.run(v2_mapped_suite(_context(catalog, "v2:auth-02")))
 
-    assert len(calls) == 5
+    assert len(calls) == 3
     assert result.outcomes["positive"].classification is ExecutionClassification.COMPLETE
     assert (
         result.outcomes["denial"].classification

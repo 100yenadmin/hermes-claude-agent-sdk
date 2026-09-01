@@ -785,3 +785,31 @@ def test_sdk_stream_without_a_terminal_result_fails_closed() -> None:
         assert clients[0].disconnected == 1
 
     asyncio.run(scenario())
+
+
+def test_sdk_stream_without_terminal_result_retires_client_and_next_turn_recovers() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        scripts = [
+            [SystemMessage("init", {"apiKeySource": "none"}), _END],
+            [
+                SystemMessage("init", {"apiKeySource": "none"}),
+                ResultMessage(result="recovered after stream end"),
+            ],
+        ]
+        session = SDKSession(_configuration(), sdk_module=_sdk(clients, scripts))
+
+        failed = await session.run_turn("terminal result is required")
+        recovered = await session.run_turn("recover with a fresh SDK client")
+        await session.close()
+
+        assert failed.outcome is SessionOutcome.FAILED
+        assert failed.error_code == "sdk_stream_ended"
+        assert recovered.outcome is SessionOutcome.COMPLETE
+        assert recovered.final_text == "recovered after stream end"
+        assert len(clients) == 2
+        assert clients[0].queries == ["terminal result is required"]
+        assert clients[1].queries == ["recover with a fresh SDK client"]
+        assert [client.disconnected for client in clients] == [1, 1]
+
+    asyncio.run(scenario())

@@ -120,77 +120,298 @@ _V2_NODES: dict[str, tuple[EvidenceNode, ...]] = {
 }
 
 
+def _controls(
+    denial: tuple[EvidenceNode, ...],
+    recovery: tuple[EvidenceNode, ...],
+) -> dict[str, tuple[EvidenceNode, ...]]:
+    return {"denial": denial, "recovery": recovery}
+
+
+# Each source row owns its negative and recovery evidence. Reusing a broad
+# family control would let an unrelated passing test be relabeled as proof for
+# a capability-specific route, lifecycle, or isolation boundary.
 _V2_PATH_CONTROLS: dict[str, dict[str, tuple[EvidenceNode, ...]]] = {
-    "auth": {
-        "denial": _nodes(
-            P,
-            "tests/test_billing.py::test_conflicting_evidence_blocks_before_calls",
-        ),
-        "recovery": _nodes(
-            P,
-            "tests/test_billing.py::test_recognized_non_overage_evidence_is_included",
-        ),
-    },
-    "parent": {
-        "denial": _nodes(
-            P,
-            "tests/test_sdk_session.py::test_sdk_stream_without_a_terminal_result_fails_closed",
-        ),
-        "recovery": _nodes(
-            P,
-            "tests/test_runtime_sdk_integration.py::test_pre_set_interrupt_event_honored_then_next_turn_runs",
-        ),
-    },
-    "tool": {
-        "denial": _nodes(
-            P,
-            "tests/parity/test_native_sandbox.py::test_tool_schemas_are_bounded_and_unknown_tools_fail_closed",
-        ),
-        "recovery": _nodes(
-            P,
-            "tests/parity/test_native_sandbox.py::test_sandbox_denies_once_recovers_and_confines_files",
-        ),
-    },
-    "orch": {
-        "denial": _nodes(
+    "v2:auth-01": _controls(
+        _nodes(P, "tests/test_billing.py::test_conflicting_evidence_blocks_before_calls"),
+        _nodes(P, "tests/test_billing.py::test_recognized_non_overage_evidence_is_included"),
+    ),
+    "v2:auth-02": _controls(
+        _nodes(
             V,
             "tests/tools/test_delegate_routes.py::test_malformed_unknown_partial_and_credential_failures_are_atomic",
+            "tests/tools/test_delegate_routes.py::test_metered_and_unknown_billing_fail_closed",
         ),
-        "recovery": _nodes(
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_valid_codex_route_receipt_and_precedence"),
+    ),
+    "v2:auth-03": _controls(
+        _nodes(
             V,
+            "tests/tools/test_delegate_routes.py::test_malformed_unknown_partial_and_credential_failures_are_atomic",
+            "tests/tools/test_delegate_routes.py::test_metered_and_unknown_billing_fail_closed",
+        ),
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_valid_codex_route_receipt_and_precedence"),
+    ),
+    "v2:auth-04": _controls(
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_credential_resolver_keeps_trusted_empty_keys_isolated"),
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_keyless_and_trusted_auth_routes_do_not_require_a_key"),
+    ),
+    "v2:auth-05": _controls(
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_metered_and_unknown_billing_fail_closed"),
+        _nodes(
+            V,
+            "tests/tools/test_delegate_routes.py::test_metered_and_unknown_billing_fail_closed",
             "tests/tools/test_delegate_routes.py::test_valid_codex_route_receipt_and_precedence",
         ),
-    },
-    "bg": {
-        "denial": _nodes(
+    ),
+    "v2:auth-06": _controls(
+        _nodes(
             V,
-            "tests/tools/test_async_delegation.py::test_stalled_runner_is_interrupted_then_finalized",
+            "tests/agent/test_claude_sdk_configured_env.py::test_config_env_cannot_resurrect_a_scrubbed_credential",
+            "tests/tools/test_delegate_routes.py::test_metered_and_unknown_billing_fail_closed",
         ),
-        "recovery": _nodes(
+        _nodes(
             V,
-            "tests/tools/test_async_delegation.py::test_real_process_restart_restores_owned_completion_once",
+            "tests/agent/test_claude_sdk_configured_env.py::test_metered_opt_in_permits_the_key",
+            "tests/tools/test_delegate_routes.py::test_metered_and_unknown_billing_fail_closed",
         ),
-    },
-    "ops": {
-        "denial": _nodes(
+    ),
+    "v2:auth-07": _controls(
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_metered_and_unknown_billing_fail_closed"),
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_valid_codex_route_receipt_and_precedence"),
+    ),
+    "v2:auth-08": _controls(
+        (
+            *_nodes(P, "tests/test_auth.py::test_parser_fails_closed_for_unsupported_auth"),
+            *_nodes(V, "tests/tools/test_delegate_routes.py::test_malformed_unknown_partial_and_credential_failures_are_atomic"),
+        ),
+        (
+            *_nodes(P, "tests/test_auth.py::test_parser_accepts_only_first_party_oauth_subscription"),
+            *_nodes(V, "tests/tools/test_delegate_routes.py::test_credential_resolver_keeps_trusted_empty_keys_isolated"),
+        ),
+    ),
+    "v2:auth-09": _controls(
+        (
+            *_nodes(P, "tests/test_billing.py::test_metered_or_unknown_evidence_returns_typed_block"),
+            *_nodes(
+                V,
+                "tests/agent/test_claude_sdk_aux_routing.py::test_aux_billing_guard_rejects_extra_usage_before_result",
+                "tests/agent/test_claude_sdk_aux_routing.py::test_aux_billing_guard_rejects_reported_api_key_source",
+            ),
+        ),
+        (
+            *_nodes(P, "tests/test_billing.py::test_recognized_non_overage_evidence_is_included"),
+            *_nodes(V, "tests/agent/test_claude_sdk_aux_routing.py::test_auto_sdk_runtime_uses_one_shot_subscription_aux"),
+        ),
+    ),
+    "v2:auth-10": _controls(
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_metered_and_unknown_billing_fail_closed"),
+        _nodes(
             V,
-            "tests/hermes_cli/test_claude_sdk_cli_chat.py::test_quiet_single_query_metered_refusal_exits_nonzero",
+            "tests/tools/test_delegate_routes.py::test_defaults_and_schema_are_opaque",
+            "tests/tools/test_delegate_routes.py::test_valid_codex_route_receipt_and_precedence",
         ),
-        "recovery": _nodes(
+    ),
+    "v2:auth-11": _controls(
+        _nodes(
             V,
-            "tests/test_install_commit_pin_rollback.py::test_force_commit_still_rolls_back",
+            "tests/agent/test_claude_sdk_aux_routing.py::test_auto_sdk_sync_failure_is_fail_closed_before_every_fallback",
+            "tests/agent/test_claude_sdk_aux_routing.py::test_auto_sdk_async_failure_is_fail_closed_before_every_fallback",
         ),
-    },
-    "eff": {
-        "denial": _nodes(
+        _nodes(V, "tests/tools/test_delegate.py::TestFallbackModelInheritance::test_pinned_provider_disables_parent_fallback_chain"),
+    ),
+    "v2:parent-01": _controls(
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_unknown_billing_blocks_success_and_tool_side_effect_is_conservative"),
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_billing_retirement_does_not_restart_runtime_session"),
+    ),
+    "v2:parent-02": _controls(
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_invalid_image_fails_before_sdk_start"),
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_native_image_turn_uses_the_public_sdk_streaming_input"),
+    ),
+    "v2:parent-03": _controls(
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_runtime_rejects_a_replacement_host_binding_without_query_or_reroute"),
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_runtime_reuses_one_client_reader_and_uses_host_only_for_idle_completion"),
+    ),
+    "v2:parent-04": _controls(
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_state_v1_rejects_extra_fields_before_auth_or_sdk"),
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_successful_turn_then_cancelled_turn_reuses_current_resume_on_replacement"),
+    ),
+    "v2:parent-05": _controls(
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_native_compaction_failure_and_watchdog_are_typed_before_turn_failure"),
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_native_compaction_is_projected_through_the_host_dispatcher"),
+    ),
+    "v2:parent-06": _controls(
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_in_loop_cancellation_probe_failure_drains_projection_then_fails_closed"),
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_successful_turn_then_cancelled_turn_reuses_current_resume_on_replacement"),
+    ),
+    "v2:parent-07": _controls(
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_mid_stream_interrupt_breaks_and_discards_tail"),
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_pre_set_interrupt_event_honored_then_next_turn_runs"),
+    ),
+    "v2:parent-08": _controls(
+        _nodes(P, "tests/test_sdk_session.py::test_sdk_stream_without_a_terminal_result_fails_closed"),
+        _nodes(P, "tests/test_sdk_session.py::test_sdk_stream_without_terminal_result_retires_client_and_next_turn_recovers"),
+    ),
+    "v2:parent-09": _controls(
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_runtime_rejects_prompt_or_tool_contract_change_before_second_query"),
+        _nodes(P, "tests/test_prompt_context.py::test_append_order_and_sdk_options_are_bounded_and_public_only"),
+    ),
+    "v2:parent-10": _controls(
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_runtime_rejects_prompt_or_tool_contract_change_before_second_query"),
+        _nodes(P, "tests/test_memory_skills.py::test_schema_hash_is_stable_for_mapping_order_but_changes_for_schema_content"),
+    ),
+    "v2:tool-01": _controls(
+        _nodes(P, "tests/parity/test_inventory.py::test_inventory_fails_closed_on_tool_or_schema_drift"),
+        _nodes(P, "tests/parity/test_inventory.py::test_capture_observes_complete_surface_through_host_bridge"),
+    ),
+    "v2:tool-02": _controls(
+        _nodes(
             P,
-            "tests/test_runtime_sdk_integration.py::test_unknown_billing_blocks_success_and_tool_side_effect_is_conservative",
+            "tests/parity/test_native_sandbox.py::test_tool_schemas_are_bounded_and_unknown_tools_fail_closed",
+            "tests/parity/test_native_sandbox.py::test_sandbox_exec_never_accepts_shell_syntax",
         ),
-        "recovery": _nodes(
-            P,
-            "tests/test_runtime_sdk_integration.py::test_billing_retirement_does_not_restart_runtime_session",
+        _nodes(P, "tests/parity/test_native_sandbox.py::test_sandbox_denies_once_recovers_and_confines_files"),
+    ),
+    "v2:tool-03": _controls(
+        _nodes(P, "tests/parity/test_approval_executor.py::test_approval_followthrough_fails_closed_without_exact_sha_bindings"),
+        _nodes(P, "tests/parity/test_approval_executor.py::test_approval_followthrough_uses_exact_host_allow_deny_and_recovery"),
+    ),
+    "v2:tool-04": _controls(
+        _nodes(P, "tests/test_tool_bridge.py::test_cancellation_and_cancellation_probe_failure_do_not_call_host"),
+        _nodes(P, "tests/parity/test_approval_executor.py::test_approval_followthrough_uses_exact_host_allow_deny_and_recovery"),
+    ),
+    "v2:tool-05": _controls(
+        _nodes(P, "tests/test_tool_bridge.py::test_unknown_duplicate_and_excluded_names_fail_before_host_call"),
+        _nodes(P, "tests/test_host_delegate_integration.py::test_delegate_schema_bridge_reaches_real_host_facade_and_parent_dispatch"),
+    ),
+    "v2:tool-06": _controls(
+        _nodes(
+            V,
+            "tests/agent/test_hermes_hybrid_mcp.py::TestHybridServerBuild::test_exclude_names_drops_tools_from_both_buckets",
+            "tests/agent/test_hermes_hybrid_mcp.py::TestHybridBridgeEnabledGate::test_session_fails_closed_even_if_caller_supplies_bridge_inputs",
         ),
-    },
+        _nodes(
+            V,
+            "tests/agent/test_hermes_hybrid_mcp.py::TestHybridServerBuild::test_preserves_mcp_prefix_for_proxied_tools",
+            "tests/agent/test_hermes_hybrid_mcp.py::TestHybridServerBuild::test_deterministic_sort_order_pin",
+        ),
+    ),
+    "v2:orch-01": _controls(
+        _nodes(P, "tests/test_tool_bridge.py::test_unknown_duplicate_and_excluded_names_fail_before_host_call"),
+        _nodes(P, "tests/test_native_agent_configuration.py::test_pinned_public_sdk_serializes_agent_without_default_or_empty_tools"),
+    ),
+    "v2:orch-02": _controls(
+        _nodes(P, "tests/test_sdk_session.py::test_idle_background_after_close_is_dropped_without_duplicate_disconnect"),
+        _nodes(P, "tests/test_sdk_session.py::test_idle_result_bursts_are_ordered_deduplicated_and_do_not_expose_session_ids"),
+    ),
+    "v2:orch-03": _controls(
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_malformed_unknown_partial_and_credential_failures_are_atomic"),
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_valid_codex_route_receipt_and_precedence"),
+    ),
+    "v2:orch-04": _controls(
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_malformed_unknown_partial_and_credential_failures_are_atomic"),
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_valid_codex_route_receipt_and_precedence"),
+    ),
+    "v2:orch-05": _controls(
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_malformed_unknown_partial_and_credential_failures_are_atomic"),
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_mixed_routes_have_safe_per_task_receipts"),
+    ),
+    "v2:orch-06": _controls(
+        _nodes(V, "tests/agent/test_claude_sdk_aux_routing.py::test_auto_sdk_sync_failure_is_fail_closed_before_every_fallback"),
+        _nodes(V, "tests/agent/test_claude_sdk_aux_routing.py::test_auto_sdk_runtime_uses_one_shot_subscription_aux"),
+    ),
+    "v2:orch-07": _controls(
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_credential_resolver_keeps_trusted_empty_keys_isolated"),
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_keyless_and_trusted_auth_routes_do_not_require_a_key"),
+    ),
+    "v2:orch-08": _controls(
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_malformed_unknown_partial_and_credential_failures_are_atomic"),
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_valid_codex_route_receipt_and_precedence"),
+    ),
+    "v2:orch-09": _controls(
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_malformed_unknown_partial_and_credential_failures_are_atomic"),
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_valid_codex_route_receipt_and_precedence"),
+    ),
+    "v2:orch-10": _controls(
+        _nodes(V, "tests/tools/test_delegate.py::TestFallbackModelInheritance::test_pinned_provider_disables_parent_fallback_chain"),
+        _nodes(V, "tests/tools/test_delegate_routes.py::test_legacy_global_and_parent_inheritance_keep_route_shape_unchanged"),
+    ),
+    "v2:bg-01": _controls(
+        _nodes(V, "tests/tools/test_async_delegation.py::test_stalled_runner_is_interrupted_then_finalized"),
+        _nodes(V, "tests/tools/test_async_delegation.py::test_routed_batch_completion_preserves_safe_receipts"),
+    ),
+    "v2:bg-02": _controls(
+        _nodes(P, "tests/test_sdk_session.py::test_idle_background_after_close_is_dropped_without_duplicate_disconnect"),
+        (
+            *_nodes(P, "tests/test_sdk_session.py::test_idle_result_bursts_are_ordered_deduplicated_and_do_not_expose_session_ids"),
+            *_nodes(V, "tests/tools/test_async_delegation.py::test_real_process_restart_restores_owned_completion_once"),
+        ),
+    ),
+    "v2:bg-03": _controls(
+        (
+            *_nodes(P, "tests/test_runtime_sdk_integration.py::test_cancellation_interrupts_and_closes_once_with_one_terminal"),
+            *_nodes(V, "tests/tools/test_async_delegation.py::test_interrupt_all_preserves_interrupted_batch_status"),
+        ),
+        _nodes(V, "tests/tools/test_async_delegation.py::test_real_process_restart_restores_owned_completion_once"),
+    ),
+    "v2:bg-04": _controls(
+        (
+            *_nodes(P, "tests/test_sdk_session.py::test_sdk_stream_without_a_terminal_result_fails_closed"),
+            *_nodes(V, "tests/tools/test_async_delegation.py::test_stalled_runner_is_interrupted_then_finalized"),
+        ),
+        _nodes(H, "tests/agent/test_runtime_dispatch.py::test_dispatch_returns_classified_failure_without_authorizing_fallback"),
+    ),
+    "v2:ops-01": _controls(
+        _nodes(V, "tests/hermes_cli/test_claude_sdk_cli_chat.py::test_quiet_single_query_metered_refusal_exits_nonzero"),
+        _nodes(
+            V,
+            "tests/hermes_cli/test_claude_sdk_cli_chat.py::test_quiet_single_query_reaches_sdk_runtime_and_exits_zero",
+            "tests/hermes_cli/test_apply_profile_override.py::TestSupervisedChildIgnoresStickyProfile::test_supervised_named_profile_flag_still_wins",
+        ),
+    ),
+    "v2:ops-02": _controls(
+        _nodes(V, "tests/hermes_cli/test_claude_sdk_cli_chat.py::test_human_single_query_failed_turn_exits_nonzero"),
+        _nodes(V, "tests/hermes_cli/test_claude_sdk_cli_chat.py::test_quiet_single_query_reaches_sdk_runtime_and_exits_zero"),
+    ),
+    "v2:ops-03": _controls(
+        _nodes(H, "tests/agent/test_runtime_dispatch.py::test_host_rejects_state_and_usage_for_a_different_runtime"),
+        _nodes(H, "tests/agent/test_runtime_dispatch.py::test_runtime_and_host_binding_are_reused_until_session_close"),
+    ),
+    "v2:ops-04": _controls(
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_state_v1_rejects_extra_fields_before_auth_or_sdk"),
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_successful_turn_then_cancelled_turn_reuses_current_resume_on_replacement"),
+    ),
+    "v2:ops-05": _controls(
+        _nodes(H, "tests/agent/test_runtime_dispatch.py::test_host_rejects_state_and_usage_for_a_different_runtime"),
+        _nodes(H, "tests/agent/test_runtime_dispatch.py::test_host_persists_runtime_state_and_idempotent_usage_for_selected_runtime"),
+    ),
+    "v2:ops-06": _controls(
+        _nodes(V, "tests/hermes_cli/test_profiles.py::TestValidateProfileName::test_invalid_names_rejected"),
+        _nodes(V, "tests/hermes_cli/test_profiles.py::TestGetProfileDir::test_default_returns_hermes_home"),
+    ),
+    "v2:ops-07": _controls(
+        _nodes(V, "tests/hermes_cli/test_profiles.py::TestValidateProfileName::test_invalid_names_rejected"),
+        _nodes(V, "tests/hermes_cli/test_profiles.py::TestProfileIsolation::test_separate_config_paths"),
+    ),
+    "v2:ops-08": _controls(
+        _nodes(V, "tests/test_install_commit_pin_rollback.py::test_stale_pin_does_not_rewind_a_newer_checkout"),
+        _nodes(V, "tests/test_install_commit_pin_rollback.py::test_force_commit_still_rolls_back"),
+    ),
+    "v2:ops-09": _controls(
+        _nodes(V, "tests/test_install_commit_pin_rollback.py::test_stale_pin_does_not_rewind_a_newer_checkout"),
+        _nodes(V, "tests/test_install_commit_pin_rollback.py::test_force_commit_still_rolls_back"),
+    ),
+    "v2:eff-01": _controls(
+        _nodes(P, "tests/test_tool_bridge.py::test_unknown_duplicate_and_excluded_names_fail_before_host_call"),
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_text_projection_usage_state_terminal_and_public_options"),
+    ),
+    "v2:eff-02": _controls(
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_runtime_rejects_prompt_or_tool_contract_change_before_second_query"),
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_runtime_reuses_one_client_reader_and_uses_host_only_for_idle_completion"),
+    ),
+    "v2:eff-03": _controls(
+        _nodes(P, "tests/test_runtime_sdk_integration.py::test_unknown_billing_blocks_success_and_tool_side_effect_is_conservative"),
+        _nodes(P, "tests/test_billing.py::test_extract_system_and_rate_limit_evidence_is_bounded_and_serializable"),
+    ),
 }
 
 
@@ -198,8 +419,7 @@ def _nodes_for_path(capability_id: str, path: str) -> tuple[EvidenceNode, ...]:
     base = _V2_NODES[capability_id]
     if path == "positive":
         return base
-    family = capability_id.split(":", 1)[1].split("-", 1)[0]
-    controls = _V2_PATH_CONTROLS[family][path]
+    controls = _V2_PATH_CONTROLS[capability_id][path]
     return tuple(dict.fromkeys((*base, *controls)))
 
 

@@ -51,6 +51,27 @@ def test_every_boundary_catalog_row_has_an_exact_executor_mapping(catalog) -> No
     assert len(expected) == 23
 
 
+def test_missing_terminal_recovery_uses_the_same_failure_lifecycle() -> None:
+    recovery = focused_suite._BOUNDARY_PATH_CONTROLS[
+        "boundary:missing-terminal-result-fails-closed"
+    ]["recovery"]
+
+    assert recovery == (
+        "tests/test_sdk_session.py::test_sdk_stream_without_terminal_result_retires_client_and_next_turn_recovers",
+    )
+
+
+def test_structured_question_dedup_uses_its_explicit_fail_closed_adaptation() -> None:
+    controls = focused_suite._BOUNDARY_PATH_CONTROLS[
+        "boundary:structured-question-answer-mapping-dedup"
+    ]
+    expected = (
+        "tests/parity/test_boundary_adaptations.py::test_unavailable_structured_question_mapping_rejects_duplicate_callbacks_before_host_and_recovers",
+    )
+
+    assert controls == {"denial": expected, "recovery": expected}
+
+
 def test_focused_suite_executes_and_proves_each_path_independently(
     catalog,
     monkeypatch,

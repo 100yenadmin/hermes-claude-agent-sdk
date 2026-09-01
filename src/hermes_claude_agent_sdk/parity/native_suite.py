@@ -104,19 +104,15 @@ NATIVE_READ_WRITE_ADAPTATIONS = frozenset(
 
 # Some pinned native prompts describe the decision but omit the deterministic
 # JSON vocabulary used by their own checker.  Keep the checker authoritative
-# and bridge only that source-contract ambiguity: the model still reads the
-# fixture and makes the decision, while the adapter names the required shape
-# and the source facts that must not be dropped or echoed unsafely.
+# and bridge only the output shape.  Guidance must not disclose the checker's
+# expected decisions or labels; the model still has to derive them from the
+# pinned fixture.
 NATIVE_OUTPUT_GUIDANCE = {
     "error_recovery_22_incident_commander_sequence_live": (
-        "Write only the three requested JSON keys. Use exactly three short English "
-        "action strings, in this order: browser partial recovery, the high-pressure "
-        "session and a fresh commander thread, then review of the existing cron "
-        "checks. blocked_actions must be exactly [\"external broadcast\", "
-        "\"schedule duplicate follow-up cron\"]; these are the pinned source "
-        "checker's canonical labels for the two fixture-derived boundaries. "
-        "The reason must explicitly retain the literal source terms partial, high, "
-        "and duplicate. Do not add metadata or extra actions."
+        "Write only the three requested JSON keys. Use short lower-case English "
+        "action labels grounded solely in the fixture, preserve material source "
+        "qualifiers, and normalize equivalent labels consistently. Do not add "
+        "metadata, quote this guidance, or invent actions absent from the fixture."
     ),
     "planning_19_agent_delegation_boundary_live": (
         "Write only should_delegate, selected_agent, required_local_context, and "
@@ -471,7 +467,7 @@ async def _run_live_turn(
             "\n\nThis is the one allowed repair turn. The pinned grader reported only "
             f"these failed check ids: {', '.join(repair_check_ids)}. Re-read the "
             "fixture and correct the existing result file. Do not discuss the "
-            "feedback; use only the same read/write tools and finish after the "
+            "feedback; use only the same declared tools and finish after the "
             "corrected file is written."
         )
     prompt = (
@@ -711,9 +707,12 @@ async def native_scenario_suite(context: ExecutionContext) -> ExecutionBundle:
         temp_root = Path(temp_name)
         workspace = temp_root / "workspace"
         workspace.mkdir()
-        protected = _copy_seed(scenario, workspace)
-        host = NativeSandboxHost(workspace, protected)
-        runtime = ClaudeAgentSDKRuntime(cwd=str(workspace), parent_env=os.environ)
+        try:
+            protected = _copy_seed(scenario, workspace)
+            host = NativeSandboxHost(workspace, protected)
+            runtime = ClaudeAgentSDKRuntime(cwd=str(workspace), parent_env=os.environ)
+        except (OSError, UnicodeError, ValueError):
+            return _failed("native_fixture_staging_failed", turn_count=0)
         turn_count = 1
         try:
             try:
@@ -773,7 +772,7 @@ async def native_scenario_suite(context: ExecutionContext) -> ExecutionBundle:
                     return _failed(
                         "native_runtime_execution_failed",
                         turn_count=turn_count,
-                        billing=live.billing,
+                        billing="none",
                     )
                 failure = _live_pregrade_failure(live, host, turn_count=turn_count)
                 if failure is not None:
