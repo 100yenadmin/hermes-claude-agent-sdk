@@ -5,6 +5,8 @@ import asyncio
 from hermes_claude_agent_sdk.parity import active_suite as active_suite_module
 from hermes_claude_agent_sdk.parity.active_suite import (
     ACTIVE_SOURCE_IDS,
+    LiveTurn,
+    _source_docs_contract,
     active_execution_ids,
 )
 from hermes_claude_agent_sdk.parity.executors import EXECUTORS
@@ -87,3 +89,37 @@ def test_live_case_timeout_is_environment_blocked_and_cancels(
     assert result.billing == "none"
     assert result.turn_count == 0
     assert cleaned is True
+
+
+def test_source_docs_contract_uses_host_receipts_when_projection_is_deduplicated(
+    tmp_path,
+) -> None:
+    def turn(text: str, tool_names: tuple[str, ...]) -> LiveTurn:
+        return LiveTurn(
+            terminal="completed",
+            failure_code=None,
+            billing="subscription_included",
+            final_text=text,
+            final_hash=sha256_value(text),
+            state=None,
+            state_hash="a" * 64,
+            tool_names=tool_names,
+            compaction_phases=(),
+            background_hashes=(),
+            event_hash="b" * 64,
+            silent_fallback=False,
+        )
+
+    host = NativeSandboxHost(tmp_path, (), deny_first=False)
+    host.denial_observed = True
+    host.recovery_observed = True
+    host.successful_calls = 2
+    source = turn("SOURCE_OK SOURCE_STAGE_PASS", ())
+    docs = turn("SOURCE_OK DOCS_OK SOURCE_DOCS_PASS", ("read",))
+
+    ok, reason, extra = _source_docs_contract(source, docs, host)
+
+    assert ok is True
+    assert reason == "active_behavior_or_trace_failed"
+    assert extra["projected_read_count"] == 1
+    assert extra["host_successful_calls"] == 2

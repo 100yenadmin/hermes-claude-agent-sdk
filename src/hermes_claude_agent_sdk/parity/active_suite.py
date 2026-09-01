@@ -426,6 +426,54 @@ def _live_ok(turn: LiveTurn, *, markers: Sequence[str] = ()) -> bool:
     )
 
 
+def _source_docs_contract(
+    source_turn: LiveTurn,
+    docs_turn: LiveTurn,
+    host: NativeSandboxHost,
+) -> tuple[bool, str, dict[str, Any]]:
+    source_stage_ok = _live_ok(
+        source_turn,
+        markers=("SOURCE_OK", "SOURCE_STAGE_PASS"),
+    )
+    docs_stage_ok = _live_ok(
+        docs_turn,
+        markers=("SOURCE_OK", "DOCS_OK", "SOURCE_DOCS_PASS"),
+    )
+    projected_read_count = sum(
+        name == "read"
+        for name in (*source_turn.tool_names, *docs_turn.tool_names)
+    )
+    failure_reason = "active_behavior_or_trace_failed"
+    if not source_stage_ok:
+        failure_reason = "active_source_stage_failed"
+    elif not docs_stage_ok:
+        failure_reason = "active_docs_or_session_recall_failed"
+    elif projected_read_count < 1 or host.successful_calls < 2:
+        failure_reason = "active_source_docs_tool_trace_incomplete"
+    elif not host.denial_observed:
+        failure_reason = "active_source_docs_denial_missing"
+    elif not host.recovery_observed:
+        failure_reason = "active_source_docs_recovery_missing"
+    ok = (
+        source_stage_ok
+        and docs_stage_ok
+        and projected_read_count >= 1
+        and host.successful_calls >= 2
+        and host.denial_observed
+        and host.recovery_observed
+    )
+    extra = {
+        "denial": host.denial_observed,
+        "recovery": host.recovery_observed,
+        "host_successful_calls": host.successful_calls,
+        "projected_read_count": projected_read_count,
+        "source_stage_ok": source_stage_ok,
+        "docs_stage_ok": docs_stage_ok,
+        "source_state_stable": source_turn.state_hash == docs_turn.state_hash,
+    }
+    return ok, failure_reason, extra
+
+
 def _case_receipt(source_id: str, turns: Sequence[LiveTurn], extra: Mapping[str, Any]) -> str:
     return sha256_value(
         {
@@ -498,43 +546,11 @@ async def _run_live_case(
             finally:
                 await runtime.close()
             turns.extend((source_turn, docs_turn))
-            source_stage_ok = _live_ok(
+            ok, failure_reason, extra = _source_docs_contract(
                 source_turn,
-                markers=("SOURCE_OK", "SOURCE_STAGE_PASS"),
-            )
-            docs_stage_ok = _live_ok(
                 docs_turn,
-                markers=("SOURCE_OK", "DOCS_OK", "SOURCE_DOCS_PASS"),
+                host,
             )
-            read_call_count = sum(
-                name == "read"
-                for name in (*source_turn.tool_names, *docs_turn.tool_names)
-            )
-            if not source_stage_ok:
-                failure_reason = "active_source_stage_failed"
-            elif not docs_stage_ok:
-                failure_reason = "active_docs_or_session_recall_failed"
-            elif read_call_count < 2:
-                failure_reason = "active_source_docs_tool_trace_incomplete"
-            elif not host.denial_observed:
-                failure_reason = "active_source_docs_denial_missing"
-            elif not host.recovery_observed:
-                failure_reason = "active_source_docs_recovery_missing"
-            ok = (
-                source_stage_ok
-                and docs_stage_ok
-                and read_call_count >= 2
-                and host.denial_observed
-                and host.recovery_observed
-            )
-            extra = {
-                "denial": host.denial_observed,
-                "recovery": host.recovery_observed,
-                "read_call_count": read_call_count,
-                "source_stage_ok": source_stage_ok,
-                "docs_stage_ok": docs_stage_ok,
-                "source_state_stable": source_turn.state_hash == docs_turn.state_hash,
-            }
 
         elif source_id == "image-understanding-attachment":
             schemas: tuple[dict[str, Any], ...] = ()
