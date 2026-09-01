@@ -15,8 +15,7 @@ TERMINAL = frozenset(("complete", "cancelled", "failed", "not_applicable"))
 REDACTION_CATEGORIES = frozenset(("auth", "credential", "secret", "prompt", "transcript", "session", "resume_state", "provider_payload", "fixture_content", "customer_identifier", "customer_data", "environment", "exception", "filesystem_path", "path", "tool_args", "tool_results", "headers", "cookies"))
 FORBIDDEN = frozenset(("raw", "content", "prompt", "transcript", "session_token", "resume_state", "auth", "credential", "secret", "provider_payload", "fixture_content", "exception", "environment", "filesystem_path", "path", "customer", "customer_identifier", "customer_data", "tool_args", "tool_results", "arguments", "headers", "cookies", "fixture_bytes"))
 GRADE_KEYS = frozenset(("status", "cell_qualifications", "required_cell_count", "observed_cell_count", "required_pass_count", "observed_pass_count", "expected_negative_count", "verified_failure_count", "environment_blocked_count", "pending_count", "pass_caret_3", "pass_at_3", "candidate_consistent", "terminal_events_exact", "inventory_exact", "billing_safe", "resume_safe", "isolation_safe", "sdk_ledger", "result_bijection"))
-def _fail(message: str) -> None:
-    raise PacketValidationError(message)
+def _fail(message: str) -> None: raise PacketValidationError(message)
 
 def _safe(value: Any) -> None:
     if isinstance(value, Mapping):
@@ -25,22 +24,19 @@ def _safe(value: Any) -> None:
 
 def _obj(value: Any, keys: set[str] | frozenset[str], label: str) -> dict[str, Any]:
     if not isinstance(value, Mapping) or set(value) != set(keys): _fail(f"{label} must have exactly {sorted(keys)}")
-    _safe(value)
-    return dict(value)
+    _safe(value); return dict(value)
 
 def _map(value: Any, label: str) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else _fail(f"{label} must be an object")
 
 def _enum(value: Any, allowed: Sequence[str] | set[str] | frozenset[str], label: str) -> str:
-    if not isinstance(value, str) or value not in allowed: _fail(f"{label} is outside its closed enum")
-    return value
+    return value if isinstance(value, str) and value in allowed else _fail(f"{label} is outside its closed enum")
 
 def _bool(value: Any, label: str) -> bool:
     return value if isinstance(value, bool) else _fail(f"{label} must be boolean")
 
 def _int(value: Any, label: str, low: int = 0, high: int = 4096) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high: _fail(f"{label} is outside its integer bound")
-    return value
+    return value if not isinstance(value, bool) and isinstance(value, int) and low <= value <= high else _fail(f"{label} is outside its integer bound")
 
 def _sha(value: Any, label: str, nullable: bool = False) -> str | None:
     if nullable and value is None: return None
@@ -119,8 +115,7 @@ def validate_redaction(value: Any) -> dict[str, Any]:
 
 def _trace_codes(value: Any, label: str) -> list[str]:
     codes = _arr(value, label, 256)
-    if any(not isinstance(code, str) or code not in TRACE_REGISTRY for code in codes): _fail(f"{label} contains an unknown trace code")
-    return codes
+    return codes if not any(not isinstance(code, str) or code not in TRACE_REGISTRY for code in codes) else _fail(f"{label} contains an unknown trace code")
 
 def validate_path_status(value: Any, expected: str, label: str = "path_status") -> dict[str, Any]:
     result = _obj(value, {"status", "observed_trace_codes", "terminal", "qualification"}, label)
@@ -133,14 +128,12 @@ def validate_path_status(value: Any, expected: str, label: str = "path_status") 
     if status in {"ENVIRONMENT_BLOCKED", "PENDING", "NOT_APPLICABLE"} and traces: _fail(f"{label} non-executed status has a trace")
     if status in {"PASS", "EXPECTED_NEGATIVE", "VERIFIED_FAILURE"} and terminals != [f"terminal.{terminal['kind']}"]: _fail(f"{label} must contain its one terminal trace")
     qualification = derive_path_qualification(expected, status)
-    if result["qualification"] != qualification: _fail(f"{label}.qualification is not derived")
-    return result
+    return result if result["qualification"] == qualification else _fail(f"{label}.qualification is not derived")
 
 def _state(value: Any, label: str) -> dict[str, Any]:
     result = _obj(value, {"lifecycle", "approval", "tool", "resume", "billing", "side_effect_count", "boundary_sha256"}, label)
     for key, allowed in (("lifecycle", ("fresh", "bound", "running", "completed", "failed", "cancelled", "closed")), ("approval", ("not_required", "pending", "granted", "denied", "late_rejected")), ("tool", ("none", "requested", "executed", "denied", "cancelled", "failed", "recovered")), ("resume", ("absent", "supplied", "accepted", "rejected")), ("billing", ("included", "blocked", "unknown", "not_applicable"))): _enum(result[key], allowed, f"{label}.{key}")
-    _int(result["side_effect_count"], f"{label}.side_effect_count")
-    _sha(result["boundary_sha256"], f"{label}.boundary_sha256", True)
+    _int(result["side_effect_count"], f"{label}.side_effect_count"); _sha(result["boundary_sha256"], f"{label}.boundary_sha256", True)
     return result
 
 def _path(value: Any, label: str) -> dict[str, Any]:
@@ -174,6 +167,11 @@ def _path(value: Any, label: str) -> dict[str, Any]:
     if result["required"] and expected == "PASS" and terminal != {"kind": "complete", "count": 1}: _fail(f"{label} positive declaration is not complete")
     if result["required"] and expected == "EXPECTED_NEGATIVE" and terminal["kind"] not in {"failed", "cancelled"}: _fail(f"{label} denial declaration is not failed/cancelled")
     return result
+
+def _path_matches(actual: Mapping[str, Any], expected: Mapping[str, Any]) -> bool:
+    fixed = len(actual["tool_calls"]) == len(expected["tool_calls"]) and all(actual[key] == expected[key] for key in actual if key != "tool_calls")
+    calls = zip(actual["tool_calls"], expected["tool_calls"])
+    return fixed and all(all(actual_call[key] == expected_call[key] for key in actual_call if key != "request_id") and ((actual_call["request_id"] == expected_call["request_id"] and not (expected_call["request_id"]["mode"] == "required" and expected_call["request_id"]["sha256"] is None)) or (expected_call["request_id"]["mode"] == "required" and expected_call["request_id"]["sha256"] is None and actual_call["request_id"]["mode"] == "required" and actual_call["request_id"]["sha256"] is not None)) for actual_call, expected_call in calls)
 
 def _candidate(value: Any) -> dict[str, Any]:
     keys = {"candidate_schema_version", "plugin_sha", "host_sha", "wheel_sha256", "sdk_distribution", "sdk_version", "profile_sha256", "runner_id", "runner_version", "candidate_sha256"}
@@ -232,7 +230,7 @@ def _inventory(value: Any) -> dict[str, Any]:
     if len(names) != len(set(names)): _fail("inventory names overlap")
     for key in ("unknown_names", "missing_names", "schema_drift_names"):
         values = _arr(result[key], f"inventory.{key}"); [_id(item, f"inventory.{key}") for item in values]; _sorted(values, f"inventory.{key}")
-    if result["observed_inventory_sha256"] != hash_projection("observed_inventory_sha256", result): _fail("observed inventory hash does not match")
+    if result["declared_inventory_sha256"] != hash_projection("declared_inventory_sha256", result) or result["observed_inventory_sha256"] != hash_projection("observed_inventory_sha256", result): _fail("inventory hash does not match")
     return result
 
 def _source_rows(value: Any, label: str) -> list[dict[str, str]]:
@@ -253,7 +251,7 @@ def _attempt(value: Any, expected_paths: Mapping[str, Any] | None, label: str, e
     if expected_trace is not None and codes != list(expected_trace) and all(isinstance(statuses[name], Mapping) and statuses[name].get("status") in {"PASS", "EXPECTED_NEGATIVE", "NOT_APPLICABLE"} for name in PATHS): _fail(f"{label}.trace differs from catalog")
     for name in PATHS:
         actual = _path(paths[name], f"{label}.paths.{name}"); expected = _path(expected_paths[name], f"{label}.expected.{name}") if expected_paths else actual
-        if expected_paths and actual != expected: _fail(f"{label}.paths.{name} differs from catalog")
+        if expected_paths and not _path_matches(actual, expected): _fail(f"{label}.paths.{name} differs from catalog")
         status = validate_path_status(statuses[name], expected["expected_outcome"], f"{label}.path_status.{name}")
         if status["status"] == "NOT_APPLICABLE" and expected["required"]: _fail(f"{label}.required path is NOT_APPLICABLE")
         if not expected["required"] and status["status"] != "NOT_APPLICABLE": _fail(f"{label}.non-required path executed")
@@ -334,13 +332,14 @@ def validate_result(value: Any, *, freeze: Mapping[str, Any] | None = None, cata
     for key in ("freeze_sha256", "contract_sha256", "catalog_sha256", "source_map_sha256", "fixture_manifest_sha256"): _sha(result[key], f"result.{key}")
     if not isinstance(catalog, Mapping): _fail("catalog is required to bind SDK ledger and cells")
     _safe(catalog)
-    candidate, inventory = _candidate(result["candidate"]), _inventory(result["inventory"])
+    candidate, inventory = _candidate(result["candidate"]), _inventory(result["inventory"]); _fail("candidate/inventory binding is invalid") if inventory["candidate_sha256"] != candidate["candidate_sha256"] else None
     run = _obj(result["run"], {"run_id_sha256", "scenario_sha256", "mode", "scope_partition_id", "session_scope", "candidate_unchanged", "cell_count", "required_cell_count", "terminal_event_count", "resume_boundary"}, "result.run")
     _sha(run["run_id_sha256"], "run_id_sha256"); _sha(run["scenario_sha256"], "scenario_sha256"); _enum(run["mode"], {"deterministic", "integration", "live"}, "run.mode"); _pref(run["scope_partition_id"], "PART-", "run.scope_partition_id"); _enum(run["session_scope"], SCOPES, "run.session_scope"); _bool(run["candidate_unchanged"], "run.candidate_unchanged")
     if not run["candidate_unchanged"]: _fail("run candidate_unchanged must be true")
     _int(run["cell_count"], "run.cell_count"); _int(run["required_cell_count"], "run.required_cell_count"); _int(run["terminal_event_count"], "run.terminal_event_count")
     if run["resume_boundary"] is not None: _resume_boundary(run["resume_boundary"])
-    cells = _arr(result["cells"], "result.cells"); ids: list[str] = []; statuses: list[str] = []; records: list[tuple[Mapping[str, Any], list[Mapping[str, Any]]]] = []; boundaries: set[str] = set(); billing_safe = True; isolation_safe = True; resume_safe = True; catalog_caps = {cap["id"]: cap for cap in catalog.get("capabilities", [])}
+    cells = _arr(result["cells"], "result.cells"); ids: list[str] = []; statuses: list[str] = []; records: list[tuple[Mapping[str, Any], list[Mapping[str, Any]]]] = []; boundaries: set[str] = set(); billing_safe = True; isolation_safe = True; resume_safe = True; catalog_caps = {cap["id"]: cap for cap in catalog.get("capabilities", [])}; catalog_parts = {part.get("id"): part for part in catalog.get("scope_partitions", []) if isinstance(part, Mapping)}; partition = catalog_parts.get(run["scope_partition_id"])
+    if not isinstance(partition, Mapping): _fail("result scope partition is not catalog-bound")
     for index, cell in enumerate(cells, 1):
         item = _obj(cell, {"capability_id", "scenario_id", "source_rows", "session_scope", "attempts", "required"}, f"cell[{index}]"); cap_id = _id(item["capability_id"], "capability_id")
         if cap_id in ids: _fail("result capability IDs are duplicated")
@@ -364,7 +363,9 @@ def validate_result(value: Any, *, freeze: Mapping[str, Any] | None = None, cata
             statuses.extend(validated["path_status"][name]["status"] for name in PATHS); validated_attempts.append(validated)
         records.append((item, validated_attempts))
     terminal_total = sum(1 for status in statuses if status in {"PASS", "EXPECTED_NEGATIVE", "VERIFIED_FAILURE"})
-    if set(ids) != set(catalog_caps): _fail("result cells are not a catalog bijection")
+    expected_rows = sorted((row for cap_id in partition["capability_ids"] for row in catalog_caps[cap_id]["source_rows"]), key=lambda row: (row["pack_id"], row["row_id"]))
+    actual_rows = sorted((row for cell in cells for row in cell["source_rows"]), key=lambda row: (row["pack_id"], row["row_id"]))
+    if set(ids) != set(partition["capability_ids"]) or run["session_scope"] != partition["session_scope"] or actual_rows != expected_rows: _fail("result cells are not the catalog partition bijection")
     terminal_exact = run["terminal_event_count"] == terminal_total and run["cell_count"] == len(cells) and run["required_cell_count"] == sum(1 for cell in cells if cell["required"])
     if not terminal_exact: _fail("run derived counts are invalid")
     if freeze is None: _fail("freeze is required to bind result")
@@ -378,7 +379,7 @@ def validate_result(value: Any, *, freeze: Mapping[str, Any] | None = None, cata
 
 def _aggregate_projection(value: Mapping[str, Any], full: bool = False) -> Any:
     if full:
-        return {"source_row_set_sha256": value["source_row_set_sha256"], "partitions": sorted(({"partition_id": packet["partition_id"], "freeze_sha256": packet["freeze_packet"]["freeze_sha256"], "result_sha256": packet["result_packet"]["result_sha256"], "capability_ids": sorted(cell["capability_id"] for cell in packet["result_packet"]["cells"]), "source_rows": sorted((row for cell in packet["result_packet"]["cells"] for row in cell["source_rows"]), key=lambda row: (row["pack_id"], row["row_id"]))} for packet in value["partition_packets"]), key=lambda item: item["partition_id"])}
+        return {"source_row_set_sha256": value["source_row_set_sha256"], "partitions": sorted(({"partition_id": packet["partition_id"], "freeze_sha256": packet["freeze_packet"]["freeze_sha256"], "result_sha256": packet["result_packet"]["result_sha256"], "capability_ids": sorted(cell["capability_id"] for cell in packet["result_packet"]["cells"])} for packet in value["partition_packets"]), key=lambda item: item["partition_id"])}
     return _omit(value, "full_result_sha256", "aggregate_sha256")
 
 def validate_aggregate(value: Any, *, catalog: Mapping[str, Any] | None = None) -> dict[str, Any]:

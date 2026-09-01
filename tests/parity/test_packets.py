@@ -136,7 +136,17 @@ def _grade(status: str = "FAIL", *, verified_failure_count: int = 0, blocked: in
 def _catalog() -> dict[str, Any]:
     paths = {name: _path(expected) for name, expected in zip(("positive", "denial", "recovery"), ("PASS", "EXPECTED_NEGATIVE", "PASS"))}
     cap = {"id": "CAP-one", "scenario_id": "SCN-one", "source_rows": [{"pack_id": "v2_non_soak", "row_id": "row1"}], "required": True, "positive_path": paths["positive"], "denial_path": paths["denial"], "recovery_path": paths["recovery"]}
-    return {"catalog_sha256": D, "capabilities": [cap], "source_packs": [{"id": "sdk_boundary", "row_ids": [f"row{n}" for n in range(1, 24)]}], "sdk_ledger": _ledger()}
+    return {"catalog_sha256": D, "capabilities": [cap], "scope_partitions": [{"id": "PART-one", "session_scope": "isolated_cell", "capability_ids": ["CAP-one"], "capability_set_sha256": canonical_sha256(["CAP-one"])}], "source_packs": [{"id": "sdk_boundary", "row_ids": [f"row{n}" for n in range(1, 24)]}], "sdk_ledger": _ledger()}
+
+
+def _two_partition_catalog() -> dict[str, Any]:
+    catalog = _catalog()
+    second = deepcopy(catalog["capabilities"][0])
+    second.update({"id": "CAP-two", "scenario_id": "SCN-two", "source_rows": [{"pack_id": "v2_non_soak", "row_id": "row2"}]})
+    catalog["capabilities"].append(second)
+    catalog["capabilities"].sort(key=lambda item: item["id"])
+    catalog["scope_partitions"] = [{"id": "PART-one", "session_scope": "isolated_cell", "capability_ids": ["CAP-one"], "capability_set_sha256": canonical_sha256(["CAP-one"])}, {"id": "PART-two", "session_scope": "isolated_cell", "capability_ids": ["CAP-two"], "capability_set_sha256": canonical_sha256(["CAP-two"])}]
+    return catalog
 
 
 def _result(*, statuses: tuple[str, str, str] = ("PASS", "EXPECTED_NEGATIVE", "PASS"), grade: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -289,9 +299,51 @@ def test_aggregate_embeds_and_recomputes_packets() -> None:
         validate_aggregate(tampered, catalog=_catalog())
 
 
+def test_aggregate_binds_disjoint_catalog_partitions_and_exact_full_projection() -> None:
+    catalog = _two_partition_catalog()
+    freeze_one, result_one = _partition_result("PART-one", "CAP-one", "SCN-one", "row1", D)
+    freeze_two, result_two = _partition_result("PART-two", "CAP-two", "SCN-two", "row2", "c" * 64)
+    aggregate = {"aggregate_schema_version": 1, "catalog_sha256": D, "source_map_sha256": D, "contract_sha256": D, "candidate_sha256": _candidate()["candidate_sha256"], "declared_inventory_sha256": freeze_one["declared_inventory_sha256"], "sdk_ledger_sha256": _ledger()["ledger_sha256"], "partition_packets": [{"partition_id": "PART-one", "freeze_packet": freeze_one, "result_packet": result_one}, {"partition_id": "PART-two", "freeze_packet": freeze_two, "result_packet": result_two}], "source_row_set_sha256": canonical_sha256([{"pack_id": "v2_non_soak", "row_id": "row1"}, {"pack_id": "v2_non_soak", "row_id": "row2"}])}
+    aggregate["full_result_sha256"] = hash_projection("full_result_sha256", aggregate)
+    aggregate["aggregate_sha256"] = hash_projection("aggregate_sha256", aggregate)
+    expected_full = {"source_row_set_sha256": aggregate["source_row_set_sha256"], "partitions": [{"partition_id": "PART-one", "freeze_sha256": freeze_one["freeze_sha256"], "result_sha256": result_one["result_sha256"], "capability_ids": ["CAP-one"]}, {"partition_id": "PART-two", "freeze_sha256": freeze_two["freeze_sha256"], "result_sha256": result_two["result_sha256"], "capability_ids": ["CAP-two"]}]}
+    assert aggregate["full_result_sha256"] == canonical_sha256(expected_full)
+    assert validate_aggregate(aggregate, catalog=catalog)["aggregate_sha256"] == aggregate["aggregate_sha256"]
+    for bad_packets in (aggregate["partition_packets"][:1], aggregate["partition_packets"] + [aggregate["partition_packets"][0]]):
+        bad = deepcopy(aggregate); bad["partition_packets"] = bad_packets
+        with pytest.raises(PacketValidationError):
+            validate_aggregate(bad, catalog=catalog)
+    bad = deepcopy(aggregate); bad["partition_packets"][0]["partition_id"] = "PART-invented"
+    with pytest.raises(PacketValidationError):
+        validate_aggregate(bad, catalog=catalog)
+    bad = deepcopy(aggregate); bad["partition_packets"][1]["result_packet"]["cells"][0]["capability_id"] = "CAP-one"
+    with pytest.raises(PacketValidationError):
+        validate_aggregate(bad, catalog=catalog)
+    whole = deepcopy(aggregate); whole["partition_packets"][0]["result_packet"]["cells"].append(deepcopy(whole["partition_packets"][1]["result_packet"]["cells"][0]))
+    with pytest.raises(PacketValidationError):
+        validate_aggregate(whole, catalog=catalog)
+    old = deepcopy(aggregate); old["full_result_sha256"] = canonical_sha256({"source_row_set_sha256": aggregate["source_row_set_sha256"], "partitions": [{"partition_id": packet["partition_id"], "freeze_sha256": packet["freeze_packet"]["freeze_sha256"], "result_sha256": packet["result_packet"]["result_sha256"], "capability_ids": sorted(cell["capability_id"] for cell in packet["result_packet"]["cells"]), "source_rows": sorted((row for cell in packet["result_packet"]["cells"] for row in cell["source_rows"]), key=lambda row: (row["pack_id"], row["row_id"]))} for packet in aggregate["partition_packets"]]})
+    with pytest.raises(PacketValidationError):
+        validate_aggregate(old, catalog=catalog)
+
+
 def _bound_result(*, statuses: tuple[str, str, str] = ("PASS", "EXPECTED_NEGATIVE", "PASS"), grade: dict[str, Any] | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
     freeze = _freeze()
     result = _result(statuses=statuses, grade=grade)
+    result["freeze_sha256"] = freeze["freeze_sha256"]
+    result["result_sha256"] = canonical_sha256({key: value for key, value in result.items() if key != "result_sha256"})
+    return freeze, result
+
+
+def _partition_result(partition_id: str, capability_id: str, scenario_id: str, row_id: str, boundary: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    freeze, result = _bound_result()
+    result["run"]["scope_partition_id"] = partition_id
+    result["cells"][0].update({"capability_id": capability_id, "scenario_id": scenario_id, "source_rows": [{"pack_id": "v2_non_soak", "row_id": row_id}]})
+    result["cells"][0]["attempts"][0]["boundary_sha256"] = boundary
+    for key in ("cell_qualifications", "pass_caret_3", "pass_at_3"):
+        result["grade"][key] = {capability_id: result["grade"][key]["CAP-one"]}
+    freeze.update({"scope_partition_id": partition_id, "capability_set_sha256": canonical_sha256([capability_id])})
+    freeze["freeze_sha256"] = canonical_sha256({key: value for key, value in freeze.items() if key != "freeze_sha256"})
     result["freeze_sha256"] = freeze["freeze_sha256"]
     result["result_sha256"] = canonical_sha256({key: value for key, value in result.items() if key != "result_sha256"})
     return freeze, result
@@ -314,6 +366,40 @@ def test_executed_path_trace_must_be_contiguous_slice() -> None:
     result["result_sha256"] = canonical_sha256({key: value for key, value in result.items() if key != "result_sha256"})
     with pytest.raises(PacketValidationError, match="contiguous"):
         validate_result(result, freeze=freeze, catalog=_catalog())
+
+
+def test_required_request_id_catalog_null_accepts_only_result_digest() -> None:
+    catalog = _catalog()
+    expected = catalog["capabilities"][0]["positive_path"]
+    expected["tool_calls"] = [{"ordinal": 1, "name": "tool", "schema_sha256": D, "outcome": "requested", "request_id": {"mode": "required", "sha256": None}}]
+    freeze, result = _bound_result()
+    result["cells"][0]["attempts"][0]["paths"]["positive"] = deepcopy(expected)
+    result["cells"][0]["attempts"][0]["paths"]["positive"]["tool_calls"][0]["request_id"]["sha256"] = D
+    result["result_sha256"] = canonical_sha256({key: value for key, value in result.items() if key != "result_sha256"})
+    assert validate_result(result, freeze=freeze, catalog=catalog)["result_sha256"] == result["result_sha256"]
+    result["cells"][0]["attempts"][0]["paths"]["positive"]["tool_calls"][0]["request_id"]["sha256"] = None
+    result["result_sha256"] = canonical_sha256({key: value for key, value in result.items() if key != "result_sha256"})
+    with pytest.raises(PacketValidationError, match="differs from catalog"):
+        validate_result(result, freeze=freeze, catalog=catalog)
+    result["cells"][0]["attempts"][0]["paths"]["positive"]["tool_calls"][0]["request_id"]["sha256"] = D
+    result["cells"][0]["attempts"][0]["paths"]["positive"]["tool_calls"][0]["name"] = "other"
+    result["result_sha256"] = canonical_sha256({key: value for key, value in result.items() if key != "result_sha256"})
+    with pytest.raises(PacketValidationError, match="differs from catalog"):
+        validate_result(result, freeze=freeze, catalog=catalog)
+
+
+def test_result_rejects_candidate_inventory_and_catalog_identity_drift() -> None:
+    freeze, result = _bound_result()
+    result["inventory"]["candidate_sha256"] = D
+    result["inventory"]["observed_inventory_sha256"] = hash_projection("observed_inventory_sha256", result["inventory"])
+    result["result_sha256"] = canonical_sha256({key: value for key, value in result.items() if key != "result_sha256"})
+    with pytest.raises(PacketValidationError, match="candidate/inventory"):
+        validate_result(result, freeze=freeze, catalog=_catalog())
+    freeze, result = _bound_result()
+    catalog = _catalog() | {"catalog_sha256": "e" * 64}
+    result["result_sha256"] = canonical_sha256({key: value for key, value in result.items() if key != "result_sha256"})
+    with pytest.raises(PacketValidationError, match="catalog"):
+        validate_result(result, freeze=freeze, catalog=catalog)
 
 
 def test_verified_failure_trace_may_deviate_but_qualifies_fail() -> None:
