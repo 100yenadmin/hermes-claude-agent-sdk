@@ -5,7 +5,7 @@ is the sole cross-repository interface truth. This plugin does not maintain a
 second copy of that contract.
 
 Candidate ADR:
-<https://github.com/100yenadmin/hermes-agent-for-upstream-PR-only/blob/codex/agent-runtime-plugin-api-v1/docs/agent-runtime-plugin-api-v1.md>
+<https://github.com/100yenadmin/hermes-agent-for-upstream-PR-only/blob/657f2f66cc01f83e0bec5e07cbdbf0da319c72bf/docs/agent-runtime-plugin-api-v1.md>
 
 The candidate link is not release proof until the branch is pushed and its
 exact SHA is recorded. The frozen local capability manifest has SHA-256

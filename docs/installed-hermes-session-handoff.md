@@ -7,9 +7,10 @@ SDK call, or a model prompt.
 ## Exact host contract
 
 The `0.1.0rc1` plugin targets Hermes branch
-`codex/agent-runtime-plugin-api-v1` at
-`ffd0a985bdc7b0afccee843de45aaf627a74b0c1`. The installed data-plane
-entrypoint is:
+`codex/agent-runtime-plugin-api-v1-current` at exact CI host SHA
+`657f2f66cc01f83e0bec5e07cbdbf0da319c72bf`. Its Git tree is identical to
+reviewed source `e1a04235a45694adb5c8c6ee6839258bb46fed53`. The installed
+data-plane entrypoint is:
 
 ```sh
 python -u -m tui_gateway.entry
