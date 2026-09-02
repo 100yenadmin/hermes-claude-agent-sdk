@@ -506,6 +506,76 @@ def test_source_docs_contract_uses_host_receipts_when_projection_is_deduplicated
     assert extra["host_successful_calls"] == 2
 
 
+def test_source_docs_contract_reports_missing_tool_evidence_before_marker_gap(
+    tmp_path,
+) -> None:
+    def turn(text: str) -> LiveTurn:
+        return LiveTurn(
+            terminal="completed",
+            failure_code=None,
+            billing="subscription_included",
+            final_text=text,
+            final_hash=sha256_value(text),
+            state=None,
+            state_hash="a" * 64,
+            tool_names=(),
+            compaction_phases=(),
+            background_hashes=(),
+            event_hash="b" * 64,
+            silent_fallback=False,
+        )
+
+    host = NativeSandboxHost(tmp_path, (), deny_first=False)
+    source = turn("")
+    docs = turn("")
+
+    ok, reason, extra = _source_docs_contract(source, docs, host)
+
+    assert ok is False
+    assert reason == "active_source_docs_tool_trace_incomplete"
+    assert extra["source_stage_ok"] is False
+    assert extra["docs_stage_ok"] is False
+    assert extra["host_successful_calls"] == 0
+    assert extra["projected_read_count"] == 0
+
+
+def test_source_docs_contract_reports_marker_gap_after_host_tool_recovery(
+    tmp_path,
+) -> None:
+    def turn(text: str, tool_names: tuple[str, ...]) -> LiveTurn:
+        return LiveTurn(
+            terminal="completed",
+            failure_code=None,
+            billing="subscription_included",
+            final_text=text,
+            final_hash=sha256_value(text),
+            state=None,
+            state_hash="a" * 64,
+            tool_names=tool_names,
+            compaction_phases=(),
+            background_hashes=(),
+            event_hash="b" * 64,
+            silent_fallback=False,
+        )
+
+    host = NativeSandboxHost(tmp_path, (), deny_first=False)
+    host.denial_observed = True
+    host.recovery_observed = True
+    host.successful_calls = 2
+    source = turn("synthetic response without the required markers", ("read",))
+    docs = turn(
+        "SOURCE_QUARTZ_7319 DOCS_EMBER_4826 SOURCE_DOCS_PASS",
+        ("read",),
+    )
+
+    ok, reason, extra = _source_docs_contract(source, docs, host)
+
+    assert ok is False
+    assert reason == "active_source_stage_marker_missing"
+    assert extra["source_stage_ok"] is False
+    assert extra["docs_stage_ok"] is True
+
+
 def test_subagent_contract_reports_parent_marker_gap_without_content(tmp_path) -> None:
     host = NativeSandboxHost(tmp_path, (), deny_first=False)
     host.denial_observed = True

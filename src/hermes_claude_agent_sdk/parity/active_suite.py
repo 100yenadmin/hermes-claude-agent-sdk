@@ -533,6 +533,8 @@ def _source_docs_contract(
     source_marker: str = "SOURCE_QUARTZ_7319",
     docs_marker: str = "DOCS_EMBER_4826",
 ) -> tuple[bool, str, dict[str, Any]]:
+    source_turn_ready = _live_ok(source_turn)
+    docs_turn_ready = _live_ok(docs_turn)
     source_stage_ok = _live_ok(
         source_turn,
         markers=(source_marker, "SOURCE_STAGE_PASS"),
@@ -546,9 +548,9 @@ def _source_docs_contract(
         for name in (*source_turn.tool_names, *docs_turn.tool_names)
     )
     failure_reason = "active_behavior_or_trace_failed"
-    if not source_stage_ok:
+    if not source_turn_ready:
         failure_reason = "active_source_stage_failed"
-    elif not docs_stage_ok:
+    elif not docs_turn_ready:
         failure_reason = "active_docs_or_session_recall_failed"
     elif projected_read_count < 1 or host.successful_calls < 2:
         failure_reason = "active_source_docs_tool_trace_incomplete"
@@ -556,6 +558,10 @@ def _source_docs_contract(
         failure_reason = "active_source_docs_denial_missing"
     elif not host.recovery_observed:
         failure_reason = "active_source_docs_recovery_missing"
+    elif not source_stage_ok:
+        failure_reason = "active_source_stage_marker_missing"
+    elif not docs_stage_ok:
+        failure_reason = "active_docs_or_session_recall_failed"
     ok = (
         source_stage_ok
         and docs_stage_ok
