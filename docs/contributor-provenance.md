@@ -2,7 +2,8 @@
 
 This document is the sanitized provenance record for the standalone package.
 It separates immutable upstream references from the standalone package's own
-commits and from later host/API adaptation. It is not runtime, release, or
+commits and from later host/API adaptation. The v3 extraction and parity
+identities below are historical only. This is not runtime, merge, release, or
 customer proof.
 
 ## Identities
@@ -15,12 +16,25 @@ customer proof.
 | Upstream PR tip | [`41def1e24e5223efa246d9fc57575db7181c6021`](https://github.com/NousResearch/hermes-agent/commit/41def1e24e5223efa246d9fc57575db7181c6021) | Exact inspected source tip. |
 | PR range base | `4f22543509d1b91dc45bcb369447126c5eb14fb7` | Merge-base used to describe the complete PR range, not a package version. |
 | Source snapshot | `3c1321f16744747550384a1b96fa4529ba23ffe1` | Starting point for the six current-head fixes listed in the extraction evidence. |
-| Frozen parity baseline | `6967371b9ff8efce9372dd428b3b764322bd6481` | Downstream parity candidate; not the PR tip and not the source of this package history. |
+| Frozen parity baseline (v3 historical) | `6967371b9ff8efce9372dd428b3b764322bd6481` | Historical downstream parity candidate; not the PR tip and not the source of this package history. |
 
 The standalone bootstrap SHA and the upstream source SHA must remain separate in
 release notes, manifests, and reviews. A future filtered or adapted commit has
 new Git identities when its tree, parents, or metadata change; the original
 source SHA remains an immutable provenance reference only.
+
+## Revision 4 candidate identity
+
+Plugin commit `0af5e6481a50adf551f3eaa6055dac88e6a670db` is the implementation
+checkpoint immediately before this documentation revision; it is not the final
+self-referential plugin identity. Candidate proof binds the final exact plugin
+commit and wheel digest in the v4 result manifest, paired with Hermes host
+commit `b8a6337594263a2b4a1f0435c87d78c5779418aa`. The compatibility target is SDK
+`0.2.151`, bundled Claude Code-derived CLI `2.1.258`, and direct model
+`claude-fable-5-1`. These source identities describe the Hermes-owned,
+zero-native Revision 4 boundary; they do not replace the historical v3
+provenance and do not prove an upstream merge, publication, future
+compatibility, or customer readiness.
 
 ## Verified human attribution
 

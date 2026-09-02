@@ -1,8 +1,8 @@
 # Licensing and service terms
 
-This document explains the boundaries that operators and release owners must
-keep separate. It is operational provenance documentation, not legal advice or
-a determination that a particular distribution or use is permitted.
+This document explains the boundaries that operators and package maintainers
+must keep separate. It is operational provenance documentation, not legal
+advice or a determination that a particular distribution or use is permitted.
 
 ## 1. Standalone and Hermes source
 
@@ -24,12 +24,12 @@ MIT rights.
 Package metadata admits the bounded first-RC range:
 
 ```text
-claude-agent-sdk>=0.2.144,<0.2.152
+claude-agent-sdk==0.2.151
 ```
 
-The frozen Fable 5 parity cell separately pins exact SDK 0.2.144, while the
-first direct Fable 5.1 successor is exact SDK 0.2.151. Both exact wheels and
-their bundled CLI identities require separate release-time inspection.
+Revision 4 targets exact SDK `0.2.151`, bundled Claude Code-derived CLI
+`2.1.258`, and direct model `claude-fable-5-1`. The exact wheel and bundled
+subprocess require separate license/provenance inspection.
 
 The published metadata for those SDK versions declares the MIT license. This
 is a statement about each dependency distribution's declared metadata. It is not a

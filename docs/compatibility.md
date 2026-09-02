@@ -1,69 +1,55 @@
-# Compatibility matrix
+# Compatibility matrix — Revision 4
 
 | Plugin | Hermes host | SDK | Status |
 | --- | --- | --- | --- |
-| `0.1.0rc1` candidate | AgentRuntime v1 CI head `657f2f66cc01f83e0bec5e07cbdbf0da319c72bf` (tree-identical to reviewed `e1a04235a45694adb5c8c6ee6839258bb46fed53`, based on upstream `9de9d7613cd6b20250bba3666f924377f050c79b`) | `claude-agent-sdk>=0.2.144,<0.2.152` | Frozen Fable 5 cell; version-gated Fable 5.1 successor, live pending |
+| `0.1.0rc1` candidate at the exact plugin SHA and wheel digest recorded in its v4 result manifest | Hermes host candidate `b8a6337594263a2b4a1f0435c87d78c5779418aa` | SDK `0.2.151`; bundled Claude Code-derived CLI `2.1.258`; direct model `claude-fable-5-1` | Exact Revision 4 source target; local evidence only |
+| v3 predecessor | Historical plugin/host evidence | Historical SDK/model inputs | Historical only; not a current support or release claim |
 
-Official Hermes releases or `main` revisions that do not export AgentRuntime
-v1 are incompatible and are rejected before SDK import or query. Use the exact
-candidate above in an isolated checkout; a pinned installed Hermes does not
-need to be upgraded or modified for this RC validation.
+The exact host candidate above is required. A host without the declared
+AgentRuntime v1 capabilities is rejected before SDK import, credentials,
+subprocess startup, or query. Use an isolated checkout; do not alter a pinned
+installed Hermes merely to exercise this candidate.
 
 Registration must reject an unsupported runtime API or missing host capability
 through the host's `register_agent_runtime()` before retaining or constructing
 the factory, importing the SDK, resolving credentials, starting a subprocess,
 or issuing a model query. `doctor()` reports the same API/capability handshake
-without credentials or SDK client construction. Compatibility with future
-Hermes main or SDK versions outside the admitted range is not implied.
+without credentials or SDK client construction. Compatibility with any other
+Hermes or SDK revision is not implied.
 
-The pinned SDK exposes a public `PreCompact` hook but no typed post-compaction
-hook. Completion mapping therefore also binds the frozen Fable 5 cell to its
-pinned Claude CLI's observed `SystemMessage(subtype="compact_boundary")` behavior.
-The plugin keeps a bounded terminal-result fallback and 600-second watchdog,
-projects only provider-neutral lifecycle events, and does not turn lifecycle
-messages into conversation content. This is exact-candidate compatibility,
-not a guarantee for later SDK or CLI versions.
+SDK `0.2.151` exposes the public `PreCompact` hook but no typed post-compaction
+hook. The bundled CLI's observed `SystemMessage(subtype="compact_boundary")`
+is mapped to provider-neutral lifecycle events with a bounded terminal-result
+fallback and watchdog. This is exact-candidate behavior, not future-version
+compatibility proof.
 
-The required capability set includes `background_delivery_v1`. A host that
-lacks it is incompatible before SDK import, credential inspection, client
-construction, or query. On a compatible session-scoped host, one plugin
-runtime owns one SDK client/reader until parent-session close. Idle completion
-content is bounded and deduplicated in arrival order, then delivered only
-through the exact bound host service. Provider session identifiers remain
-resume state only and are never background-delivery metadata.
+The required capability set includes the host's tool, approval, content,
+cancellation, state, usage, and compaction facades. Hermes owns all visible
+behavior and effects, including background delivery. One bound parent retains
+one SDK client/reader; opaque provider session identifiers are resume state
+only and never routing metadata.
 
-The candidate also requires `runtime_model_provenance_v1`. That capability
-means the host can durably store the selected, effective, and canonical model
-identities plus their resolution while retaining the legacy receipt `model`
-as the observed billing identity. An older AgentRuntime v1 host without this
-additive receipt shape is rejected during compatibility validation; the plugin
-does not silently discard provenance or defer the failure until a turn.
+The candidate also requires `runtime_model_provenance_v1` so Hermes can retain
+selected/effective/canonical model evidence without rewriting its legacy
+receipt identity. An older host without this additive shape is rejected before
+runtime activation.
 
-The descriptor accepts only the plugin-owned provider id
-`claude-agent-sdk`, the provider-neutral `agent_runtime` API mode, and model
-ids matching a bounded direct `claude-*` identifier. Provider-qualified model
+The descriptor accepts only provider id `claude-agent-sdk`, API mode
+`agent_runtime`, and bounded direct `claude-*` identifiers. Provider-qualified
 slugs are rejected before auth or SDK startup. The host's `anthropic` Messages
-provider is a separate transport and is never silently redirected to this
-whole-turn runtime. Claude/Fable policy remains in this standalone plugin.
+transport remains separate and is not redirected here.
 
 ## SDK and bundled CLI policy
 
-The package admits the first-RC SDK range
-`claude-agent-sdk>=0.2.144,<0.2.152`, so it cannot silently resolve to an
-untested successor beyond 0.2.151.
-The frozen parity-v2 Fable 5 cell remains constrained to exact SDK `0.2.144`;
-the range does not rewrite that contract. Direct `claude-fable-5` therefore
-remains eligible on the frozen 0.2.144 installation.
+Revision 4 is pinned to SDK `0.2.151`, bundled CLI `2.1.258`, and direct model
+`claude-fable-5-1`. Before authentication, client construction, subprocess
+startup, or query, preflight reads only installed distribution metadata and the
+bundled CLI version declaration. Missing, malformed, or below-floor metadata
+fails closed; a system Claude CLI or custom CLI path is not substituted.
 
-Direct `claude-fable-5-1` is a separate successor cell. Before authentication,
-client construction, subprocess startup, or query, preflight reads only the
-installed distribution metadata and the SDK's bundled
-`claude_agent_sdk/_cli_version.py` declaration. It requires SDK `>=0.2.151`
-within the admitted range and bundled Claude Code `>=2.1.257`. The first
-successor identity is exact SDK `0.2.151` with bundled CLI `2.1.258`.
-Missing, malformed, or below-floor metadata fails closed. No system Claude
-CLI, custom CLI path, or SDK import is used for this check. `doctor()` reports
-the same bounded metadata and decision without credentials or a client.
+The SDK invokes its bundled Claude Code-derived subprocess. Any provider
+reasoning it performs remains hidden; only bounded public stream messages are
+mapped into Hermes events.
 
 SDK `modelUsage` is an aggregate and may include auxiliary models used during
 the turn. When more than one usage entry is present, the plugin accepts the
@@ -83,27 +69,14 @@ or malformed init evidence and any unrelated non-synthetic SDK model remain
 fail-closed as `ambiguous`; a turn with no session or SDK evidence remains
 `unknown` and never falls back to the requested model.
 
-## Fable model identifiers
+## Fable model identifier
 
-The frozen RC evidence was produced with the direct Claude model identifier
-`claude-fable-5`. Anthropic now also lists the direct identifier
-`claude-fable-5-1` as active. The runtime descriptor accepts that direct
-identifier without importing the SDK, while preflight additionally requires
-the SDK/CLI floor above and then passes it through unchanged. Live subscription
-compatibility remains a separate gate and is not inferred from prefix matching.
+The supported Revision 4 target is direct `claude-fable-5-1`. The descriptor
+accepts it without importing the SDK, then preflight requires the exact SDK/CLI
+identity above and passes the model through unchanged. The dotted
+`anthropic/claude-fable-5.1` OpenRouter/Nous slug is a different route and is
+not evidence for the subscription path. Billing and end-user subscription
+proof remain separate; prefix matching never proves either.
 
-Hermes upstream also exposes `anthropic/claude-fable-5.1` in its OpenRouter and
-Nous Portal catalogs. That dotted provider-qualified slug is a different route
-contract. It is not evidence for the Claude Agent SDK subscription path and
-must not be substituted into this plugin's subscription-only proof.
-
-Existing Fable 5 receipts and parity contracts remain immutable. Until an
-exact installed-Hermes subscription probe for `claude-fable-5-1` is frozen,
-the plugin keeps `claude-fable-5` as its advertised fallback and the current
-parity commands retain their exact Fable 5 model input.
-
-For the frozen Fable 5 parity proof, the only accepted canonicalized receipt is
-selected/effective `claude-fable-5` with SDK-observed canonical model
-`claude-fable-5-1`. This pinned provenance mapping records the observed model
-upgrade without changing the requested route. Any other canonicalized model,
-including an otherwise nonempty identifier, is rejected as unproven fallback.
+Compatibility outside this exact plugin/host/SDK/CLI/model tuple is not
+claimed.

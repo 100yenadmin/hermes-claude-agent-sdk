@@ -1,16 +1,15 @@
-# Installed Hermes session handoff
+# Installed Hermes session handoff — Revision 4
 
-The component handoff to the Fable runtime owner uses the real installed Hermes
-TUI/desktop gateway. It does not use a synthetic parity host, a direct Claude
-SDK call, or a model prompt.
+The component handoff uses the real installed Hermes TUI/desktop gateway. It
+does not use a synthetic parity host, a separate native Claude Agent route, or
+an SDK-owned transcript. Hermes owns the visible session and effects.
 
 ## Exact host contract
 
-The `0.1.0rc1` plugin targets Hermes branch
-`codex/agent-runtime-plugin-api-v1-current` at exact CI host SHA
-`657f2f66cc01f83e0bec5e07cbdbf0da319c72bf`. Its Git tree is identical to
-reviewed source `e1a04235a45694adb5c8c6ee6839258bb46fed53`. The installed
-data-plane entrypoint is:
+The `0.1.0rc1` plugin candidate is identified by the exact source commit and
+wheel digest recorded in its v4 result manifest. It targets the Hermes host at
+exact commit `b8a6337594263a2b4a1f0435c87d78c5779418aa`. The installed data-plane
+entrypoint is:
 
 ```sh
 python -u -m tui_gateway.entry
@@ -42,9 +41,9 @@ store.
 The repository test
 `tests/test_installed_hermes_session_contract.py` executes this sequence with
 credential variables removed and provider HTTP proxies pinned to a closed
-local port. It also verifies the installed entry-point metadata, enables the
-plugin through the public CLI, runs the offline compatibility doctor, and
-proves registration does not import `claude_agent_sdk`.
+local port. It verifies entry-point metadata, enables the plugin through the
+public CLI, runs the offline compatibility doctor, and proves registration
+does not import `claude_agent_sdk`.
 
 ```sh
 python -m pytest tests/test_installed_hermes_session_contract.py
@@ -53,17 +52,20 @@ python -m pytest tests/test_installed_hermes_session_contract.py
 The test emits no raw session identifiers. A pass proves installed component
 discovery plus Hermes session creation, persistence, exact-title visibility,
 and lazy resume. It does not prove a Claude/Fable turn, subscription billing,
-tool execution, model output, shared Eva operation, or release readiness.
+tool execution, model output, shared Eva operation, merge, publication, future
+compatibility, or customer readiness.
 
 ## App visibility and runtime continuation
 
 Before the first user message, the hidden session is visible through the
-desktop's exact-title canonical-session lookup. The Fable owner may open the
-stored identity, then submit the first synthetic subscription-only turn through
-the normal Hermes app/gateway path. That later lane owns model selection,
-billing receipts, tool execution, and live resume proof.
+desktop's exact-title canonical-session lookup. A later Hermes turn supplies
+the direct prompt, exact tool inventory, and approval policy to the SDK adapter.
+The supported surface has `tools=[]`, `setting_sources=[]`, and no Claude-native
+Agent/background route; delegation is Hermes `delegate_task` and detached
+completion is host-owned.
 
 Rollback is unchanged: disable `claude-agent-sdk`, uninstall the exact plugin
-artifact when removal is required, and leave `state.db` intact. The generic
+artifact when removal is required, and leave `state.db` intact. Generic
 runtime state remains inert while the plugin is absent, and built-in Hermes
-operation remains available.
+operation remains available. This handoff is local installed evidence only; it
+does not claim merge, release, future compatibility, or customer readiness.

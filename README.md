@@ -1,47 +1,47 @@
-# Hermes Claude Agent SDK Runtime
+# Hermes Claude Agent SDK Runtime — Revision 4
 
-`hermes-claude-agent-sdk` is the standalone, third-party Claude Agent SDK
-whole-turn runtime plugin for Hermes Agent. It is being extracted from
-[NousResearch/hermes-agent PR #65982](https://github.com/NousResearch/hermes-agent/pull/65982)
-behind a provider-neutral AgentRuntime v1 host contract.
+`hermes-claude-agent-sdk` is a standalone plugin for the Hermes host. Revision
+4 is the Hermes-owned, zero-native boundary: Hermes owns every visible behavior
+and side effect, while the Claude Agent SDK is used only for subscription
+transport, stream reading, cancellation, opaque external-session continuity,
+and native-compaction mapping.
 
-The current candidate registers a provider-neutral AgentRuntime v1 descriptor
-through Hermes' existing plugin entry point. Registration is lazy: it performs
-no SDK import, credential lookup, subprocess start, or model query. After the
-host accepts a compatible selection, the runtime performs a fail-closed local
-subscription preflight, constructs the Claude Agent SDK session through
-public APIs, bridges tools back through host-owned execution, and emits generic
-state and subscription-included usage receipts. Deterministic and packaging
-tests cover that composition; the first isolated live turn remains a separate
-release gate.
+The plugin registers lazily through Hermes' public plugin entry point. It does
+not import the SDK, inspect credentials, start the bundled subprocess, or query
+a model during registration. Once Hermes has selected this runtime, the plugin
+constructs the public SDK client and translates its bounded stream into the
+host's generic events. Provider reasoning that the SDK or its bundled
+Claude Code-derived subprocess may use internally is not visible to Hermes or
+the operator; only the host-approved content, tool, lifecycle, and usage
+surfaces are exposed.
 
-For a bound Hermes parent session, the runtime retains one public SDK client
-and one `receive_messages()` reader across turns. Native Agent work that ends
-during `run_turn()` stays in that turn and produces one terminal event. A
-later idle completion is reduced to the host's bounded provider-neutral
-`RuntimeBackgroundResult` and passed only to
-`RuntimeHostServices.emit_background_result()`. The plugin never receives or
-chooses a Hermes session or gateway route, never performs a latest-session
-lookup, and never adds a provider-specific queue or retry path.
+Hermes composes the exact prompt, transcript, context, permissions, approvals,
+tool inventory, delegation, background delivery, status, persistence, usage,
+and replay behavior. The SDK receives that direct Hermes prompt as
+`system_prompt`, with `tools=[]` and `setting_sources=[]`. The only SDK tool
+surface is the strict, exact `hermes-tools` MCP server and its admitted
+`mcp__hermes-tools__<tool>` names. `bypassPermissions` disables an SDK-side
+permission prompt; it never bypasses Hermes approval or execution policy.
 
-The descriptor owns the provider id `claude-agent-sdk` and the generic
-`agent_runtime` mode. It accepts bounded direct Claude model ids beginning
-with `claude-`; provider-qualified OpenRouter or Nous slugs are rejected before
-auth or SDK startup. The host's `anthropic_messages` provider remains a
-separate transport and is not routed to this plugin.
+There is no supported Claude-native `Agent` or background route in Revision 4.
+Delegation goes through the Hermes `delegate_task` tool, and detached completion
+goes through Hermes-owned background delivery. The plugin retains one public
+SDK client/reader per bound parent session and only the opaque external session
+identifier needed to resume that SDK conversation.
 
 ## Compatibility target
 
-The first release candidate targets the provider-neutral host branch
-`codex/agent-runtime-plugin-api-v1-current` at exact CI host SHA
-`657f2f66cc01f83e0bec5e07cbdbf0da319c72bf`. Its Git tree is identical to
-reviewed source `e1a04235a45694adb5c8c6ee6839258bb46fed53`, based on action-time
-upstream main `9de9d7613cd6b20250bba3666f924377f050c79b`.
+The Revision 4 candidate is checked against the Hermes host at exact commit
+`b8a6337594263a2b4a1f0435c87d78c5779418aa`. The standalone plugin identity is
+the exact source commit and wheel digest recorded in the v4 result manifest;
+an unbound or zero digest cannot prove a candidate. The dependency target is
+`claude-agent-sdk` `0.2.151`, whose bundled Claude Code-derived CLI is
+`2.1.258`, with direct model `claude-fable-5-1`.
 
-An official Hermes checkout that does not export AgentRuntime v1 is not a
-compatible substitute for this exact host candidate. Validate in an isolated
-checkout or virtual environment; do not replace a pinned installed Hermes just
-to exercise this release candidate.
+This is an exact source-compatibility target, not a claim about upstream merge,
+publication, future Hermes/SDK versions, or customer readiness. Validate in an
+isolated checkout or virtual environment; do not replace a pinned installed
+Hermes merely to exercise this candidate.
 
 Run `hermes_claude_agent_sdk.doctor()` (or `doctor_json()`) from an environment
 with the public host API to inspect API and capability compatibility. The
@@ -54,83 +54,34 @@ doctor never reads credentials or constructs an SDK client.
 - [Subscription-only security model](docs/subscription-only-security.md)
 - [Removal and rollback](docs/removal-and-rollback.md)
 
-## Feature-first parity v3
+## Revision 4 parity contract
 
-The release-candidate quality gate is the repo-owned
-[`qa/parity-contract-v3.yaml`](qa/parity-contract-v3.yaml), not an idle
-48/49-hour wait. It pins and completely maps the frozen v2 non-soak set
-(`53/53`), OpenClaw's active behavior pack (`12/12`), the adapted Agent SDK
-boundary set (`23/23`), and the ClawProBench native slice (`36/36`). The
-separate runtime lane contains the active 100-turn same-session campaign.
+The repo-owned [`qa/parity-contract-v4.yaml`](qa/parity-contract-v4.yaml) is the
+current source-to-parity map. It preserves the v3 rows as historical
+predecessors, but replaces their provider-native assumptions with Hermes-owned
+proof atoms: zero-native absence, the direct Hermes prompt, exact settings and
+MCP inventory, canonical transcript/stream ownership, `delegate_task`, and
+host-owned background delivery. The v3 contract and its evidence remain
+historical only; they are not a current support or release claim.
 
-The installed console entry point exposes three fail-closed commands. Capture
-the isolated profile's complete tool surface through the real host bridge
-before validating or running it:
+The installed `hermes-claude-agent-sdk-parity` console script remains the
+historical v3 inventory/run/grade surface in this pinned source. Do not use it
+as a v4 pass claim: it expects the v3 profile policy. Revision 4's closed
+contract is validated by the repository's v4 contract/runner modules and the
+exact candidate evidence harness; see [`qa/README.md`](qa/README.md). Any v4
+executor must fail closed unless SDK `0.2.151`, bundled CLI `2.1.258`, direct
+model `claude-fable-5-1`, and the exact plugin/host SHAs are bound.
 
-```sh
-hermes-claude-agent-sdk-parity inventory --catalog qa/parity-contract-v3.yaml \
-  --capture --lane rc --profile fable-v3-isolated \
-  --profile-manifest ./profile.json --output ./tool-inventory.yaml
+The contract's runtime-soak row is a separate bounded evidence lane; neither a
+source map, deterministic test, nor local parity packet proves an upstream
+merge, package publication, future compatibility, or customer readiness. Do not
+substitute the OpenRouter/Nous slug `anthropic/claude-fable-5.1` for this
+subscription-only route.
 
-hermes-claude-agent-sdk-parity inventory --catalog qa/parity-contract-v3.yaml \
-  --lane rc --profile fable-v3-isolated --profile-manifest ./profile.json \
-  --tool-inventory ./tool-inventory.yaml
+## Local installation and activation
 
-hermes-claude-agent-sdk-parity run --catalog qa/parity-contract-v3.yaml \
-  --lane rc --profile fable-v3-isolated --plugin-sha "$PLUGIN_SHA" \
-  --host-sha "$HOST_SHA" --profile-manifest ./profile.json \
-  --tool-inventory ./tool-inventory.yaml \
-  --output ./parity-results
-
-hermes-claude-agent-sdk-parity grade --catalog qa/parity-contract-v3.yaml \
-  --lane rc --profile fable-v3-isolated --plugin-sha "$PLUGIN_SHA" \
-  --host-sha "$HOST_SHA" --profile-manifest ./profile.json \
-  --tool-inventory ./tool-inventory.yaml \
-  --output ./parity-results --resume
-```
-
-For `run` and `grade`, an omitted `--sdk-version` resolves from the installed
-`claude-agent-sdk` distribution. An explicit value must match that installed
-version and the supported package range or the command exits before creating
-result evidence. This executing-candidate identity does not rewrite the frozen
-0.2.144 source ledger or its immutable contract hashes.
-
-Exit `0` means the requested gate passed, `1` is a verified scenario failure,
-`2` is a contract or safety violation, and `75` is pending or environment
-blocked. Unknown tools, changed schemas, missing executors, missing terminal
-events, unsafe billing evidence, proofless passes, and candidate drift never
-degrade to a pass. See [`qa/README.md`](qa/README.md) for the packet and runner
-contract.
-
-The active executors fail closed unless the plugin and host checkouts are clean
-at the supplied SHAs. Live RC execution additionally requires
-`HERMES_PARITY_LIVE=1`, `HERMES_PARITY_MODEL=claude-fable-5`, the exact host
-root, and the pinned ClawProBench root. The v2 source map also requires the
-immutable `33fe73a` reference checkout and a test-capable exact-host interpreter
-via `HERMES_PARITY_HOST_PYTHON` when that checkout does not own a `.venv`.
-These are execution inputs, not values written into result packets.
-
-That command is the immutable Fable 5 evidence contract. The package admits
-`claude-agent-sdk>=0.2.144,<0.2.152`, but the frozen Fable 5 cells remain exact
-SDK `0.2.144`. Anthropic's newer direct model id `claude-fable-5-1` is gated
-before auth and query by SDK `>=0.2.151` plus bundled Claude Code `>=2.1.257`;
-the first successor identity is exact SDK `0.2.151` with bundled CLI `2.1.258`.
-Missing or malformed distribution/bundle metadata fails closed. It requires a
-separately versioned installed-Hermes subscription proof before it can replace
-the fallback or parity input. Do not substitute the distinct OpenRouter/Nous
-catalog slug `anthropic/claude-fable-5.1` into this subscription-only lane.
-
-The runtime lane has a stricter barrier. It accepts only a persistent
-`local_profile` manifest and requires an immutable wheel, its SHA-256 digest,
-and a sanitized issue-9 `release_ready` receipt matching
-[`qa/runtime-release-ready-receipt.schema.json`](qa/runtime-release-ready-receipt.schema.json).
-The executing package must byte-match that wheel. A successful bundle must
-bind exactly 100 turns; a 99-turn or partial campaign cannot grade as passed.
-
-## Installation and activation
-
-Download the wheel attached to the compatible GitHub prerelease, verify its
-published checksum, and install that exact artifact into the Hermes environment:
+Install the exact locally built or otherwise approved artifact into the
+isolated Hermes environment. A local install is not a release or publication:
 
 ```sh
 python -m pip install ./hermes_claude_agent_sdk-0.1.0rc1-py3-none-any.whl
@@ -158,11 +109,9 @@ python -m pip uninstall -y hermes-claude-agent-sdk
 
 Disabling or uninstalling this plugin does not remove built-in Hermes behavior.
 
-## Release boundary
+## Scope and proof boundary
 
-No package-index release is authorized. The first distributable candidate will
-be a checksummed GitHub prerelease tagged `v0.1.0-rc.1` only after the named host
-candidate, approval-followthrough thin gate, all feature-first parity-v3 RC
-packs, exact tool/schema inventory, package lifecycle, exact-head CI, and
-independent semantic review all pass. The active 100-turn campaign is a
-separate isolated-runtime qualification and does not block package RC closure.
+These instructions establish only a bounded local install/disable/remove path
+and the exact Revision 4 source-compatibility target. They do not authorize or
+prove an upstream merge, package release, future Hermes/SDK compatibility,
+shared-Eva or fleet operation, or customer readiness.

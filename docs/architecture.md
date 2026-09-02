@@ -1,46 +1,80 @@
-# Architecture boundary
+# Architecture boundary — Revision 4
 
-The provider-neutral AgentRuntime v1 ADR is owned by the Hermes host branch and
-is the sole cross-repository interface truth. This plugin does not maintain a
-second copy of that contract.
+The Hermes host ADR is the sole cross-repository interface authority:
+[`AgentRuntime Plugin API v1`](https://github.com/100yenadmin/hermes-agent-for-upstream-PR-only/blob/b8a6337594263a2b4a1f0435c87d78c5779418aa/docs/adr/agent-runtime-v1.md)
+at host commit `b8a6337594263a2b4a1f0435c87d78c5779418aa`. This plugin does not
+copy or redefine that public API.
 
-Candidate ADR:
-<https://github.com/100yenadmin/hermes-agent-for-upstream-PR-only/blob/657f2f66cc01f83e0bec5e07cbdbf0da319c72bf/docs/agent-runtime-plugin-api-v1.md>
+## One ownership definition
 
-The candidate link is not release proof until the branch is pushed and its
-exact SHA is recorded. The frozen local capability manifest has SHA-256
-`a4bd97694b09069ca8d77a51bdaefb588ea1701e0b1fb83a9ffc51314bad7b19`.
+Hermes owns every visible behavior and side effect: request selection, the
+prompt and context snapshot, transcript content, tool inventory, permissions,
+approvals, tool execution, delegation, background delivery, status, usage
+receipts, persistence, cancellation, replay, and lifecycle. The plugin is an
+adapter around the public Claude Agent SDK only. The SDK's role is limited to
+subscription transport, stream reading, cancellation, opaque external-session
+continuity, and native-compaction mapping.
 
-Hermes owns the runtime protocol, registration and dispatch, host security and
-tool facades, generic state and receipts, compaction lifecycle, and replay
-policy. It also owns the exact parent binding, idle delivery/requeue, route
-refresh, and post-close rejection behind `background_delivery_v1`. This
-package owns the Claude SDK dependency, SDK session lifecycle,
-content conversion, subscription classification, Claude resume state, native
-compaction mapping, context adapters, diagnostics, and packaging. It retains
-one public SDK reader per runtime instance and classifies idle result bursts,
-but it never sees host routing identifiers and never duplicates host delivery.
+The host passes an immutable `RuntimeTurnRequest` and a host-services facade.
+The plugin never receives `AIAgent`, `SessionDB`, a gateway route, or a private
+Hermes object. Events cross the facade only after the host has established the
+turn's policy and exact delivered surface. A stream or SDK result cannot create
+a second transcript, permission path, queue, retry policy, or persistence
+store.
 
-## Native compaction boundary
+## Prompt, settings, and MCP boundary
 
-The plugin registers the public `PreCompact` hook provided by the supported
-`claude-agent-sdk>=0.2.144,<0.2.152` range and converts it to the
-provider-neutral runtime `started` phase. The frozen-v2 cell remains exact
-SDK 0.2.144. The admitted bundled Claude CLIs report the other edge as a
-`SystemMessage` with subtype `compact_boundary`; that message is treated only
-as lifecycle metadata and never projected into user or assistant content.
+The SDK receives the direct Hermes prompt snapshot as `system_prompt`. The
+adapter always supplies `tools=[]` and `setting_sources=[]`; it does not read
+Claude user/project/local settings, `CLAUDE.md`, or a plugin-owned prompt.
 
-The admitted SDK range does not expose a typed post-compaction hook.
-Consequently,
-`compact_boundary` is an empirical compatibility adapter, not a claim about a
-stable future SDK guarantee. A successful terminal SDK result is the bounded
-compatibility fallback when a boundary is omitted. A non-success terminal
-result emits `failed`, and a local 600-second watchdog emits `watchdog` and
-interrupts the turn if neither boundary nor terminal result arrives. The
-watchdog proves only that completion evidence was missing before the bound; it
-does not diagnose a provider failure.
+The host's delivered-request inventory is the only tool authority. The adapter
+creates exactly one in-process MCP server named `hermes-tools`, enables only
+the exact `mcp__hermes-tools__<tool>` names present in that inventory, and sets
+`strict_mcp_config=true`. Unknown aliases, extra MCP servers, disabled tools,
+and a second discovery pass are rejected. Each handler calls the Hermes host
+execution and approval funnel.
 
-Hermes receives only `RuntimeCompactionEvent` values through its public host
-facade. Provider payloads remain inside the plugin, the host compressor is not
-invoked for runtime-native ownership, and no compaction message is inserted
-into the conversation role stream.
+`permission_mode="bypassPermissions"` is an SDK subprocess setting. It avoids
+an SDK-side permission prompt; it does not bypass Hermes permissions,
+approvals, guardrails, or execution. Hermes therefore remains the owner of
+every effect even when this SDK setting is present.
+
+## Claude subprocess and hidden reasoning
+
+`claude-agent-sdk` brings its bundled Claude Code-derived executable as the
+transport subprocess. The plugin may inspect only the bounded public SDK
+messages needed for content, tool, lifecycle, usage, and model evidence.
+Provider reasoning or other internal subprocess behavior is not a supported
+visible surface and is never projected into Hermes transcript content.
+
+## Delegation, background, and compaction
+
+Revision 4 exposes no supported Claude-native `Agent`, `Task`, or background
+route. A delegated operation is the Hermes `delegate_task` tool through the
+strict MCP bridge. Detached completion is submitted to the host's existing
+background-delivery rail; the plugin does not choose a parent route, perform a
+latest-session lookup, or maintain a provider-specific queue.
+
+Native compaction is the one SDK lifecycle mapping retained by the adapter.
+The public `PreCompact` hook and the bundled CLI's observed
+`SystemMessage(subtype="compact_boundary")` become provider-neutral lifecycle
+events. Hermes records status and ownership, but does not invoke its own
+compressor or insert lifecycle messages into the transcript. Missing boundary
+evidence is handled by the bounded terminal fallback/watchdog; it is not a
+claim about a future SDK or CLI guarantee.
+
+## State and evidence boundary
+
+The host persists generic state and usage receipts. The plugin may return only
+the opaque external SDK session identifier needed for continuity and bounded
+model/billing evidence. It does not persist credentials, tokens, cookies,
+prompts, transcripts, or customer data.
+
+The source and parity checks bind this boundary to the exact plugin commit and
+wheel digest recorded in the v4 result manifest, host commit
+`b8a6337594263a2b4a1f0435c87d78c5779418aa`, SDK `0.2.151`, bundled CLI
+`2.1.258`, and direct model `claude-fable-5-1`. A plugin source document cannot
+self-identify its final commit, so an unbound or zero digest is never accepted
+as candidate proof. These identities establish a bounded candidate only; they
+do not prove merge, release, future compatibility, or customer readiness.
