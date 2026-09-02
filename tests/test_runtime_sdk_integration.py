@@ -120,7 +120,13 @@ class _Client:
             await self._messages.put(AssistantMessage([TextBlock("queued before probe failure")]))
             return
         if self.mode not in {"unknown", "tool_failure"}:
-            await self._messages.put(SystemMessage("init", {"apiKeySource": "none"}))
+            init_data: dict[str, object] = {"apiKeySource": "none"}
+            if (
+                self.mode in {"init_model", "init_model_usage_failure"}
+                and len(self.queries) == 1
+            ):
+                init_data["model"] = "claude-fable-5"
+            await self._messages.put(SystemMessage("init", init_data))
             assistant_model = (
                 None
                 if self.mode in {"missing_model", "model_ambiguous_same_canonical"}
@@ -150,6 +156,18 @@ class _Client:
                 api_error_status=429 if self.mode == "api_error_429" else None,
                 model="claude-fable-5" if self.mode == "model_canonical" else None,
                 model_usage=(
+                    {}
+                    if self.mode == "init_model"
+                    else {
+                        "claude-fable-5": {"canonicalModel": object()}
+                    }
+                    if (
+                        self.mode == "init_model_usage_failure"
+                        and len(self.queries) == 1
+                    )
+                    else {}
+                    if self.mode == "init_model_usage_failure"
+                    else
                     {
                         "claude-fable-5": {
                             "canonicalModel": "claude-fable-5-1",
@@ -717,6 +735,46 @@ def test_runtime_erases_model_identity_for_ambiguous_shared_canonical() -> None:
         assert terminal_result["model_resolution"] == "ambiguous"
 
     asyncio.run(scenario())
+
+
+def test_runtime_persists_init_model_and_resets_turn_usage_state() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("init_model_usage_failure", clients)
+        host = _Host()
+        first_events = await _collect(runtime, _request(), host)
+        second_events = await _collect(
+            runtime,
+            _request(correlation_id="synthetic-second-turn"),
+            host,
+        )
+        await runtime.close()
+        return first_events, second_events
+
+    first_events, second_events = asyncio.run(scenario())
+
+    first_receipt = next(
+        event.receipt for event in first_events if event.kind.value == "usage"
+    )
+    assert first_receipt.model == "unknown"
+    assert first_receipt.model_resolution == "ambiguous"
+
+    second_receipt = next(
+        event.receipt for event in second_events if event.kind.value == "usage"
+    )
+    assert second_receipt.model == "claude-fable-5"
+    assert second_receipt.selected_model == "claude-fable-5"
+    assert second_receipt.effective_model == "claude-fable-5"
+    assert second_receipt.canonical_model is None
+    assert second_receipt.model_resolution == "exact"
+    assert second_receipt.correlation_id == "synthetic-second-turn"
+
+    second_terminal = next(
+        event.result for event in second_events if event.kind.value == "completed"
+    )
+    assert second_terminal["model"] == "claude-fable-5"
+    assert second_terminal["effective_model"] == "claude-fable-5"
+    assert second_terminal["model_resolution"] == "exact"
 
 
 def test_native_image_turn_uses_the_public_sdk_streaming_input() -> None:

@@ -112,6 +112,7 @@ class ClaudeAgentSDKRuntime:
         self._host: Any | None = None
         self._session_contract: tuple[str, str, str, str, str | None] | None = None
         self._session_configuration: SDKSessionConfiguration | None = None
+        self._projector: Any | None = None
         self._last_turn_tool_observations: tuple[str, ...] = ()
         # One successful preflight may be consumed only by the exact request
         # object that was checked.  This avoids probing auth twice on the
@@ -373,6 +374,17 @@ class ClaudeAgentSDKRuntime:
                 self._session_contract = session_contract
                 self._session_configuration = configuration
                 self._session = self._new_session(configuration)
+                self._projector = ClaudeSdkEventProjector(
+                    runtime_id=RUNTIME_ID,
+                    provider=request.selection.provider,
+                    # The request model is selection metadata only.  The
+                    # projector uses it to classify exact/mismatch; effective
+                    # identity still comes only from SDK message/model_usage
+                    # evidence and never falls back to this value.
+                    model=request.selection.model,
+                    billing_mode="subscription_included",
+                    correlation_id=request.correlation_id,
+                )
             elif session_contract != self._session_contract:
                 yield RuntimeFailedEvent(
                     failure=_failure(
@@ -396,18 +408,10 @@ class ClaudeAgentSDKRuntime:
             assert bridge is not None
             bridge.begin_turn(request.correlation_id)
             session = self._session
+            projector = self._projector
+            assert projector is not None
+            projector.begin_turn(correlation_id=request.correlation_id)
             bridge_execution_start = bridge.host_execution_count
-            projector = ClaudeSdkEventProjector(
-                runtime_id=RUNTIME_ID,
-                provider=request.selection.provider,
-                # The request model is selection metadata only.  The
-                # projector uses it to classify exact/mismatch; effective
-                # identity still comes only from SDK message/model_usage
-                # evidence and never falls back to this value.
-                model=request.selection.model,
-                billing_mode="subscription_included",
-                correlation_id=request.correlation_id,
-            )
 
             async def on_projection(projection: ProjectionResult) -> None:
                 await queue.put(projection)

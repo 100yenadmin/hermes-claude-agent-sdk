@@ -170,6 +170,10 @@ class ResultMessage:
 class SystemMessage:
     content = "lifecycle"
 
+    def __init__(self, subtype: str | None = None, data: Any = None):
+        self.subtype = subtype
+        self.data = data
+
 
 class UnknownObject:
     def __repr__(self) -> str:
@@ -462,6 +466,154 @@ def test_model_provenance_missing_sdk_evidence_does_not_use_selected_model() -> 
         "canonical_model": "unknown",
         "model_resolution": "unknown",
     }
+
+
+def test_init_model_is_authoritative_over_synthetic_assistant_and_empty_usage() -> None:
+    projector = ClaudeSdkEventProjector(model="claude-fable-5")
+    assert _events(
+        projector,
+        SystemMessage("init", {"model": "claude-fable-5"}),
+    ) == []
+    projector.project(
+        AssistantMessage([TextBlock("done")], model="claude-fable-synthetic")
+    )
+    result = projector.project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 1, "output_tokens": 1},
+            model=None,
+            model_usage={},
+        )
+    )
+
+    assert result.effective_model == "claude-fable-5"
+    assert result.canonical_model is None
+    assert result.model_resolution == "exact"
+    receipt = result.events[1].receipt
+    assert receipt.model == "claude-fable-5"
+    assert receipt.effective_model == "claude-fable-5"
+    assert receipt.model_resolution == "exact"
+    assert result.events[-1].result["model"] == "claude-fable-5"
+
+
+def test_invalid_or_conflicting_init_model_evidence_fails_closed() -> None:
+    for data in (None, {"model": object()}, {"model": "not a model"}):
+        projector = ClaudeSdkEventProjector(model="claude-fable-5")
+        projector.project(SystemMessage("init", data))
+        result = projector.project(
+            ResultMessage(
+                result="done",
+                usage={"input_tokens": 1},
+                model=None,
+                model_usage={},
+            )
+        )
+        assert result.effective_model is None
+        assert result.canonical_model is None
+        assert result.model_resolution == "ambiguous"
+        assert result.events[1].receipt.model == "unknown"
+
+    projector = ClaudeSdkEventProjector(model="claude-fable-5")
+    projector.project(SystemMessage("init", {"model": "claude-fable-5"}))
+    projector.project(SystemMessage("init", {"model": "claude-fable-5-1"}))
+    result = projector.project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 1},
+            model=None,
+            model_usage={},
+        )
+    )
+    assert result.effective_model is None
+    assert result.model_resolution == "ambiguous"
+    assert result.events[1].receipt.model == "unknown"
+
+
+def test_init_model_conflicting_real_root_model_stays_ambiguous() -> None:
+    projector = ClaudeSdkEventProjector(model="claude-fable-5")
+    projector.project(SystemMessage("init", {"model": "claude-fable-5"}))
+    projector.project(
+        AssistantMessage([TextBlock("done")], model="claude-fable-5-1")
+    )
+    result = projector.project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 1},
+            model=None,
+            model_usage={},
+        )
+    )
+
+    assert result.effective_model is None
+    assert result.canonical_model is None
+    assert result.model_resolution == "ambiguous"
+    assert result.events[1].receipt.model == "unknown"
+
+
+def test_init_model_mismatch_is_reported_without_request_fallback() -> None:
+    projector = ClaudeSdkEventProjector(model="claude-fable-5-1")
+    projector.project(SystemMessage("init", {"model": "claude-fable-5"}))
+    result = projector.project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 1},
+            model=None,
+            model_usage={},
+        )
+    )
+
+    assert result.effective_model == "claude-fable-5"
+    assert result.canonical_model is None
+    assert result.model_resolution == "mismatch"
+    assert result.events[1].receipt.model == "claude-fable-5"
+    assert result.events[1].receipt.selected_model == "claude-fable-5-1"
+
+
+def test_begin_turn_retains_init_model_but_discards_prior_usage_failure() -> None:
+    projector = ClaudeSdkEventProjector(
+        model="claude-fable-5", correlation_id="turn-one"
+    )
+    projector.project(SystemMessage("init", {"model": "claude-fable-5"}))
+    first = projector.project(
+        ResultMessage(
+            result="first",
+            usage={"input_tokens": 1},
+            model=None,
+            model_usage={"claude-fable-5": {"canonicalModel": object()}},
+        )
+    )
+    assert first.model_resolution == "ambiguous"
+
+    projector.begin_turn(correlation_id="turn-two")
+    second = projector.project(
+        ResultMessage(
+            result="second",
+            usage={"input_tokens": 2},
+            model=None,
+            model_usage={},
+        )
+    )
+
+    assert second.effective_model == "claude-fable-5"
+    assert second.model_resolution == "exact"
+    assert second.events[1].receipt.input_tokens == 2
+    assert second.events[1].receipt.correlation_id == "turn-two"
+
+
+def test_empty_usage_without_session_model_remains_unknown() -> None:
+    result = ClaudeSdkEventProjector(model="claude-fable-5").project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 1},
+            model=None,
+            model_usage={},
+        )
+    )
+
+    assert result.effective_model is None
+    assert result.canonical_model is None
+    assert result.model_resolution == "unknown"
+    assert result.events[1].receipt.model == "unknown"
 
 
 def test_model_provenance_malformed_or_ambiguous_usage_fails_closed() -> None:

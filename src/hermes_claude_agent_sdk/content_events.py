@@ -53,6 +53,10 @@ _UNAVAILABLE_TOOL_RESULT = "[unavailable tool result]"
 _UNKNOWN_MODEL = "unknown"
 _SAFE_IDENTIFIER = re.compile(r"[^A-Za-z0-9_.:-]+")
 _SAFE_MODEL_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/-]*$")
+_SYNTHETIC_MODEL_IDENTIFIERS = frozenset(
+    {"synthetic", "claude-fable-synthetic"}
+)
+_MISSING = object()
 
 
 def _sdk_type_name(obj: Any) -> str:
@@ -303,12 +307,31 @@ class ClaudeSdkEventProjector:
         self._usage_models: set[str] = set()
         self._usage_canonical_models: dict[str, str | None] = {}
         self._usage_malformed = False
+        self._session_model: str | None = None
+        self._session_model_malformed = False
+        self._session_model_conflict = False
         self._billing_mode = (
             billing_mode
             if isinstance(billing_mode, str)
             and billing_mode in {"subscription_included", "sdk_reported_metered"}
             else "unknown"
         )
+        self._correlation_id = _safe_identifier(
+            correlation_id, default=""
+        ) or None
+
+    def begin_turn(self, *, correlation_id: str | None = None) -> None:
+        """Start a fresh turn while retaining validated session evidence.
+
+        SDK ``modelUsage`` is scoped to one result/turn.  The init model is a
+        session-level signal and therefore survives the reset.  Keeping this
+        boundary explicit prevents a malformed or auxiliary usage entry from
+        contaminating a later turn.
+        """
+        self._reported_models.clear()
+        self._usage_models.clear()
+        self._usage_canonical_models.clear()
+        self._usage_malformed = False
         self._correlation_id = _safe_identifier(
             correlation_id, default=""
         ) or None
@@ -321,9 +344,38 @@ class ClaudeSdkEventProjector:
             return self._project_user(message)
         if name == "ResultMessage":
             return self._project_result(message)
+        if name == "SystemMessage":
+            self._observe_init_model(message)
         # SystemMessage, StreamEvent, and unknown lifecycle types are
         # display/bookkeeping only and never enter the public event stream.
         return ProjectionResult()
+
+    def _observe_init_model(self, message: Any) -> None:
+        """Retain only a validated SDK init model as session evidence."""
+        subtype = _safe_attr(message, "subtype")
+        if subtype != "init":
+            return
+        data = _safe_attr(message, "data")
+        if not isinstance(data, Mapping):
+            self._session_model_malformed = True
+            return
+        try:
+            model = data.get("model", _MISSING)
+        except Exception:
+            self._session_model_malformed = True
+            return
+        if model is _MISSING:
+            # A version that omits this optional field supplies no model
+            # evidence.  It must not become a request-model fallback.
+            return
+        safe_model = _safe_model_identifier(model)
+        if safe_model is None:
+            self._session_model_malformed = True
+            return
+        if self._session_model is None:
+            self._session_model = safe_model
+        elif self._session_model != safe_model:
+            self._session_model_conflict = True
 
     def _observe_model_evidence(self, message: Any) -> None:
         reported = _safe_model_identifier(_safe_attr(message, "model"))
@@ -349,7 +401,8 @@ class ClaudeSdkEventProjector:
             self._usage_malformed = True
             return
         if not keys:
-            self._usage_malformed = True
+            # SDK 0.2.151 may expose an empty mapping when no aggregate usage
+            # entry is available.  Empty is absence, not malformed evidence.
             return
         for model in keys:
             try:
@@ -388,11 +441,32 @@ class ClaudeSdkEventProjector:
 
     def _model_provenance(self) -> tuple[str | None, str | None, str]:
         """Return effective/canonical identity and a fail-closed resolution."""
-        if self._usage_malformed:
+        if (
+            self._usage_malformed
+            or self._session_model_malformed
+            or self._session_model_conflict
+        ):
             return None, None, "ambiguous"
 
         usage_models = self._usage_models
         reported_models = self._reported_models
+        session_model = self._session_model
+        if session_model is not None:
+            # Some SDK versions put a synthetic sentinel on the root
+            # AssistantMessage.  A validated init model is the authoritative
+            # session signal; only a real, conflicting root signal can taint
+            # it.
+            conflicting_reported = {
+                model
+                for model in reported_models
+                if model != session_model
+                and model.casefold() not in _SYNTHETIC_MODEL_IDENTIFIERS
+            }
+            if conflicting_reported:
+                return None, None, "ambiguous"
+            reported_models = {
+                model for model in reported_models if model == session_model
+            }
         if len(usage_models) > 1:
             # Aggregate model_usage may contain auxiliary models. It cannot
             # identify the primary route by itself, but one independently
@@ -400,9 +474,12 @@ class ClaudeSdkEventProjector:
             # also present as a usage key or uniquely names one canonical entry.
             # Missing, conflicting, malformed, or unrelated evidence remains
             # fail-closed.
-            if len(reported_models) != 1:
+            if session_model is not None:
+                reported = session_model
+            elif len(reported_models) != 1:
                 return None, None, "ambiguous"
-            reported = next(iter(reported_models))
+            else:
+                reported = next(iter(reported_models))
             if reported in usage_models:
                 effective = reported
                 canonical = self._usage_canonical_models.get(reported)
@@ -430,9 +507,20 @@ class ClaudeSdkEventProjector:
                 allowed_reported = {usage_model}
                 if canonical is not None:
                     allowed_reported.add(canonical)
-                if not reported_models.issubset(allowed_reported):
+                if session_model is not None:
+                    if usage_model == session_model:
+                        effective = session_model
+                    elif canonical == session_model:
+                        effective = session_model
+                        canonical = session_model
+                    else:
+                        return None, None, "ambiguous"
+                elif not reported_models.issubset(allowed_reported):
                     return None, None, "ambiguous"
-                effective = usage_model
+                else:
+                    effective = usage_model
+            elif session_model is not None:
+                effective = session_model
             elif len(reported_models) == 1:
                 effective = next(iter(reported_models))
             elif len(reported_models) > 1:

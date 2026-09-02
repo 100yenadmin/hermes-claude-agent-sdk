@@ -74,6 +74,15 @@ bound to its own usage entry, and missing, conflicting, malformed, or unrelated
 evidence remains `ambiguous`. The requested model is retained as selection
 metadata and never substitutes for SDK-observed effective-model evidence.
 
+SDK `0.2.151` may instead report the primary route only on a safe
+`SystemMessage(subtype="init")` `data.model`, expose a synthetic root
+`AssistantMessage.model`, and return an empty `modelUsage` mapping. The plugin
+retains the validated init model for the runtime session, treats empty usage as
+absence, and resets usage/malformed state at each new turn. Unsafe, conflicting,
+or malformed init evidence and any unrelated non-synthetic SDK model remain
+fail-closed as `ambiguous`; a turn with no session or SDK evidence remains
+`unknown` and never falls back to the requested model.
+
 ## Fable model identifiers
 
 The frozen RC evidence was produced with the direct Claude model identifier
