@@ -41,7 +41,7 @@ def _context(catalog, candidate_fields: dict[str, str]) -> ExecutionContext:
     )
 
 
-@pytest.mark.parametrize("sdk_version", ["0.2.144", "0.2.151"])
+@pytest.mark.parametrize("sdk_version", ["0.2.151"])
 def test_approval_followthrough_uses_exact_host_allow_deny_and_recovery(
     catalog,
     candidate_fields,

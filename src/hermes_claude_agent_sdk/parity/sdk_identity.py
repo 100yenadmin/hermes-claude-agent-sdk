@@ -49,9 +49,9 @@ def resolve_candidate_sdk_version(candidate_version: object | None) -> str:
     maximum = _version_tuple(SDK_MAX_VERSION)
     if installed is None or minimum is None or maximum is None:
         raise SDKIdentityViolation("sdk_version_malformed")
-    if not minimum <= installed < maximum:
-        raise SDKIdentityViolation("sdk_version_unsupported")
     if candidate_version is None:
+        if not minimum <= installed < maximum:
+            raise SDKIdentityViolation("sdk_version_unsupported")
         return installed_version
 
     candidate = _version_tuple(candidate_version)
@@ -59,6 +59,8 @@ def resolve_candidate_sdk_version(candidate_version: object | None) -> str:
         raise SDKIdentityViolation("sdk_version_malformed")
     if candidate_version != installed_version:
         raise SDKIdentityViolation("sdk_version_mismatch")
+    if not minimum <= installed < maximum:
+        raise SDKIdentityViolation("sdk_version_unsupported")
     return installed_version
 
 

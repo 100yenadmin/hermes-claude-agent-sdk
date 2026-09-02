@@ -39,6 +39,17 @@ def test_candidate_sdk_identity_rejects_caller_and_install_mismatch(
     assert exc_info.value.reason_code == "sdk_version_mismatch"
 
 
+def test_candidate_sdk_identity_reports_reverse_mismatch_before_range_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(metadata, "version", lambda _: "0.2.144")
+
+    with pytest.raises(SDKIdentityViolation, match="sdk_version_mismatch") as exc_info:
+        resolve_candidate_sdk_version("0.2.151")
+
+    assert exc_info.value.reason_code == "sdk_version_mismatch"
+
+
 @pytest.mark.parametrize(
     ("candidate_version", "installed_version", "reason_code"),
     [
