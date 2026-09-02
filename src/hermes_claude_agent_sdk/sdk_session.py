@@ -1,4 +1,4 @@
-"""Thin public-API session adapter for ``claude-agent-sdk`` 0.2.144.
+"""Thin public-API session adapter for the admitted Claude Agent SDK range.
 
 The adapter owns exactly one lifetime reader for a connected SDK client.  A
 turn claims an inbox before ``query`` is issued, and an async lock serializes

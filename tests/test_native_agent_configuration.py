@@ -40,8 +40,11 @@ def _configuration() -> SDKSessionConfiguration:
 
 def test_option_fields_expose_native_agent_and_hermes_mcp_allowlist() -> None:
     from claude_agent_sdk import ClaudeAgentOptions, __version__ as sdk_version
+    from hermes_claude_agent_sdk.compatibility import _sdk_metadata
 
-    assert sdk_version == "0.2.144"
+    sdk_report = _sdk_metadata()
+    assert sdk_report["installed_version"] == sdk_version
+    assert sdk_report["compatible"] is True
     fields = _configuration().option_fields()
 
     assert set(fields) == {
@@ -65,8 +68,9 @@ def test_option_fields_expose_native_agent_and_hermes_mcp_allowlist() -> None:
     assert fields["strict_mcp_config"] is True
     assert fields["setting_sources"] == []
 
-    # The exact mapping is accepted by the pinned public SDK without relying
-    # on private types or an SDK/provider call.
+    # The mapping is accepted by the installed public SDK within the package's
+    # bounded compatibility range without a provider call. The frozen-v2
+    # runner separately constrains this named test to exact SDK 0.2.144.
     options = ClaudeAgentOptions(**fields)
     assert options.tools == ["Agent"]
     assert options.allowed_tools == ["mcp__hermes-tools__pwd"]

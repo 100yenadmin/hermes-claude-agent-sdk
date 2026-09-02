@@ -21,14 +21,18 @@ MIT rights.
 
 ## 2. Dependency license metadata
 
-Package metadata pins:
+Package metadata admits the bounded first-RC range:
 
 ```text
-claude-agent-sdk==0.2.144
+claude-agent-sdk>=0.2.144,<0.2.152
 ```
 
-The published metadata for that dependency declares the MIT license. This is a
-statement about the dependency's declared distribution metadata. It is not a
+The frozen Fable 5 parity cell separately pins exact SDK 0.2.144, while the
+first direct Fable 5.1 successor is exact SDK 0.2.151. Both exact wheels and
+their bundled CLI identities require separate release-time inspection.
+
+The published metadata for those SDK versions declares the MIT license. This
+is a statement about each dependency distribution's declared metadata. It is not a
 complete review of all transitive dependency licenses, bundled assets, CLI
 components, or redistribution notices. A release owner must inspect the exact
 wheel/sdist and resolved dependency set before publishing a release candidate,
@@ -69,8 +73,8 @@ must:
 1. retain `LICENSE`, `NOTICE`, and `AUTHORS` in the artifact;
 2. inspect the exact dependency metadata and transitive license/notice set;
 3. update third-party notices for any shipped component that requires one;
-4. keep the pinned SDK version, source provenance SHAs, and artifact checksums
-   together in the release evidence; and
+4. keep each tested exact SDK version, bundled CLI identity, source provenance
+   SHA, and artifact checksum together in the release evidence; and
 5. record any unresolved license, terms, or redistribution question as a
    release stop rather than assuming compatibility.
 

@@ -88,7 +88,7 @@ class ToolCallResult:
     is_error: bool = False
 
     def to_sdk_result(self) -> dict[str, Any]:
-        """Return the public ``@tool`` result shape used by SDK 0.2.144."""
+        """Return the public ``@tool`` result shape used by the admitted SDKs."""
 
         return {
             "content": [{"type": "text", "text": self.text}],

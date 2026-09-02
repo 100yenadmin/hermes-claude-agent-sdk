@@ -1,8 +1,8 @@
 """Bounded Claude CLI native-compaction lifecycle adapter.
 
-``claude-agent-sdk`` 0.2.144 exposes a public ``PreCompact`` hook but no
-typed post-compaction hook.  The pinned Claude CLI currently reports the end
-of compaction as a public ``SystemMessage`` whose subtype is
+The admitted ``claude-agent-sdk`` range exposes a public ``PreCompact`` hook
+but no typed post-compaction hook.  The admitted bundled Claude CLIs report
+the end of compaction as a public ``SystemMessage`` whose subtype is
 ``compact_boundary``.  This module keeps that empirical compatibility detail
 inside the plugin and projects only the provider-neutral lifecycle phases to
 AgentRuntime v1.
@@ -101,7 +101,7 @@ class NativeCompactionLifecycle:
         hook_matcher = getattr(sdk_module, "HookMatcher", None)
         if not callable(hook_matcher):
             raise RuntimeError(
-                "claude-agent-sdk 0.2.144 PreCompact hook support is unavailable"
+                "claude-agent-sdk PreCompact hook support is unavailable"
             )
 
         async def on_pre_compact(input_data, _tool_use_id, _context):
