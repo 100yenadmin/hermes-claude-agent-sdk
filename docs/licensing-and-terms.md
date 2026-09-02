@@ -31,6 +31,12 @@ Revision 4 targets exact SDK `0.2.151`, bundled Claude Code-derived CLI
 `2.1.258`, and direct model `claude-fable-5-1`. The exact wheel and bundled
 subprocess require separate license/provenance inspection.
 
+The standalone plugin wheel and sdist declare this dependency but do not vendor
+or redistribute the SDK package or bundled CLI. An installer obtains that
+separate distribution from the operator's configured package source. Any
+future bundled or vendored artifact would be a different release boundary and
+must stop for a fresh redistribution and notice review.
+
 The published metadata for those SDK versions declares the MIT license. This
 is a statement about each dependency distribution's declared metadata. It is not a
 complete review of all transitive dependency licenses, bundled assets, CLI

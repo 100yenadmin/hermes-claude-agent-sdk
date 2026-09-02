@@ -94,11 +94,21 @@ def test_built_package_lifecycle(tmp_path: Path) -> None:
 
     required_notices = {"LICENSE", "NOTICE", "AUTHORS"}
     with zipfile.ZipFile(wheel) as archive:
-        wheel_notices = {Path(name).name for name in archive.namelist()}
+        wheel_paths = set(archive.namelist())
+        wheel_notices = {Path(name).name for name in wheel_paths}
     with tarfile.open(sdist, mode="r:gz") as archive:
-        sdist_notices = {Path(name).name for name in archive.getnames()}
+        sdist_archive_paths = set(archive.getnames())
+        sdist_notices = {Path(name).name for name in sdist_archive_paths}
     assert required_notices <= wheel_notices
     assert required_notices <= sdist_notices
+    assert not any(
+        Path(name).parts and Path(name).parts[0] == "claude_agent_sdk"
+        for name in wheel_paths
+    )
+    assert not any(
+        "claude_agent_sdk" in Path(name).parts[1:]
+        for name in sdist_archive_paths
+    )
     with tarfile.open(sdist, mode="r:gz") as archive:
         sdist_paths = {"/".join(Path(name).parts[1:]) for name in archive.getnames()}
         sdist_hashes = {}

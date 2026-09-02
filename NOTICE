@@ -32,7 +32,7 @@ that contributor.
 
 ## Dependency and service boundary
 
-The package metadata pins `claude-agent-sdk==0.2.144`. The published metadata
+The package metadata pins `claude-agent-sdk==0.2.151`. The published metadata
 for that dependency declares the MIT license. This statement is dependency
 metadata, not a complete inventory of the dependency's transitive packages,
 bundled assets, or their notices; those must be inspected before a release
@@ -45,9 +45,12 @@ not equivalent to the MIT license. This notice does not grant permission for
 customer or commercial use, certify license compatibility, or provide legal
 advice; operators and counsel must make those determinations for their use.
 
-No Claude SDK source, bundled CLI, credentials, authentication files, or raw
-user data are intended to be included by the packaging shell. This notice does
-not replace a release-time artifact and dependency audit.
+The standalone wheel and sdist do not vendor or redistribute Claude SDK source
+or its bundled CLI; package installers resolve the separately distributed SDK
+dependency from the operator's configured package source. Credentials,
+authentication files, and raw user data are also excluded. This notice does
+not replace a release-time artifact and dependency audit, and it does not grant
+redistribution rights for a future artifact that chooses to vendor a dependency.
 
 ## Behavioral evaluation references
 
