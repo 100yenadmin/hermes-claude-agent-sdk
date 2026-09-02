@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import sys
 import types
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Iterator, Mapping
+from typing import Any
 
 
 def _install_runtime_api_test_compat() -> None:
@@ -524,7 +525,11 @@ def test_multiple_usage_keys_with_same_canonical_model_fail_closed() -> None:
 def test_public_sdk_multi_usage_uses_unique_reported_effective_model() -> None:
     from claude_agent_sdk.types import (
         AssistantMessage as SDKAssistantMessage,
+    )
+    from claude_agent_sdk.types import (
         ResultMessage as SDKResultMessage,
+    )
+    from claude_agent_sdk.types import (
         TextBlock as SDKTextBlock,
     )
 
@@ -564,6 +569,323 @@ def test_public_sdk_multi_usage_uses_unique_reported_effective_model() -> None:
     assert result.canonical_model == "claude-fable-5-1"
     assert result.model_resolution == "exact"
     receipt = result.events[1].receipt
+    assert receipt.model == "claude-fable-5-1"
+    assert receipt.selected_model == "claude-fable-5-1"
+    assert receipt.effective_model == "claude-fable-5-1"
+    assert receipt.canonical_model == "claude-fable-5-1"
+    assert receipt.model_resolution == "exact"
+
+
+def test_public_sdk_auxiliary_usage_uses_unique_reported_primary_model() -> None:
+    from claude_agent_sdk.types import (
+        AssistantMessage as SDKAssistantMessage,
+    )
+    from claude_agent_sdk.types import (
+        ResultMessage as SDKResultMessage,
+    )
+    from claude_agent_sdk.types import (
+        TextBlock as SDKTextBlock,
+    )
+
+    projector = ClaudeSdkEventProjector(model="claude-fable-5-1")
+    projector.project(
+        SDKAssistantMessage(
+            content=[SDKTextBlock("bounded fixture")],
+            model="claude-fable-5-1",
+        )
+    )
+    result = projector.project(
+        SDKResultMessage(
+            subtype="success",
+            duration_ms=1,
+            duration_api_ms=1,
+            is_error=False,
+            num_turns=1,
+            session_id="synthetic-sdk-session",
+            usage={"input_tokens": 2, "output_tokens": 1},
+            result="done",
+            model_usage={
+                "claude-fable-5-1": {
+                    "canonicalModel": "claude-fable-5-1",
+                    "inputTokens": 1,
+                    "outputTokens": 1,
+                },
+                "claude-haiku-4-5-20251001": {
+                    "canonicalModel": "claude-haiku-4-5-20251001",
+                    "inputTokens": 1,
+                    "outputTokens": 0,
+                },
+            },
+        )
+    )
+
+    assert result.effective_model == "claude-fable-5-1"
+    assert result.canonical_model == "claude-fable-5-1"
+    assert result.model_resolution == "exact"
+    receipt = result.events[1].receipt
+    assert receipt.model == "claude-fable-5-1"
+    assert receipt.selected_model == "claude-fable-5-1"
+    assert receipt.effective_model == "claude-fable-5-1"
+    assert receipt.canonical_model == "claude-fable-5-1"
+    assert receipt.model_resolution == "exact"
+
+
+def test_public_sdk_canonical_usage_alias_keeps_reported_primary_model() -> None:
+    from claude_agent_sdk.types import (
+        AssistantMessage as SDKAssistantMessage,
+    )
+    from claude_agent_sdk.types import (
+        ResultMessage as SDKResultMessage,
+    )
+    from claude_agent_sdk.types import (
+        TextBlock as SDKTextBlock,
+    )
+
+    projector = ClaudeSdkEventProjector(model="claude-fable-5-1")
+    projector.project(
+        SDKAssistantMessage(
+            content=[SDKTextBlock("root fixture")],
+            model="claude-fable-5-1",
+        )
+    )
+    result = projector.project(
+        SDKResultMessage(
+            subtype="success",
+            duration_ms=1,
+            duration_api_ms=1,
+            is_error=False,
+            num_turns=1,
+            session_id="synthetic-sdk-session",
+            usage={"input_tokens": 2, "output_tokens": 1},
+            result="done",
+            model_usage={
+                "claude-fable-5": {
+                    "canonicalModel": "claude-fable-5-1",
+                    "inputTokens": 1,
+                    "outputTokens": 1,
+                },
+                "claude-haiku-4-5-20251001": {
+                    "canonicalModel": "claude-haiku-4-5-20251001",
+                    "inputTokens": 1,
+                    "outputTokens": 0,
+                },
+            },
+        )
+    )
+
+    assert result.effective_model == "claude-fable-5-1"
+    assert result.canonical_model == "claude-fable-5-1"
+    assert result.model_resolution == "exact"
+    receipt = result.events[1].receipt
+    assert receipt.model == "claude-fable-5-1"
+    assert receipt.effective_model == "claude-fable-5-1"
+    assert receipt.canonical_model == "claude-fable-5-1"
+    assert receipt.model_resolution == "exact"
+
+
+def test_public_sdk_nested_assistant_model_does_not_taint_primary_route() -> None:
+    from claude_agent_sdk.types import (
+        AssistantMessage as SDKAssistantMessage,
+    )
+    from claude_agent_sdk.types import (
+        ResultMessage as SDKResultMessage,
+    )
+    from claude_agent_sdk.types import (
+        TextBlock as SDKTextBlock,
+    )
+
+    projector = ClaudeSdkEventProjector(model="claude-fable-5-1")
+    projector.project(
+        SDKAssistantMessage(
+            content=[SDKTextBlock("root fixture")],
+            model="claude-fable-5-1",
+        )
+    )
+    projector.project(
+        SDKAssistantMessage(
+            content=[SDKTextBlock("nested fixture")],
+            model="claude-haiku-4-5-20251001",
+            parent_tool_use_id="synthetic-parent-tool",
+        )
+    )
+    result = projector.project(
+        SDKResultMessage(
+            subtype="success",
+            duration_ms=1,
+            duration_api_ms=1,
+            is_error=False,
+            num_turns=1,
+            session_id="synthetic-sdk-session",
+            usage={"input_tokens": 2, "output_tokens": 1},
+            result="done",
+            model_usage={
+                "claude-fable-5-1": {
+                    "canonicalModel": "claude-fable-5-1",
+                    "inputTokens": 1,
+                    "outputTokens": 1,
+                },
+                "claude-haiku-4-5-20251001": {
+                    "canonicalModel": "claude-haiku-4-5-20251001",
+                    "inputTokens": 1,
+                    "outputTokens": 0,
+                },
+            },
+        )
+    )
+
+    assert result.effective_model == "claude-fable-5-1"
+    assert result.canonical_model == "claude-fable-5-1"
+    assert result.model_resolution == "exact"
+    assert result.events[1].receipt.model == "claude-fable-5-1"
+
+
+def test_auxiliary_canonical_never_attaches_to_reported_primary_key() -> None:
+    from claude_agent_sdk.types import (
+        AssistantMessage as SDKAssistantMessage,
+    )
+    from claude_agent_sdk.types import (
+        ResultMessage as SDKResultMessage,
+    )
+    from claude_agent_sdk.types import (
+        TextBlock as SDKTextBlock,
+    )
+
+    projector = ClaudeSdkEventProjector(model="effective-b")
+    projector.project(
+        SDKAssistantMessage(
+            content=[SDKTextBlock("root fixture")],
+            model="effective-b",
+        )
+    )
+    result = projector.project(
+        SDKResultMessage(
+            subtype="success",
+            duration_ms=1,
+            duration_api_ms=1,
+            is_error=False,
+            num_turns=1,
+            session_id="synthetic-sdk-session",
+            usage={"input_tokens": 2, "output_tokens": 1},
+            result="done",
+            model_usage={
+                "aux-a": {
+                    "canonicalModel": "canonical-a",
+                    "inputTokens": 1,
+                    "outputTokens": 0,
+                },
+                "effective-b": {
+                    "inputTokens": 1,
+                    "outputTokens": 1,
+                },
+            },
+        )
+    )
+
+    assert result.effective_model == "effective-b"
+    assert result.canonical_model is None
+    assert result.model_resolution == "exact"
+    receipt = result.events[1].receipt
+    assert receipt.model == "effective-b"
+    assert receipt.effective_model == "effective-b"
+    assert receipt.canonical_model is None
+    assert receipt.model_resolution == "exact"
+
+
+def test_multi_usage_unrelated_reported_model_stays_ambiguous() -> None:
+    projector = ClaudeSdkEventProjector(model="claude-fable-5-1")
+    projector.project(
+        AssistantMessage([TextBlock("root fixture")], model="unrelated-model")
+    )
+    result = projector.project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 2, "output_tokens": 1},
+            model=None,
+            model_usage={
+                "claude-fable-5-1": {
+                    "canonicalModel": "claude-fable-5-1",
+                },
+                "claude-haiku-4-5-20251001": {
+                    "canonicalModel": "claude-haiku-4-5-20251001",
+                },
+            },
+        )
+    )
+
+    assert result.effective_model is None
+    assert result.canonical_model is None
+    assert result.model_resolution == "ambiguous"
+    assert result.events[1].receipt.model == "unknown"
+
+
+def test_sdk_02151_public_shape_projects_reported_primary_model() -> None:
+    import importlib.metadata
+
+    import pytest
+    from claude_agent_sdk.types import (
+        AssistantMessage as SDKAssistantMessage,
+    )
+    from claude_agent_sdk.types import (
+        ResultMessage as SDKResultMessage,
+    )
+    from claude_agent_sdk.types import (
+        TextBlock as SDKTextBlock,
+    )
+
+    if importlib.metadata.version("claude-agent-sdk") != "0.2.151":
+        pytest.skip("the exact Fable 5.1 successor cell uses SDK 0.2.151")
+
+    projector = ClaudeSdkEventProjector(model="claude-fable-5-1")
+    projector.project(
+        SDKAssistantMessage(
+            content=[SDKTextBlock("bounded fixture")],
+            model="claude-fable-5-1",
+            parent_tool_use_id=None,
+        )
+    )
+    sdk_result = SDKResultMessage(
+        subtype="success",
+        duration_ms=1,
+        duration_api_ms=1,
+        is_error=False,
+        num_turns=1,
+        session_id="synthetic-sdk-session",
+        usage={"input_tokens": 2, "output_tokens": 1},
+        result="done",
+        model_usage={
+            "claude-fable-5-1": {
+                "inputTokens": 1,
+                "outputTokens": 1,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0,
+                "webSearchRequests": 0,
+                "costUSD": 0.0,
+                "contextWindow": 200_000,
+                "maxOutputTokens": 4096,
+                "canonicalModel": "claude-fable-5-1",
+                "provider": "firstParty",
+            },
+            "claude-haiku-4-5-20251001": {
+                "inputTokens": 1,
+                "outputTokens": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0,
+                "webSearchRequests": 0,
+                "costUSD": 0.0,
+                "contextWindow": 200_000,
+                "maxOutputTokens": 4096,
+                "canonicalModel": "claude-haiku-4-5-20251001",
+                "provider": "firstParty",
+            },
+        },
+    )
+
+    assert not hasattr(sdk_result, "model")
+    projected = projector.project(sdk_result)
+    assert projected.effective_model == "claude-fable-5-1"
+    assert projected.canonical_model == "claude-fable-5-1"
+    assert projected.model_resolution == "exact"
+    receipt = projected.events[1].receipt
     assert receipt.model == "claude-fable-5-1"
     assert receipt.selected_model == "claude-fable-5-1"
     assert receipt.effective_model == "claude-fable-5-1"

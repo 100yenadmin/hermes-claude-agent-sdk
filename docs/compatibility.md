@@ -65,6 +65,15 @@ Missing, malformed, or below-floor metadata fails closed. No system Claude
 CLI, custom CLI path, or SDK import is used for this check. `doctor()` reports
 the same bounded metadata and decision without credentials or a client.
 
+SDK `modelUsage` is an aggregate and may include auxiliary models used during
+the turn. When more than one usage entry is present, the plugin accepts the
+sole top-level `AssistantMessage.model` as primary-route evidence only when it
+matches a usage key or uniquely matches that key's canonical model. Nested
+agent messages do not select the parent turn's model, canonical identity stays
+bound to its own usage entry, and missing, conflicting, malformed, or unrelated
+evidence remains `ambiguous`. The requested model is retained as selection
+metadata and never substitutes for SDK-observed effective-model evidence.
+
 ## Fable model identifiers
 
 The frozen RC evidence was produced with the direct Claude model identifier

@@ -301,7 +301,7 @@ class ClaudeSdkEventProjector:
         self._selected_model = _safe_model_identifier(model)
         self._reported_models: set[str] = set()
         self._usage_models: set[str] = set()
-        self._canonical_models: set[str] = set()
+        self._usage_canonical_models: dict[str, str | None] = {}
         self._usage_malformed = False
         self._billing_mode = (
             billing_mode
@@ -327,7 +327,11 @@ class ClaudeSdkEventProjector:
 
     def _observe_model_evidence(self, message: Any) -> None:
         reported = _safe_model_identifier(_safe_attr(message, "model"))
-        if reported:
+        parent_tool_use_id = _safe_attr(message, "parent_tool_use_id")
+        if reported and parent_tool_use_id in (None, ""):
+            # AssistantMessage.model is primary-route evidence only for the
+            # root conversation. Nested agent messages may legitimately use a
+            # different model and are already represented in aggregate usage.
             self._reported_models.add(reported)
 
         model_usage = _safe_attr(message, "model_usage")
@@ -357,46 +361,71 @@ class ClaudeSdkEventProjector:
             if safe_model is None or not isinstance(usage, Mapping):
                 self._usage_malformed = True
                 continue
-            self._usage_models.add(safe_model)
             canonical = _known_value(usage, "canonicalModel")
-            if canonical is None:
-                continue
-            if (
+            safe_canonical = None
+            if canonical is not None and not (
                 isinstance(canonical, str)
                 and canonical.strip().casefold() == _UNKNOWN_MODEL
             ):
-                # The SDK sentinel carries no canonical identity. Preserve any
-                # independently reported effective model instead.
-                continue
-            safe_canonical = _safe_model_identifier(canonical)
-            if safe_canonical is None:
+                safe_canonical = _safe_model_identifier(canonical)
+                if safe_canonical is None:
+                    self._usage_malformed = True
+                    continue
+
+            previous_canonical = self._usage_canonical_models.get(safe_model)
+            if (
+                previous_canonical is not None
+                and safe_canonical is not None
+                and previous_canonical != safe_canonical
+            ):
                 self._usage_malformed = True
                 continue
-            self._canonical_models.add(safe_canonical)
+            self._usage_models.add(safe_model)
+            if safe_canonical is not None:
+                self._usage_canonical_models[safe_model] = safe_canonical
+            else:
+                self._usage_canonical_models.setdefault(safe_model, None)
 
     def _model_provenance(self) -> tuple[str | None, str | None, str]:
         """Return effective/canonical identity and a fail-closed resolution."""
-        if self._usage_malformed or len(self._canonical_models) > 1:
+        if self._usage_malformed:
             return None, None, "ambiguous"
 
         usage_models = self._usage_models
-        canonical = next(iter(self._canonical_models), None)
         reported_models = self._reported_models
         if len(usage_models) > 1:
             # Aggregate model_usage may contain auxiliary models. It cannot
             # identify the primary route by itself, but one independently
             # reported AssistantMessage.model can do so when that identity is
-            # also present as a usage key or as the one shared canonical model.
+            # also present as a usage key or uniquely names one canonical entry.
             # Missing, conflicting, malformed, or unrelated evidence remains
             # fail-closed.
             if len(reported_models) != 1:
                 return None, None, "ambiguous"
             reported = next(iter(reported_models))
-            if reported not in usage_models and reported != canonical:
-                return None, None, "ambiguous"
-            effective = reported
+            if reported in usage_models:
+                effective = reported
+                canonical = self._usage_canonical_models.get(reported)
+            else:
+                canonical_matches = tuple(
+                    model
+                    for model, model_canonical in self._usage_canonical_models.items()
+                    if model_canonical == reported
+                )
+                if len(canonical_matches) != 1:
+                    return None, None, "ambiguous"
+                # The root AssistantMessage is the SDK's direct primary-route
+                # evidence. A unique usage alias that canonicalizes to it
+                # confirms the identity without replacing it with the alias.
+                effective = reported
+                canonical = reported
         else:
             usage_model = next(iter(usage_models), None)
+            canonical = (
+                self._usage_canonical_models.get(usage_model)
+                if usage_model is not None
+                else None
+            )
             if usage_model is not None:
                 allowed_reported = {usage_model}
                 if canonical is not None:
