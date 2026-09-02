@@ -150,6 +150,53 @@ class LiveScenarioResult:
     effective_model: str | None = None
     canonical_model: str | None = None
     model_resolution: str = "unknown"
+    usage_receipts: tuple[Mapping[str, Any], ...] = ()
+
+
+def _normalized_usage_receipts(
+    receipts: Sequence[Any],
+) -> tuple[dict[str, Any], ...]:
+    """Retain the ordered, non-secret receipt provenance used by parity proofs."""
+
+    return tuple(
+        {
+            "runtime_id": receipt.runtime_id,
+            "provider": receipt.provider,
+            "model": receipt.model,
+            "selected_model": receipt.selected_model,
+            "effective_model": receipt.effective_model,
+            "canonical_model": receipt.canonical_model,
+            "model_resolution": receipt.model_resolution,
+            "billing_mode": receipt.billing_mode,
+            "cost_status": receipt.cost_status,
+            "fallback_used": receipt.fallback_used,
+        }
+        for receipt in receipts
+    )
+
+
+def _native_usage_hash(
+    live: LiveScenarioResult,
+    *,
+    plugin_sha: str,
+    host_sha: str,
+) -> str:
+    """Bind aggregate billing plus every ordered receipt provenance record."""
+
+    return sha256_value(
+        {
+            "billing": live.billing,
+            "model_provenance": {
+                "selected_model": live.selected_model,
+                "effective_model": live.effective_model,
+                "canonical_model": live.canonical_model,
+                "model_resolution": live.model_resolution,
+            },
+            "usage_receipts": live.usage_receipts,
+            "plugin_sha": plugin_sha,
+            "host_sha": host_sha,
+        }
+    )
 
 
 def native_execution_ids() -> tuple[str, ...]:
@@ -467,6 +514,7 @@ async def _execute_live(
         for event in events
         if getattr(getattr(event, "kind", None), "value", None) == "usage"
     ]
+    normalized_usage_receipts = _normalized_usage_receipts(usage)
     if usage and any(
         _is_silent_receipt_model_fallback(receipt, model=model)
         for receipt in usage
@@ -523,6 +571,7 @@ async def _execute_live(
             model_resolution=(
                 model_resolution if isinstance(model_resolution, str) else "unknown"
             ),
+            usage_receipts=normalized_usage_receipts,
         ),
         host,
     )
@@ -743,18 +792,10 @@ async def native_scenario_suite(context: ExecutionContext) -> ExecutionBundle:
 
         trace_hash = sha256_value(json_compatible(live.trace))
         grade_hash = sha256_value(grade)
-        usage_hash = sha256_value(
-            {
-                "billing": live.billing,
-                "model_provenance": {
-                    "selected_model": live.selected_model,
-                    "effective_model": live.effective_model,
-                    "canonical_model": live.canonical_model,
-                    "model_resolution": live.model_resolution,
-                },
-                "plugin_sha": context.plugin_sha,
-                "host_sha": context.host_sha,
-            }
+        usage_hash = _native_usage_hash(
+            live,
+            plugin_sha=context.plugin_sha,
+            host_sha=context.host_sha,
         )
         common_primary = {
             "scenario_id": scenario.scenario_id,

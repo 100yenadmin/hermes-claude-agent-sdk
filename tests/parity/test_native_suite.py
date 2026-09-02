@@ -15,9 +15,12 @@ from hermes_claude_agent_sdk.parity.native_sandbox import (
 )
 from hermes_claude_agent_sdk.parity.native_suite import (
     CLAWPROBENCH_SHA,
+    LiveScenarioResult,
     NATIVE_OUTPUT_GUIDANCE,
     NATIVE_READ_WRITE_ADAPTATIONS,
     NATIVE_SOURCE_IDS,
+    _native_usage_hash,
+    _normalized_usage_receipts,
     grade_native_trace,
     load_native_scenario,
     native_execution_ids,
@@ -66,6 +69,30 @@ def test_native_no_fallback_check_accepts_selected_effective_canonicalized_model
     ) is False
 
 
+@pytest.mark.parametrize(
+    ("requested_model", "canonical_model"),
+    (
+        ("claude-fable-5", "claude-unapproved"),
+        ("claude-fable-4", "claude-fable-5-1"),
+    ),
+)
+def test_native_no_fallback_check_rejects_unapproved_canonicalized_model(
+    requested_model: str,
+    canonical_model: str,
+) -> None:
+    assert _is_silent_model_fallback(
+        {
+            "provider": "claude-agent-sdk",
+            "model": canonical_model,
+            "selected_model": requested_model,
+            "effective_model": requested_model,
+            "canonical_model": canonical_model,
+            "model_resolution": "canonicalized",
+        },
+        model=requested_model,
+    ) is True
+
+
 def test_native_no_fallback_check_accepts_canonicalized_receipt_provenance() -> None:
     receipt = SimpleNamespace(
         provider="claude-agent-sdk",
@@ -94,6 +121,187 @@ def test_native_no_fallback_check_rejects_wrong_billing_model_provenance() -> No
         },
         model="claude-fable-5",
     ) is True
+
+
+def _usage_receipt(
+    *,
+    model: str,
+    canonical_model: str | None,
+    model_resolution: str,
+    billing_mode: str = "subscription_included",
+    cost_status: str = "included",
+    fallback_used: bool = False,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        runtime_id="hermes-claude-agent-sdk",
+        provider="claude-agent-sdk",
+        model=model,
+        selected_model="claude-fable-5",
+        effective_model="claude-fable-5",
+        canonical_model=canonical_model,
+        model_resolution=model_resolution,
+        billing_mode=billing_mode,
+        cost_status=cost_status,
+        fallback_used=fallback_used,
+        input_tokens=999,
+        turn_correlation_id="must-not-enter-proof",
+    )
+
+
+def _live_result(
+    usage_receipts: tuple[dict[str, object], ...],
+    *,
+    billing: str = "subscription_included",
+) -> LiveScenarioResult:
+    return LiveScenarioResult(
+        terminal="completed",
+        billing=billing,
+        final_text="OK",
+        trace={},
+        state_hash="state",
+        silent_fallback=False,
+        selected_model="claude-fable-5",
+        effective_model="claude-fable-5",
+        canonical_model="claude-fable-5-1",
+        model_resolution="canonicalized",
+        usage_receipts=usage_receipts,
+    )
+
+
+def test_native_receipt_projection_matches_active_suite_provenance_shape() -> None:
+    projected = _normalized_usage_receipts(
+        (
+            _usage_receipt(
+                model="claude-fable-5-1",
+                canonical_model="claude-fable-5-1",
+                model_resolution="canonicalized",
+            ),
+        )
+    )
+
+    assert projected == (
+        {
+            "runtime_id": "hermes-claude-agent-sdk",
+            "provider": "claude-agent-sdk",
+            "model": "claude-fable-5-1",
+            "selected_model": "claude-fable-5",
+            "effective_model": "claude-fable-5",
+            "canonical_model": "claude-fable-5-1",
+            "model_resolution": "canonicalized",
+            "billing_mode": "subscription_included",
+            "cost_status": "included",
+            "fallback_used": False,
+        },
+    )
+
+
+def test_native_usage_hash_binds_exact_vs_canonicalized_receipt_provenance() -> None:
+    exact = _normalized_usage_receipts(
+        (
+            _usage_receipt(
+                model="claude-fable-5",
+                canonical_model=None,
+                model_resolution="exact",
+            ),
+        )
+    )
+    canonicalized = _normalized_usage_receipts(
+        (
+            _usage_receipt(
+                model="claude-fable-5-1",
+                canonical_model="claude-fable-5-1",
+                model_resolution="canonicalized",
+            ),
+        )
+    )
+
+    assert _native_usage_hash(
+        _live_result(exact), plugin_sha="plugin", host_sha="host"
+    ) != _native_usage_hash(
+        _live_result(canonicalized), plugin_sha="plugin", host_sha="host"
+    )
+
+
+def test_native_usage_hash_preserves_receipt_order_and_billing() -> None:
+    first = _normalized_usage_receipts(
+        (
+            _usage_receipt(
+                model="claude-fable-5",
+                canonical_model=None,
+                model_resolution="exact",
+            ),
+        )
+    )[0]
+    second = _normalized_usage_receipts(
+        (
+            _usage_receipt(
+                model="claude-fable-5-1",
+                canonical_model="claude-fable-5-1",
+                model_resolution="canonicalized",
+            ),
+        )
+    )[0]
+    ordered = _live_result((first, second))
+    repeated = _live_result((first, second))
+    reversed_receipts = _live_result((second, first))
+    unsafe_billing = _live_result((first, second), billing="unsafe")
+
+    ordered_hash = _native_usage_hash(ordered, plugin_sha="plugin", host_sha="host")
+    assert ordered_hash == _native_usage_hash(
+        repeated, plugin_sha="plugin", host_sha="host"
+    )
+    assert ordered_hash != _native_usage_hash(
+        reversed_receipts, plugin_sha="plugin", host_sha="host"
+    )
+    assert ordered_hash != _native_usage_hash(
+        unsafe_billing, plugin_sha="plugin", host_sha="host"
+    )
+
+
+def test_native_usage_hash_binds_each_receipt_billing_field() -> None:
+    baseline = _normalized_usage_receipts(
+        (
+            _usage_receipt(
+                model="claude-fable-5",
+                canonical_model=None,
+                model_resolution="exact",
+            ),
+        )
+    )
+    variants = tuple(
+        _normalized_usage_receipts((receipt,))
+        for receipt in (
+            _usage_receipt(
+                model="claude-fable-5",
+                canonical_model=None,
+                model_resolution="exact",
+                billing_mode="metered",
+            ),
+            _usage_receipt(
+                model="claude-fable-5",
+                canonical_model=None,
+                model_resolution="exact",
+                cost_status="unknown",
+            ),
+            _usage_receipt(
+                model="claude-fable-5",
+                canonical_model=None,
+                model_resolution="exact",
+                fallback_used=True,
+            ),
+        )
+    )
+    baseline_hash = _native_usage_hash(
+        _live_result(baseline), plugin_sha="plugin", host_sha="host"
+    )
+
+    assert all(
+        baseline_hash
+        != _native_usage_hash(
+            _live_result(variant), plugin_sha="plugin", host_sha="host"
+        )
+        for variant in variants
+    )
 
 
 def test_skill_fixture_uses_unambiguous_source_pack_identifier() -> None:

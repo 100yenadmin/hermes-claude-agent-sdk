@@ -3,7 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Any
+
+
+_AUTHORIZED_CANONICAL_MODELS: Mapping[str, frozenset[str]] = MappingProxyType(
+    {
+        "claude-fable-5": frozenset({"claude-fable-5-1"}),
+    }
+)
 
 
 def is_silent_model_fallback(result: Mapping[str, Any], *, model: str) -> bool:
@@ -26,9 +34,11 @@ def is_silent_model_fallback(result: Mapping[str, Any], *, model: str) -> bool:
     if resolution == "exact":
         return observed != model or canonical not in (None, "unknown", model)
     if resolution == "canonicalized":
+        authorized = _AUTHORIZED_CANONICAL_MODELS.get(model, frozenset())
         return (
             not isinstance(canonical, str)
             or canonical in ("", "unknown", model)
+            or canonical not in authorized
             or observed != canonical
         )
     return True

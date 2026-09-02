@@ -12,6 +12,12 @@ absent or ambiguous. A selected/effective mismatch is explicit evidence and
 cannot be hidden by aliasing or fallback. Fable 5.1 qualification uses only the
 direct Anthropic identifier admitted by the governing compatibility contract;
 an OpenRouter, Nous Portal, API-key, or metered slug is not a substitute.
+The frozen parity validator permits only the pinned canonicalization from
+selected/effective `claude-fable-5` to SDK-observed
+`claude-fable-5-1`; every other canonicalized identity fails closed. Native
+proof hashes bind the ordered normalized provenance of every usage receipt,
+including its billing classification, so terminal output alone cannot hide a
+receipt-level model or billing change.
 
 Hermes remains responsible for tool availability, permissions, approvals,
 status, persistence, cancellation, and fallback policy. The plugin may request

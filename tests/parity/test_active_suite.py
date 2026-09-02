@@ -108,6 +108,30 @@ def test_active_no_fallback_check_accepts_selected_effective_canonicalized_model
     ) is False
 
 
+@pytest.mark.parametrize(
+    ("requested_model", "canonical_model"),
+    (
+        ("claude-fable-5", "claude-unapproved"),
+        ("claude-fable-4", "claude-fable-5-1"),
+    ),
+)
+def test_active_no_fallback_check_rejects_unapproved_canonicalized_model(
+    requested_model: str,
+    canonical_model: str,
+) -> None:
+    assert _is_silent_model_fallback(
+        {
+            "provider": "claude-agent-sdk",
+            "model": canonical_model,
+            "selected_model": requested_model,
+            "effective_model": requested_model,
+            "canonical_model": canonical_model,
+            "model_resolution": "canonicalized",
+        },
+        model=requested_model,
+    ) is True
+
+
 def test_active_no_fallback_check_accepts_canonicalized_receipt_provenance() -> None:
     receipt = SimpleNamespace(
         provider="claude-agent-sdk",

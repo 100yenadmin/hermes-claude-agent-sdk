@@ -78,3 +78,9 @@ Existing Fable 5 receipts and parity contracts remain immutable. Until an
 exact installed-Hermes subscription probe for `claude-fable-5-1` is frozen,
 the plugin keeps `claude-fable-5` as its advertised fallback and the current
 parity commands retain their exact Fable 5 model input.
+
+For the frozen Fable 5 parity proof, the only accepted canonicalized receipt is
+selected/effective `claude-fable-5` with SDK-observed canonical model
+`claude-fable-5-1`. This pinned provenance mapping records the observed model
+upgrade without changing the requested route. Any other canonicalized model,
+including an otherwise nonempty identifier, is rejected as unproven fallback.
