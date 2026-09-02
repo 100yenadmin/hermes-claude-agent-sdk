@@ -16,8 +16,8 @@ from .inventory import InventoryViolation, capture_tool_inventory, load_tool_inv
 from .profile import ProfileViolation, load_profile_manifest
 from .results import ResultViolation, candidate_hash, read_result_packet
 from .runner import load_entrypoint_executors, run_catalog, validate_run_manifest
+from .sdk_identity import SDKIdentityViolation, resolve_candidate_sdk_version
 from .source_authority import SourceAuthorityViolation, validate_source_authority
-
 
 RUNNER_VERSION = "3.0.0"
 
@@ -39,7 +39,10 @@ def _parser() -> argparse.ArgumentParser:
         command.add_argument("--resume", action="store_true")
         command.add_argument("--tool-inventory")
         command.add_argument("--profile-manifest")
-        command.add_argument("--sdk-version", default="0.2.144")
+        command.add_argument(
+            "--sdk-version",
+            help="exact installed claude-agent-sdk version; omitted resolves metadata",
+        )
         command.add_argument("--runner-version", default=RUNNER_VERSION)
         command.add_argument("--capability-id", action="append", default=[])
         if name == "inventory":
@@ -158,6 +161,7 @@ def _inventory(args: argparse.Namespace) -> int:
 
 def _run(args: argparse.Namespace) -> int:
     _require_run_fields(args)
+    sdk_version = resolve_candidate_sdk_version(args.sdk_version)
     catalog = load_catalog(args.catalog)
     validate_source_authority(catalog)
     _validate_profile(catalog, args.profile)
@@ -174,7 +178,7 @@ def _run(args: argparse.Namespace) -> int:
         profile_hash=inventory.profile_hash,
         plugin_sha=args.plugin_sha,
         host_sha=args.host_sha,
-        sdk_version=args.sdk_version,
+        sdk_version=sdk_version,
         runner_version=args.runner_version,
         inventory_hash=inventory.inventory_hash,
         output=args.output,
@@ -189,7 +193,7 @@ def _run(args: argparse.Namespace) -> int:
         catalog_hash=catalog.catalog_hash,
         plugin_sha=args.plugin_sha,
         host_sha=args.host_sha,
-        sdk_version=args.sdk_version,
+        sdk_version=sdk_version,
         profile_hash=inventory.profile_hash,
         runner_version=args.runner_version,
         inventory_hash=inventory.inventory_hash,
@@ -209,6 +213,7 @@ def _run(args: argparse.Namespace) -> int:
 
 def _grade(args: argparse.Namespace) -> int:
     _require_run_fields(args)
+    sdk_version = resolve_candidate_sdk_version(args.sdk_version)
     catalog = load_catalog(args.catalog)
     validate_source_authority(catalog)
     _validate_profile(catalog, args.profile)
@@ -226,7 +231,7 @@ def _grade(args: argparse.Namespace) -> int:
         catalog_hash=catalog.catalog_hash,
         plugin_sha=args.plugin_sha,
         host_sha=args.host_sha,
-        sdk_version=args.sdk_version,
+        sdk_version=sdk_version,
         profile_hash=inventory.profile_hash,
         runner_version=args.runner_version,
         inventory_hash=inventory.inventory_hash,
@@ -263,6 +268,7 @@ def main(argv: list[str] | None = None) -> int:
         InventoryViolation,
         ProfileViolation,
         ResultViolation,
+        SDKIdentityViolation,
         SourceAuthorityViolation,
     ) as exc:
         print(f"contract violation: {exc}", file=sys.stderr)

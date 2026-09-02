@@ -9,12 +9,13 @@ import sys
 import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+
 from .catalog import load_catalog
 from .hashing import sha256_value
 from .results import ExecutionClassification
 from .runner import ExecutionBundle, ExecutionContext, ExecutionOutcome
+from .sdk_identity import candidate_sdk_failure
 from .trace import normalized_path_events
-
 
 _BOUNDARY_NODES: dict[str, tuple[str, ...]] = {
     "boundary:sdk-identity-credential-privacy-side-question-isolation": (
@@ -177,11 +178,11 @@ def _exact_source_preflight(
     root: Path,
     environment: Mapping[str, str] | None = None,
 ) -> str | None:
-    if (
-        context.profile_id != "fable-v3-isolated"
-        or context.sdk_version != "0.2.144"
-    ):
+    if context.profile_id != "fable-v3-isolated":
         return "focused_suite_identity_mismatch"
+    sdk_failure = candidate_sdk_failure(context.sdk_version)
+    if sdk_failure is not None:
+        return sdk_failure
     if os.environ.get("HERMES_PARITY_PLUGIN_SHA") != context.plugin_sha:
         return "plugin_sha_unverified"
     if os.environ.get("HERMES_AGENT_HOST_SHA") != context.host_sha:
@@ -190,7 +191,7 @@ def _exact_source_preflight(
         return "focused_suite_source_unavailable"
     try:
         catalog = load_catalog(root / "qa" / "parity-contract-v3.yaml")
-    except Exception:
+    except Exception:  # noqa: BLE001 - catalog faults fail the gate closed
         return "focused_suite_catalog_invalid"
     if (
         catalog.contract_hash != context.contract_hash

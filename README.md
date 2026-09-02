@@ -89,6 +89,12 @@ hermes-claude-agent-sdk-parity grade --catalog qa/parity-contract-v3.yaml \
   --output ./parity-results --resume
 ```
 
+For `run` and `grade`, an omitted `--sdk-version` resolves from the installed
+`claude-agent-sdk` distribution. An explicit value must match that installed
+version and the supported package range or the command exits before creating
+result evidence. This executing-candidate identity does not rewrite the frozen
+0.2.144 source ledger or its immutable contract hashes.
+
 Exit `0` means the requested gate passed, `1` is a verified scenario failure,
 `2` is a contract or safety violation, and `75` is pending or environment
 blocked. Unknown tools, changed schemas, missing executors, missing terminal

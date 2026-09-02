@@ -8,15 +8,15 @@ from collections.abc import Mapping
 from typing import Any
 
 from .active_suite import active_agentic_suite, active_execution_ids
-from .hashing import sha256_value
 from .focused_suite import boundary_execution_ids, boundary_focused_suite
+from .hashing import sha256_value
 from .native_suite import native_execution_ids, native_scenario_suite
 from .results import ExecutionClassification
 from .runner import ExecutionBundle, ExecutionContext, ExecutionOutcome
 from .runtime_suite import active_runtime_100_turn, runtime_execution_ids
+from .sdk_identity import candidate_sdk_failure
 from .tool_inventory import APPROVAL_TOOL_NAME, APPROVAL_TOOL_SCHEMA
 from .v2_suite import v2_execution_ids, v2_mapped_suite
-
 
 _TOOL_NAME = APPROVAL_TOOL_NAME
 _TOOL_SCHEMA = APPROVAL_TOOL_SCHEMA
@@ -148,8 +148,9 @@ async def approval_followthrough(context: ExecutionContext) -> ExecutionBundle:
 
     if context.profile_id != "fable-v3-isolated":
         return _blocked_bundle("profile_not_isolated")
-    if context.sdk_version != "0.2.144":
-        return _blocked_bundle("sdk_version_mismatch")
+    sdk_failure = candidate_sdk_failure(context.sdk_version)
+    if sdk_failure is not None:
+        return _blocked_bundle(sdk_failure)
     if os.environ.get("HERMES_PARITY_PLUGIN_SHA") != context.plugin_sha:
         return _blocked_bundle("plugin_sha_unverified")
     if os.environ.get("HERMES_AGENT_HOST_SHA") != context.host_sha:
@@ -157,8 +158,9 @@ async def approval_followthrough(context: ExecutionContext) -> ExecutionBundle:
     try:
         from agent.runtime_api import HOST_RUNTIME_CAPABILITIES, RUNTIME_API_VERSION
         from agent.runtime_dispatch import HermesRuntimeHostServices
+
         from hermes_claude_agent_sdk.tool_bridge import HostToolBridge
-    except Exception:
+    except Exception:  # noqa: BLE001 - import faults fail the parity gate closed
         return _blocked_bundle("host_contract_unavailable")
     if RUNTIME_API_VERSION != 1 or not {
         "host_approval_v1",

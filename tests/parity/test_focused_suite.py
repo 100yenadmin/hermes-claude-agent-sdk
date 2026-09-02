@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
+from importlib import metadata
 from pathlib import Path
+
+import pytest
 
 from hermes_claude_agent_sdk.parity import focused_suite
 from hermes_claude_agent_sdk.parity.focused_suite import (
@@ -13,7 +16,12 @@ from hermes_claude_agent_sdk.parity.results import ExecutionClassification
 from hermes_claude_agent_sdk.parity.runner import ExecutionContext
 
 
-def _context(catalog, capability_id: str) -> ExecutionContext:
+def _context(
+    catalog,
+    capability_id: str,
+    *,
+    sdk_version: str = "0.2.144",
+) -> ExecutionContext:
     return ExecutionContext(
         capability=catalog.by_id[capability_id],
         path="positive",
@@ -22,7 +30,7 @@ def _context(catalog, capability_id: str) -> ExecutionContext:
         profile_hash="3" * 64,
         plugin_sha="1" * 40,
         host_sha="2" * 40,
-        sdk_version="0.2.144",
+        sdk_version=sdk_version,
         runner_version="3.0.0",
         inventory_hash="4" * 64,
         contract_hash=catalog.contract_hash,
@@ -55,7 +63,6 @@ def test_focused_suite_does_not_fabricate_unexecuted_path_outcomes(
         assert home.is_dir()
         assert Path(environment["HERMES_HOME"]).is_dir()
         assert environment["PYTHONPATH"] == "/synthetic/repo/src"
-        return None
 
     monkeypatch.setattr(focused_suite, "_exact_source_preflight", successful_preflight)
 
@@ -160,15 +167,18 @@ def test_focused_suite_environment_does_not_forward_secret_shaped_keys(monkeypat
     assert environment["PYTHONDONTWRITEBYTECODE"] == "1"
 
 
+@pytest.mark.parametrize("sdk_version", ["0.2.144", "0.2.151"])
 def test_source_preflight_forwards_isolated_environment_to_git_subprocesses(
     catalog,
     monkeypatch,
     tmp_path,
+    sdk_version: str,
 ) -> None:
     root = tmp_path / "repo"
     (root / "qa").mkdir(parents=True)
     (root / "qa" / "parity-contract-v3.yaml").write_text("synthetic", encoding="utf-8")
     monkeypatch.setattr(focused_suite, "load_catalog", lambda _: catalog)
+    monkeypatch.setattr(metadata, "version", lambda _: sdk_version)
     monkeypatch.setenv("HERMES_PARITY_PLUGIN_SHA", "1" * 40)
     monkeypatch.setenv("HERMES_AGENT_HOST_SHA", "2" * 40)
 
@@ -195,7 +205,11 @@ def test_source_preflight_forwards_isolated_environment_to_git_subprocesses(
     monkeypatch.setattr(focused_suite, "_run", successful_run)
 
     assert focused_suite._exact_source_preflight(
-        _context(catalog, "boundary:terminal-error-warm-query-reuse"),
+        _context(
+            catalog,
+            "boundary:terminal-error-warm-query-reuse",
+            sdk_version=sdk_version,
+        ),
         root,
         environment,
     ) is None
@@ -204,3 +218,25 @@ def test_source_preflight_forwards_isolated_environment_to_git_subprocesses(
         ("git", "status", "--porcelain"),
     ]
     assert all(call[3] is environment for call in calls)
+
+
+def test_source_preflight_rejects_sdk_mismatch_before_git_subprocesses(
+    catalog,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr(metadata, "version", lambda _: "0.2.151")
+    monkeypatch.setattr(
+        focused_suite,
+        "_run",
+        lambda *_args, **_kwargs: pytest.fail("git subprocess must not run"),
+    )
+
+    assert focused_suite._exact_source_preflight(
+        _context(
+            catalog,
+            "boundary:terminal-error-warm-query-reuse",
+            sdk_version="0.2.144",
+        ),
+        tmp_path / "missing-repo",
+    ) == "sdk_version_mismatch"

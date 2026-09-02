@@ -92,6 +92,13 @@ boundaries against the operator subscription would be unsafe or nondeterministic
 The approval behavior remains the installed-plugin thin gate through the real
 host tool bridge.
 
+Every executable parity candidate is bound to the installed
+`claude-agent-sdk` distribution before host imports, subprocesses, or live
+work. Omitting `--sdk-version` resolves that exact metadata identity; supplying
+a different, malformed, missing, or unsupported identity fails closed. The
+frozen 0.2.144 source ledger remains unchanged when a supported successor SDK
+is the executing candidate.
+
 The frozen-v2 map runs focused evidence at immutable v2 SHA `33fe73a`, the exact
 current plugin SHA, and the exact provider-neutral host SHA. The native-36 map
 runs each pinned ClawProBench grader in an isolated subprocess against a real
