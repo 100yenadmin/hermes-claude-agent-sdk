@@ -44,6 +44,12 @@ def test_fanout_delegation_uses_two_fixed_harmless_child_tasks() -> None:
     assert "exactly two times" in prompt
     assert "count the letters in ORCHARD" in prompt
     assert "sort BIRCH, ASPEN, CEDAR alphabetically" in prompt
+    assert "end CHILD_ONE_DONE" in prompt
+    assert "end CHILD_TWO_DONE" in prompt
+    assert "end this delegation turn with FANOUT_READY" in prompt
+    assert prompt.index("count the letters in ORCHARD") < prompt.index(
+        "sort BIRCH, ASPEN, CEDAR alphabetically"
+    )
     assert "Do not add, substitute, or broaden either child topic" in prompt
     assert "research" not in prompt.casefold()
 
