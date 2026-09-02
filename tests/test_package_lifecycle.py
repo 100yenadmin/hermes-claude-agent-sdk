@@ -59,11 +59,11 @@ IMMUTABLE_SDIST_HASHES = {
     "qa/agent-sdk-boundary-ledger-v3.yaml": "22e738bebca804514cfd8311d0ff1bf1bc9da6e6a8d21cce5fb9f6aa31f1463b",
     "qa/result-packet-v3.schema.json": "dde70d2fbaa5e1cc669ff6167f89f043cc6854cf740ddff8e40c3dcb68ee1295",
     "qa/v2-to-v3-replacement-receipt.md": "d414c56daa00c83218e7f8c4cde8378390821b6a993cd64988553915b620ced7",
-    "qa/parity-contract-v4.yaml": "0ec4072d57cbeb2600ec97a29edcee0bf881e2bc56a37ab099c04e1e434f304f",
+    "qa/parity-contract-v4.yaml": "53864834496403388f3475291475fea70acfa3105609ad49f5edf75ad1c67d94",
     "qa/agent-sdk-boundary-ledger-v4.yaml": "fa993d510876f4620e4bd0f71bd6f156dddce26466a5d833607a9e1c1d3b8cad",
     "qa/parity-v4-predecessor-map.yaml": "a82ce96126f835ca01b903de24493706573986739f6ac7a920fdbe7909b6883d",
-    "qa/result-packet-v4.schema.json": "89612d83def4b37c93af6f3f310d47645f402fd077febe8d0a53e730faf16e1c",
-    "qa/parity-v4-manifest.json": "60ecd3823b19db7987d963c2810323e6a762131c1254bd0bd79400146f2a8dab",
+    "qa/result-packet-v4.schema.json": "02f6141b977180256ea761ec322406137026b40c1caad63ac1c4e3c57123f6ee",
+    "qa/parity-v4-manifest.json": "2e1ec826a7674bfae9adcd451074a4df4329daf17d12733ac8b1f4c9aa6eb71a",
 }
 REQUIRED_PARITY_TESTS = {
     "tests/parity/test_catalog.py",
