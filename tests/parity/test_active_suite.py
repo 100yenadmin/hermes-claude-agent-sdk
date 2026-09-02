@@ -77,6 +77,31 @@ def test_event_tool_names_normalize_one_provider_namespace_only() -> None:
     )
 
 
+def test_active_trace_separates_host_receipts_from_native_agent_observations(
+    tmp_path,
+) -> None:
+    host = NativeSandboxHost(tmp_path, (), deny_first=False)
+
+    async def scenario() -> None:
+        await host.execute_tool("read", {"path": "fixture.txt"})
+
+    trace_start = len(host.trace_events)
+    asyncio.run(scenario())
+    runtime = SimpleNamespace(
+        last_turn_tool_observations=("read", "Agent", "Agent"),
+    )
+
+    host_names = active_suite_module._host_tool_names_from_receipts(host, trace_start)
+    agent_names = active_suite_module._agent_tool_names_from_observations(
+        runtime,
+        host_names,
+    )
+
+    assert host_names == ("read",)
+    assert all(type(name) is str for name in host_names)
+    assert agent_names == ("Agent", "Agent")
+
+
 @pytest.mark.parametrize("resolution", ("unknown", "ambiguous", "mismatch"))
 def test_active_no_fallback_check_rejects_unproven_model_resolution(
     resolution: str,
@@ -493,11 +518,12 @@ def test_subagent_contract_reports_parent_marker_gap_without_content(tmp_path) -
         final_hash=sha256_value("synthetic synthesis without contract markers"),
         state=None,
         state_hash="a" * 64,
-        tool_names=("read", "read", "Agent", "Agent"),
+        tool_names=("read", "read"),
         compaction_phases=(),
         background_hashes=(),
         event_hash="b" * 64,
         silent_fallback=False,
+        agent_tool_names=("Agent", "Agent"),
     )
 
     ok, reason, extra = _subagent_contract(

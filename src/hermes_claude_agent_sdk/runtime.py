@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import os
+import re
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from typing import Any
@@ -23,6 +24,24 @@ from .turn_input import TurnInputValidationError, build_sdk_turn_input
 
 _MAX_SYSTEM_APPEND = 32_000
 _MCP_SERVER_NAME = "hermes-tools"
+_MAX_TURN_TOOL_OBSERVATIONS = 64
+_MAX_TOOL_OBSERVATION_NAME_CHARS = 128
+_SAFE_TOOL_OBSERVATION_NAME = re.compile(r"^[A-Za-z0-9_.:-]+$")
+
+
+def _safe_tool_observation_name(value: Any) -> str | None:
+    """Retain only a bounded, identifier-shaped SDK tool name."""
+
+    if type(value) is not str:
+        return None
+    value = value.strip()
+    if (
+        not value
+        or len(value) > _MAX_TOOL_OBSERVATION_NAME_CHARS
+        or _SAFE_TOOL_OBSERVATION_NAME.fullmatch(value) is None
+    ):
+        return None
+    return value
 
 
 def _failure(
@@ -93,11 +112,18 @@ class ClaudeAgentSDKRuntime:
         self._host: Any | None = None
         self._session_contract: tuple[str, str, str, str, str | None] | None = None
         self._session_configuration: SDKSessionConfiguration | None = None
+        self._last_turn_tool_observations: tuple[str, ...] = ()
         # One successful preflight may be consumed only by the exact request
         # object that was checked.  This avoids probing auth twice on the
         # supported host path without caching authorization across turns.
         self._preflight_request: Any | None = None
         self._closed = False
+
+    @property
+    def last_turn_tool_observations(self) -> tuple[str, ...]:
+        """Return bounded SDK tool-name observations from the last turn only."""
+
+        return self._last_turn_tool_observations
 
     async def _emit_background_result(self, result: Any) -> None:
         """Delegate exact-parent routing and delivery exclusively to the host."""
@@ -206,6 +232,7 @@ class ClaudeAgentSDKRuntime:
         return preflight_request is request
 
     async def run_turn(self, request: Any, host: Any):
+        self._last_turn_tool_observations = ()
         from agent.runtime_api import (
             RuntimeCancelledEvent,
             RuntimeCompactionEvent,
@@ -469,6 +496,18 @@ class ClaudeAgentSDKRuntime:
                     if isinstance(event, RuntimeCompletedEvent):
                         continue
                     if isinstance(event, RuntimeToolRequestEvent):
+                        observed_name = _safe_tool_observation_name(
+                            getattr(event, "name", None)
+                        )
+                        if (
+                            observed_name is not None
+                            and len(self._last_turn_tool_observations)
+                            < _MAX_TURN_TOOL_OBSERVATIONS
+                        ):
+                            self._last_turn_tool_observations = (
+                                *self._last_turn_tool_observations,
+                                observed_name,
+                            )
                         # SDK MCP handlers already execute the host-owned tool
                         # and return its bounded result to the SDK.  The v1
                         # host dispatcher also treats a surfaced

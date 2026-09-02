@@ -15,7 +15,10 @@ from agent.runtime_api import (
 from agent.runtime_dispatch import _collect_runtime_turn, build_runtime_turn_request
 
 from hermes_claude_agent_sdk.compatibility import RUNTIME_ID, build_runtime_descriptor
-from hermes_claude_agent_sdk.runtime import ClaudeAgentSDKRuntime
+from hermes_claude_agent_sdk.runtime import (
+    ClaudeAgentSDKRuntime,
+    _safe_tool_observation_name,
+)
 
 
 @dataclass
@@ -103,6 +106,10 @@ class _Client:
             await handler({"path": "."})
             await self._messages.put(
                 AssistantMessage([ToolUseBlock("tool-1", "pwd", {"path": "."})])
+            )
+        if self.mode == "native_agent_once" and len(self.queries) == 1:
+            await self._messages.put(
+                AssistantMessage([ToolUseBlock("agent-1", "Agent", {})])
             )
         if self.mode in {"cancel", "compaction_watchdog"}:
             return
@@ -963,6 +970,40 @@ def test_host_tool_bridge_and_resume_use_only_public_fields() -> None:
         assert [event.kind.value for event in events].count("completed") == 1
 
     asyncio.run(scenario())
+
+
+def test_native_agent_observation_is_non_executable_and_resets_between_turns() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("native_agent_once", clients)
+        host = _Host()
+
+        first = await _collect(runtime, _request(), host)
+        first_observations = runtime.last_turn_tool_observations
+        second = await _collect(runtime, _request(), host)
+        second_observations = runtime.last_turn_tool_observations
+        await runtime.close()
+        return first, second, first_observations, second_observations, host
+
+    first, second, first_observations, second_observations, host = asyncio.run(
+        scenario()
+    )
+
+    assert first_observations == ("Agent",)
+    assert second_observations == ()
+    assert host.calls == []
+    assert not any(isinstance(event, RuntimeToolRequestEvent) for event in first)
+    assert not any(isinstance(event, RuntimeToolRequestEvent) for event in second)
+    assert first[-1].kind.value == "completed"
+    assert second[-1].kind.value == "completed"
+
+
+def test_tool_observation_names_are_bounded_and_identifier_shaped() -> None:
+    assert _safe_tool_observation_name("Agent") == "Agent"
+    assert _safe_tool_observation_name("Agent tool") is None
+    assert _safe_tool_observation_name("Agent/secret") is None
+    assert _safe_tool_observation_name("A" * 129) is None
+    assert _safe_tool_observation_name(None) is None
 
 
 def test_unknown_billing_blocks_success_and_tool_side_effect_is_conservative() -> None:

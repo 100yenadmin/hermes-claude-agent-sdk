@@ -89,6 +89,7 @@ class LiveTurn:
     background_hashes: tuple[str, ...]
     event_hash: str
     silent_fallback: bool
+    agent_tool_names: tuple[str, ...] = ()
 
 
 def _normalize_event_tool_name(name: Any) -> str:
@@ -96,6 +97,44 @@ def _normalize_event_tool_name(name: Any) -> str:
     if value.startswith(_MCP_EVENT_PREFIX):
         return value[len(_MCP_EVENT_PREFIX) :]
     return value
+
+
+def _host_tool_names_from_receipts(
+    host: NativeSandboxHost,
+    trace_start: int,
+) -> tuple[str, ...]:
+    """Read only tool names from actual host tool-call receipts for one turn."""
+
+    names: list[str] = []
+    for event in host.trace_events[trace_start:]:
+        if not isinstance(event, Mapping) or event.get("type") != "tool_call":
+            continue
+        name = event.get("tool")
+        if isinstance(name, str) and name:
+            names.append(_normalize_event_tool_name(name))
+    return tuple(names)
+
+
+def _agent_tool_names_from_observations(
+    runtime: Any,
+    host_tool_names: Sequence[str],
+) -> tuple[str, ...]:
+    """Keep native SDK observations after removing MCP host-tool calls."""
+
+    observations = getattr(runtime, "last_turn_tool_observations", ())
+    if not isinstance(observations, Sequence) or isinstance(observations, (str, bytes)):
+        return ()
+    remaining_host_names = list(host_tool_names)
+    agent_names: list[str] = []
+    for value in observations:
+        if not isinstance(value, str):
+            continue
+        name = _normalize_event_tool_name(value)
+        try:
+            remaining_host_names.remove(name)
+        except ValueError:
+            agent_names.append(name)
+    return tuple(agent_names)
 
 
 @dataclass(frozen=True, slots=True)
@@ -369,6 +408,7 @@ async def _run_turn(
         session_state=session_state,
         correlation_id=correlation_id,
     )
+    trace_start = len(host.trace_events)
     events: list[Any] = []
     async for event in runtime.run_turn(request, host):
         events.append(event)
@@ -419,10 +459,10 @@ async def _run_turn(
     ]
     state = states[-1] if states else None
     state_values = [dict(item.state) for item in states]
-    tool_names = tuple(
-        _normalize_event_tool_name(event.name)
-        for event in events
-        if getattr(getattr(event, "kind", None), "value", None) == "tool_request"
+    host_tool_names = _host_tool_names_from_receipts(host, trace_start)
+    agent_tool_names = _agent_tool_names_from_observations(
+        runtime,
+        host_tool_names,
     )
     compaction = tuple(
         str(getattr(event.phase, "value", event.phase))
@@ -431,7 +471,10 @@ async def _run_turn(
     )
     event_receipt = {
         "kinds": kinds,
-        "tool_name_hashes": [sha256_value(name) for name in tool_names],
+        "tool_name_hashes": [sha256_value(name) for name in host_tool_names],
+        "agent_tool_name_hashes": [
+            sha256_value(name) for name in agent_tool_names
+        ],
         "compaction": compaction,
         "terminal": terminal,
         "failure_code": failure_code,
@@ -463,11 +506,12 @@ async def _run_turn(
         final_hash=sha256_value(final_text),
         state=state,
         state_hash=sha256_value(state_values),
-        tool_names=tool_names,
+        tool_names=host_tool_names,
         compaction_phases=compaction,
         background_hashes=tuple(host.background_hashes),
         event_hash=sha256_value(json_compatible(event_receipt)),
         silent_fallback=silent_fallback,
+        agent_tool_names=agent_tool_names,
     )
 
 
@@ -543,7 +587,7 @@ def _subagent_contract(
 
     final_turn = turns[-1]
     agent_calls = sum(
-        name == "Agent" for turn in turns for name in turn.tool_names
+        name == "Agent" for turn in turns for name in turn.agent_tool_names
     )
     upper = final_turn.final_text.upper()
     has_context_marker = "HANDOFF_CONTEXT" in upper
@@ -598,6 +642,9 @@ def _case_receipt(source_id: str, turns: Sequence[LiveTurn], extra: Mapping[str,
                     "final_hash": turn.final_hash,
                     "state_hash": turn.state_hash,
                     "tool_name_hashes": [sha256_value(name) for name in turn.tool_names],
+                    "agent_tool_name_hashes": [
+                        sha256_value(name) for name in turn.agent_tool_names
+                    ],
                     "compaction": list(turn.compaction_phases),
                     "background_hashes": list(turn.background_hashes),
                     "event_hash": turn.event_hash,
