@@ -2,7 +2,7 @@
 
 | Plugin | Hermes host | SDK | Status |
 | --- | --- | --- | --- |
-| `0.1.0rc1` candidate at the exact plugin SHA and wheel digest recorded in its v4 result manifest | Hermes host candidate `b8a6337594263a2b4a1f0435c87d78c5779418aa` | SDK `0.2.151`; bundled Claude Code-derived CLI `2.1.258`; direct model `claude-fable-5-1` | Exact Revision 4 source target; local evidence only |
+| `0.1.0rc1` candidate at the exact plugin SHA and wheel digest recorded in its v4 result manifest | Hermes host candidate `54621dd44e522e5fc715598d8a6c6a02f57846c1` | SDK `0.2.151`; bundled Claude Code-derived CLI `2.1.258`; direct model `claude-fable-5-1` | Exact Revision 4 source target; local evidence only |
 | v3 predecessor | Historical plugin/host evidence | Historical SDK/model inputs | Historical only; not a current support or release claim |
 
 The exact host candidate above is required. A host without the declared

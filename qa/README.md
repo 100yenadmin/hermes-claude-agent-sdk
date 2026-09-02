@@ -113,7 +113,7 @@ closed. The v3 source ledger remains unchanged as historical evidence.
 
 The v4 map and evidence grader bind focused evidence to the exact plugin SHA
 and wheel digest supplied by the completed candidate receipt, host SHA
-`b8a6337594263a2b4a1f0435c87d78c5779418aa`, and its immutable predecessor
+`54621dd44e522e5fc715598d8a6c6a02f57846c1`, and its immutable predecessor
 inputs. Zero or missing candidate identities fail closed. Historical
 source-pack graders run in an isolated subprocess against synthetic host tools.
 Neither adapter calls Telegram, shared Eva, customer state, a browser, a

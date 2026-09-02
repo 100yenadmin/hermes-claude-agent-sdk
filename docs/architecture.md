@@ -1,8 +1,8 @@
 # Architecture boundary — Revision 4
 
 The Hermes host ADR is the sole cross-repository interface authority:
-[`AgentRuntime Plugin API v1`](https://github.com/100yenadmin/hermes-agent-for-upstream-PR-only/blob/b8a6337594263a2b4a1f0435c87d78c5779418aa/docs/adr/agent-runtime-v1.md)
-at host commit `b8a6337594263a2b4a1f0435c87d78c5779418aa`. This plugin does not
+[`AgentRuntime Plugin API v1`](https://github.com/100yenadmin/hermes-agent-for-upstream-PR-only/blob/54621dd44e522e5fc715598d8a6c6a02f57846c1/docs/adr/agent-runtime-v1.md)
+at host commit `54621dd44e522e5fc715598d8a6c6a02f57846c1`. This plugin does not
 copy or redefine that public API.
 
 ## One ownership definition
@@ -73,7 +73,7 @@ prompts, transcripts, or customer data.
 
 The source and parity checks bind this boundary to the exact plugin commit and
 wheel digest recorded in the v4 result manifest, host commit
-`b8a6337594263a2b4a1f0435c87d78c5779418aa`, SDK `0.2.151`, bundled CLI
+`54621dd44e522e5fc715598d8a6c6a02f57846c1`, SDK `0.2.151`, bundled CLI
 `2.1.258`, and direct model `claude-fable-5-1`. A plugin source document cannot
 self-identify its final commit, so an unbound or zero digest is never accepted
 as candidate proof. These identities establish a bounded candidate only; they
