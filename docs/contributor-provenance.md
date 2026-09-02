@@ -29,7 +29,7 @@ Plugin commit `0af5e6481a50adf551f3eaa6055dac88e6a670db` is the implementation
 checkpoint immediately before this documentation revision; it is not the final
 self-referential plugin identity. Candidate proof binds the final exact plugin
 commit and wheel digest in the v4 result manifest, paired with Hermes host
-commit `54621dd44e522e5fc715598d8a6c6a02f57846c1`. The compatibility target is SDK
+commit `54621dd44e859aa354672a8a388f1cf08f116246`. The compatibility target is SDK
 `0.2.151`, bundled Claude Code-derived CLI `2.1.258`, and direct model
 `claude-fable-5-1`. These source identities describe the Hermes-owned,
 zero-native Revision 4 boundary; they do not replace the historical v3
