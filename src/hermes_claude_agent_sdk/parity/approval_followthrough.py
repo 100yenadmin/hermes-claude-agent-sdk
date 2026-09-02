@@ -112,7 +112,7 @@ class _Client:
                     [
                         ToolUseBlock(
                             f"synthetic-tool-{index:04d}",
-                            "terminal",
+                            "mcp__hermes-tools__terminal",
                             {"command": "pwd"},
                         )
                     ]
