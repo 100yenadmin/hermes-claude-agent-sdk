@@ -2,7 +2,12 @@
 
 | Plugin | Hermes host | SDK | Status |
 | --- | --- | --- | --- |
-| `0.1.0rc1` candidate | AgentRuntime v1 at `4f3b4bfcd9c17ced85df25e25c3890755fdbf26c` (includes upstream main `180291162ff4df0d42b5dc4fecd08005cf7cebf9`) | `claude-agent-sdk>=0.2.144,<0.2.152` | Frozen Fable 5 cell; version-gated Fable 5.1 successor, live pending |
+| `0.1.0rc1` candidate | AgentRuntime v1 CI head `657f2f66cc01f83e0bec5e07cbdbf0da319c72bf` (tree-identical to reviewed `e1a04235a45694adb5c8c6ee6839258bb46fed53`, based on upstream `9de9d7613cd6b20250bba3666f924377f050c79b`) | `claude-agent-sdk>=0.2.144,<0.2.152` | Frozen Fable 5 cell; version-gated Fable 5.1 successor, live pending |
+
+Official Hermes releases or `main` revisions that do not export AgentRuntime
+v1 are incompatible and are rejected before SDK import or query. Use the exact
+candidate above in an isolated checkout; a pinned installed Hermes does not
+need to be upgraded or modified for this RC validation.
 
 Registration must reject an unsupported runtime API or missing host capability
 through the host's `register_agent_runtime()` before retaining or constructing

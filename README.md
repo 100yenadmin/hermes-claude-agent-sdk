@@ -33,9 +33,15 @@ separate transport and is not routed to this plugin.
 ## Compatibility target
 
 The first release candidate targets the provider-neutral host branch
-`codex/agent-runtime-plugin-api-v1` at exact host SHA
-`4f3b4bfcd9c17ced85df25e25c3890755fdbf26c`, which includes upstream main
-`180291162ff4df0d42b5dc4fecd08005cf7cebf9`.
+`codex/agent-runtime-plugin-api-v1-current` at exact CI host SHA
+`657f2f66cc01f83e0bec5e07cbdbf0da319c72bf`. Its Git tree is identical to
+reviewed source `e1a04235a45694adb5c8c6ee6839258bb46fed53`, based on action-time
+upstream main `9de9d7613cd6b20250bba3666f924377f050c79b`.
+
+An official Hermes checkout that does not export AgentRuntime v1 is not a
+compatible substitute for this exact host candidate. Validate in an isolated
+checkout or virtual environment; do not replace a pinned installed Hermes just
+to exercise this release candidate.
 
 Run `hermes_claude_agent_sdk.doctor()` (or `doctor_json()`) from an environment
 with the public host API to inspect API and capability compatibility. The
