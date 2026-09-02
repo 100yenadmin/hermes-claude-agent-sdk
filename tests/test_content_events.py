@@ -1045,6 +1045,59 @@ def test_sdk_02151_public_shape_projects_reported_primary_model() -> None:
     assert receipt.model_resolution == "exact"
 
 
+def test_sdk_02151_public_init_shape_anchors_synthetic_empty_usage() -> None:
+    import importlib.metadata
+
+    import pytest
+    from claude_agent_sdk.types import (
+        AssistantMessage as SDKAssistantMessage,
+    )
+    from claude_agent_sdk.types import ResultMessage as SDKResultMessage
+    from claude_agent_sdk.types import SystemMessage as SDKSystemMessage
+    from claude_agent_sdk.types import TextBlock as SDKTextBlock
+
+    if importlib.metadata.version("claude-agent-sdk") != "0.2.151":
+        pytest.skip("the exact Fable 5.1 successor cell uses SDK 0.2.151")
+
+    projector = ClaudeSdkEventProjector(model="claude-fable-5")
+    projector.project(
+        SDKSystemMessage(
+            subtype="init",
+            data={"apiKeySource": "none", "model": "claude-fable-5"},
+        )
+    )
+    projector.project(
+        SDKAssistantMessage(
+            content=[SDKTextBlock("bounded fixture")],
+            model="claude-fable-synthetic",
+            parent_tool_use_id=None,
+        )
+    )
+    sdk_result = SDKResultMessage(
+        subtype="success",
+        duration_ms=1,
+        duration_api_ms=1,
+        is_error=False,
+        num_turns=1,
+        session_id="synthetic-sdk-session",
+        usage={"input_tokens": 2, "output_tokens": 1},
+        result="done",
+        model_usage={},
+    )
+
+    projected = projector.project(sdk_result)
+
+    assert projected.effective_model == "claude-fable-5"
+    assert projected.canonical_model is None
+    assert projected.model_resolution == "exact"
+    receipt = projected.events[1].receipt
+    assert receipt.model == "claude-fable-5"
+    assert receipt.selected_model == "claude-fable-5"
+    assert receipt.effective_model == "claude-fable-5"
+    assert receipt.canonical_model is None
+    assert receipt.model_resolution == "exact"
+
+
 def test_model_usage_iteration_is_bounded_and_overflow_fails_closed() -> None:
     model_usage = UnboundedModelUsage()
     result = ClaudeSdkEventProjector(model="claude-fable-5-1").project(
