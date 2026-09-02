@@ -54,6 +54,24 @@ def _python_probe(*, python: Path, cwd: Path, env: dict[str, str], source: str) 
     _run([str(python), "-I", "-c", source], cwd=cwd, env=env)
 
 
+IMMUTABLE_SDIST_HASHES = {
+    "qa/parity-contract-v3.yaml": "e601f41313deb68b77a01402fe3b79c5da90afc7c46e40f87a6bac1850b69d8a",
+    "qa/agent-sdk-boundary-ledger-v3.yaml": "22e738bebca804514cfd8311d0ff1bf1bc9da6e6a8d21cce5fb9f6aa31f1463b",
+    "qa/result-packet-v3.schema.json": "dde70d2fbaa5e1cc669ff6167f89f043cc6854cf740ddff8e40c3dcb68ee1295",
+    "qa/v2-to-v3-replacement-receipt.md": "d414c56daa00c83218e7f8c4cde8378390821b6a993cd64988553915b620ced7",
+    "qa/parity-contract-v4.yaml": "0ec4072d57cbeb2600ec97a29edcee0bf881e2bc56a37ab099c04e1e434f304f",
+    "qa/agent-sdk-boundary-ledger-v4.yaml": "fa993d510876f4620e4bd0f71bd6f156dddce26466a5d833607a9e1c1d3b8cad",
+    "qa/parity-v4-predecessor-map.yaml": "a82ce96126f835ca01b903de24493706573986739f6ac7a920fdbe7909b6883d",
+    "qa/result-packet-v4.schema.json": "89612d83def4b37c93af6f3f310d47645f402fd077febe8d0a53e730faf16e1c",
+    "qa/parity-v4-manifest.json": "60ecd3823b19db7987d963c2810323e6a762131c1254bd0bd79400146f2a8dab",
+}
+REQUIRED_PARITY_TESTS = {
+    "tests/parity/test_catalog.py",
+    "tests/parity/test_v4_contract.py",
+    "tests/parity/test_v4_runner.py",
+}
+
+
 def test_built_package_lifecycle(tmp_path: Path) -> None:
     """Build outputs install, import, uninstall, and reinstall offline."""
 
@@ -83,13 +101,15 @@ def test_built_package_lifecycle(tmp_path: Path) -> None:
     assert required_notices <= sdist_notices
     with tarfile.open(sdist, mode="r:gz") as archive:
         sdist_paths = {"/".join(Path(name).parts[1:]) for name in archive.getnames()}
-    assert {
-        "qa/parity-contract-v3.yaml",
-        "qa/agent-sdk-boundary-ledger-v3.yaml",
-        "qa/result-packet-v3.schema.json",
-        "qa/v2-to-v3-replacement-receipt.md",
-        "tests/parity/test_catalog.py",
-    } <= sdist_paths
+        sdist_hashes = {}
+        for name in archive.getnames():
+            relative_name = "/".join(Path(name).parts[1:])
+            if relative_name in IMMUTABLE_SDIST_HASHES:
+                stream = archive.extractfile(name)
+                assert stream is not None
+                sdist_hashes[relative_name] = hashlib.sha256(stream.read()).hexdigest()
+    assert set(IMMUTABLE_SDIST_HASHES) | REQUIRED_PARITY_TESTS <= sdist_paths
+    assert sdist_hashes == IMMUTABLE_SDIST_HASHES
 
     home = tmp_path / "home"
     hermes_home = tmp_path / "hermes-home"
@@ -147,11 +167,15 @@ assert len(parity_scripts) == 1
 assert next(iter(parity_scripts)).value == "hermes_claude_agent_sdk.parity.cli:main"
 parity_executors = importlib.metadata.entry_points(
     group="hermes_claude_agent_sdk.parity_executors",
-    name="v3",
+    name="parity",
 )
 assert len(parity_executors) == 1
 assert next(iter(parity_executors)).value == (
     "hermes_claude_agent_sdk.parity.executors:EXECUTORS"
+)
+assert not importlib.metadata.entry_points(
+    group="hermes_claude_agent_sdk.parity_executors",
+    name="v3",
 )
 assert "claude_agent_sdk" not in sys.modules
 print("installed import passed")
