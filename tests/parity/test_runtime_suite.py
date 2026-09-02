@@ -149,3 +149,39 @@ def test_running_package_must_byte_match_the_immutable_wheel(
             ).read_bytes()
             archive.writestr(f"hermes_claude_agent_sdk/{relative}", payload)
     assert not _running_package_matches_wheel(tampered_wheel)
+
+
+def test_runtime_campaign_fails_closed_before_provider_construction(
+    catalog, candidate_fields, monkeypatch
+) -> None:
+    def unexpected(*_args, **_kwargs):
+        raise AssertionError("runtime evidence gate must precede provider construction")
+
+    monkeypatch.setattr(runtime_suite, "_exact_source_preflight", unexpected)
+    monkeypatch.setattr(runtime_suite, "_campaign", unexpected)
+
+    bundle = asyncio.run(
+        active_runtime_100_turn(
+            _context(
+                catalog,
+                candidate_fields,
+                profile_isolation_kind="local_profile",
+                profile_persistent=True,
+            )
+        )
+    )
+
+    assert bundle.turn_count == 0
+    assert all(
+        outcome.classification is ExecutionClassification.ENVIRONMENT_BLOCKED
+        and outcome.reason_code == "installed_hermes_runtime_evidence_required"
+        for outcome in bundle.outcomes.values()
+    )
+
+
+def test_runtime_turn_30_keeps_predecessor_marker_without_native_route() -> None:
+    content = str(_turn_content(30))
+
+    assert "TURN_030_OK" in content
+    assert "Agent" not in content
+    assert "run_in_background" not in content

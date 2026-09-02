@@ -51,16 +51,6 @@ ACTIVE_SOURCE_IDS = (
 )
 
 
-_FANOUT_DELEGATION_PROMPT = (
-    "Read handoff.txt, retrying the first denied read once. Then use the native "
-    "Agent tool exactly two times. For the first Agent, ask only this fixed harmless "
-    "task: count the letters in ORCHARD and end CHILD_ONE_DONE. For the second Agent, "
-    "ask only this fixed harmless task: sort BIRCH, ASPEN, CEDAR alphabetically and "
-    "end CHILD_TWO_DONE. Do not add, substitute, or broaden either child topic. Wait "
-    "for both Agent results. Do not synthesize them yet; end this delegation turn "
-    "with FANOUT_READY."
-)
-
 _FOCUSED_NODES: dict[str, tuple[str, ...]] = {
     "model-switch-tool-continuity": (
         "tests/test_runtime_sdk_integration.py::test_model_switch_requires_a_new_runtime_and_preserves_tool_schema",
@@ -75,6 +65,13 @@ _FOCUSED_NODES: dict[str, tuple[str, ...]] = {
 }
 
 _LIVE_SOURCE_IDS = frozenset(ACTIVE_SOURCE_IDS) - frozenset(_FOCUSED_NODES)
+_DELEGATION_SOURCE_IDS = frozenset(
+    {
+        "subagent-handoff",
+        "subagent-fanout-synthesis",
+        "subagent-stale-child-links",
+    }
+)
 _ACTIVE_SYSTEM_PROMPT = (
     "You are running one isolated Hermes feature-parity fixture. All files and "
     "markers are synthetic. Use only the tools requested by the user, retry one "
@@ -191,10 +188,8 @@ class LiveTurn:
     state_hash: str
     tool_names: tuple[str, ...]
     compaction_phases: tuple[str, ...]
-    background_hashes: tuple[str, ...]
     event_hash: str
     silent_fallback: bool
-    agent_tool_names: tuple[str, ...] = ()
 
 
 def _normalize_event_tool_name(name: Any) -> str:
@@ -218,28 +213,6 @@ def _host_tool_names_from_receipts(
         if isinstance(name, str) and name:
             names.append(_normalize_event_tool_name(name))
     return tuple(names)
-
-
-def _agent_tool_names_from_observations(
-    runtime: Any,
-    host_tool_names: Sequence[str],
-) -> tuple[str, ...]:
-    """Keep native SDK observations after removing MCP host-tool calls."""
-
-    observations = getattr(runtime, "last_turn_tool_observations", ())
-    if not isinstance(observations, Sequence) or isinstance(observations, (str, bytes)):
-        return ()
-    remaining_host_names = list(host_tool_names)
-    agent_names: list[str] = []
-    for value in observations:
-        if not isinstance(value, str):
-            continue
-        name = _normalize_event_tool_name(value)
-        try:
-            remaining_host_names.remove(name)
-        except ValueError:
-            agent_names.append(name)
-    return tuple(agent_names)
 
 
 @dataclass(frozen=True, slots=True)
@@ -565,10 +538,6 @@ async def _run_turn(
     state = states[-1] if states else None
     state_values = [dict(item.state) for item in states]
     host_tool_names = _host_tool_names_from_receipts(host, trace_start)
-    agent_tool_names = _agent_tool_names_from_observations(
-        runtime,
-        host_tool_names,
-    )
     compaction = tuple(
         str(getattr(event.phase, "value", event.phase))
         for event in events
@@ -577,9 +546,6 @@ async def _run_turn(
     event_receipt = {
         "kinds": kinds,
         "tool_name_hashes": [sha256_value(name) for name in host_tool_names],
-        "agent_tool_name_hashes": [
-            sha256_value(name) for name in agent_tool_names
-        ],
         "compaction": compaction,
         "terminal": terminal,
         "failure_code": failure_code,
@@ -601,7 +567,6 @@ async def _run_turn(
                 for receipt in usage_receipts
             ]
         ),
-        "background_hashes": list(host.background_hashes),
     }
     return LiveTurn(
         terminal=terminal,
@@ -613,10 +578,8 @@ async def _run_turn(
         state_hash=sha256_value(state_values),
         tool_names=host_tool_names,
         compaction_phases=compaction,
-        background_hashes=tuple(host.background_hashes),
         event_hash=sha256_value(json_compatible(event_receipt)),
         silent_fallback=silent_fallback,
-        agent_tool_names=agent_tool_names,
     )
 
 
@@ -730,60 +693,6 @@ def _source_docs_contract(
     return ok, failure_reason, extra
 
 
-def _subagent_contract(
-    turns: Sequence[LiveTurn],
-    host: NativeSandboxHost,
-    *,
-    count: int,
-    final_marker: str,
-) -> tuple[bool, str, dict[str, Any]]:
-    """Grade native-Agent orchestration without retaining response content."""
-
-    final_turn = turns[-1]
-    agent_calls = sum(
-        name == "Agent" for turn in turns for name in turn.agent_tool_names
-    )
-    upper = final_turn.final_text.upper()
-    has_context_marker = "HANDOFF_CONTEXT" in upper
-    has_final_marker = final_marker.upper() in upper
-    ok = (
-        all(turn.terminal == "completed" for turn in turns)
-        and all(turn.billing == "subscription_included" for turn in turns)
-        and not any(turn.silent_fallback for turn in turns)
-        and agent_calls == count
-        and host.denial_observed
-        and host.recovery_observed
-        and has_context_marker
-        and has_final_marker
-    )
-    if not all(turn.terminal == "completed" for turn in turns):
-        reason = "active_subagent_terminal_incomplete"
-    elif not all(turn.billing == "subscription_included" for turn in turns):
-        reason = "active_subagent_billing_unverified"
-    elif any(turn.silent_fallback for turn in turns):
-        reason = "active_subagent_silent_fallback"
-    elif agent_calls != count:
-        reason = "active_subagent_call_count_mismatch"
-    elif not host.denial_observed:
-        reason = "active_subagent_denial_missing"
-    elif not host.recovery_observed:
-        reason = "active_subagent_recovery_missing"
-    elif not has_context_marker:
-        reason = "active_subagent_context_marker_missing"
-    elif not has_final_marker:
-        reason = "active_subagent_final_marker_missing"
-    else:
-        reason = "active_behavior_or_trace_failed"
-    return ok, reason, {
-        "agent_calls": agent_calls,
-        "denial": host.denial_observed,
-        "recovery": host.recovery_observed,
-        "context_marker": has_context_marker,
-        "final_marker": has_final_marker,
-        "provider_turns": len(turns),
-    }
-
-
 def _case_receipt(source_id: str, turns: Sequence[LiveTurn], extra: Mapping[str, Any]) -> str:
     return sha256_value(
         {
@@ -796,11 +705,7 @@ def _case_receipt(source_id: str, turns: Sequence[LiveTurn], extra: Mapping[str,
                     "final_hash": turn.final_hash,
                     "state_hash": turn.state_hash,
                     "tool_name_hashes": [sha256_value(name) for name in turn.tool_names],
-                    "agent_tool_name_hashes": [
-                        sha256_value(name) for name in turn.agent_tool_names
-                    ],
                     "compaction": list(turn.compaction_phases),
-                    "background_hashes": list(turn.background_hashes),
                     "event_hash": turn.event_hash,
                     "silent_fallback": turn.silent_fallback,
                 }
@@ -817,6 +722,15 @@ async def _run_live_case(
     workspace: Path,
     model: str,
 ) -> ActiveCaseResult:
+    if source_id in _DELEGATION_SOURCE_IDS:
+        return ActiveCaseResult(
+            ExecutionClassification.ENVIRONMENT_BLOCKED,
+            "installed_hermes_delegate_evidence_required",
+            "none",
+            0,
+            None,
+            None,
+        )
     from agent.runtime_api import RuntimeStateEnvelope
     from hermes_claude_agent_sdk.runtime import ClaudeAgentSDKRuntime
 
@@ -925,62 +839,6 @@ async def _run_live_case(
                 and _live_ok(recovered, markers=("BLUE", "BLUE_IMAGE_PASS"))
             )
             extra = {"denial_code": denied.failure_code, "provider_turns": 1}
-
-        elif source_id in {"subagent-handoff", "subagent-fanout-synthesis"}:
-            fixture = workspace / "handoff.txt"
-            fixture.write_text("Synthetic handoff marker: HANDOFF_CONTEXT\n", encoding="utf-8")
-            schemas = tool_schemas(("read",))
-            host = NativeSandboxHost(workspace, (fixture,))
-            case_hosts.append(host)
-            runtime = ClaudeAgentSDKRuntime(cwd=str(workspace), parent_env=os.environ)
-            count = 1 if source_id == "subagent-handoff" else 2
-            final_marker = "HANDOFF_PASS" if count == 1 else "FANOUT_PASS"
-            if count == 1:
-                prompt = (
-                    "Read handoff.txt, retrying the first denied read once. Then use the native "
-                    "Agent tool exactly once with a synthetic research prompt. Wait for its "
-                    "result, then write one parent synthesis. The last two non-empty lines of "
-                    f"the parent response must be exactly HANDOFF_CONTEXT and {final_marker}, "
-                    "in that order."
-                )
-            else:
-                prompt = _FANOUT_DELEGATION_PROMPT
-            case_turns: list[LiveTurn] = []
-            try:
-                delegation_turn = await _run_turn(
-                    runtime,
-                    host,
-                    model=model,
-                    content=prompt,
-                    schemas=schemas,
-                    correlation_id=f"active-{source_id}",
-                )
-                case_turns.append(delegation_turn)
-                if count == 2:
-                    synthesis_turn = await _run_turn(
-                        runtime,
-                        host,
-                        model=model,
-                        content=(
-                            "Do not call any tool or Agent. Synthesize the two completed native "
-                            "Agent results from the prior turn. The last two non-empty lines of "
-                            f"your parent response must be exactly HANDOFF_CONTEXT and {final_marker}, "
-                            "in that order."
-                        ),
-                        schemas=schemas,
-                        correlation_id=f"active-{source_id}-synthesis",
-                        session_state=delegation_turn.state,
-                    )
-                    case_turns.append(synthesis_turn)
-            finally:
-                await runtime.close()
-            turns.extend(case_turns)
-            ok, failure_reason, extra = _subagent_contract(
-                case_turns,
-                host,
-                count=count,
-                final_marker=final_marker,
-            )
 
         elif source_id == "memory-recall":
             schemas = ()
@@ -1205,7 +1063,6 @@ async def _run_live_case(
             and turn.state is None
             and not turn.tool_names
             and not turn.compaction_phases
-            and not turn.background_hashes
             for turn in turns
         )
         and case_hosts
@@ -1282,6 +1139,8 @@ async def active_agentic_suite(context: ExecutionContext) -> ExecutionBundle:
         return _blocked("active_source_mapping_missing")
     if context.capability.execution_id != f"active-{source_id}":
         return _blocked("active_catalog_execution_mismatch")
+    if source_id in _DELEGATION_SOURCE_IDS:
+        return _blocked("installed_hermes_delegate_evidence_required")
     root = Path(context.repo_root).expanduser().resolve()
     blocked = _exact_source_preflight(context, root)
     if blocked is not None:
@@ -1301,14 +1160,12 @@ async def active_agentic_suite(context: ExecutionContext) -> ExecutionBundle:
             return _blocked("active_executor_mapping_missing")
         if os.environ.get("HERMES_PARITY_LIVE") != "1":
             return _blocked("active_live_execution_not_enabled")
-        model = os.environ.get("HERMES_PARITY_MODEL", "claude-fable-5")
-        if model != "claude-fable-5":
+        model = os.environ.get("HERMES_PARITY_MODEL", "claude-fable-5-1")
+        if model != "claude-fable-5-1":
             return _blocked("active_model_outside_authorized_route")
         required_schemas = {
             "source-docs-discovery-report": tool_schemas(("read",)),
             "image-understanding-attachment": (),
-            "subagent-handoff": tool_schemas(("read",)),
-            "subagent-fanout-synthesis": tool_schemas(("read",)),
             "memory-recall": (),
             "thread-memory-isolation": (),
             "config-restart-capability-flip": tool_schemas(("read", "exec")),
@@ -1319,8 +1176,6 @@ async def active_agentic_suite(context: ExecutionContext) -> ExecutionBundle:
         minimum_turns = {
             "source-docs-discovery-report": 2,
             "image-understanding-attachment": 1,
-            "subagent-handoff": 1,
-            "subagent-fanout-synthesis": 2,
             "memory-recall": 2,
             "thread-memory-isolation": 4,
             "config-restart-capability-flip": 2,

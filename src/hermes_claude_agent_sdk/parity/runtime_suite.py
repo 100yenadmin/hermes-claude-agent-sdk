@@ -292,8 +292,8 @@ def _turn_content(index: int) -> Any:
         return f"Recall RUNTIME_QUARTZ_7319 and end {marker}."
     if index == 30:
         return (
-            "Use the native Agent tool exactly once with run_in_background true for a "
-            f"synthetic child that returns BACKGROUND_SETTLED. Then end {marker}."
+            "Keep the direct runtime marker pending installed Hermes evidence and "
+            f"end {marker}."
         )
     if index == 50:
         return f"Confirm the memory marker before graceful restart and end {marker}."
@@ -452,7 +452,7 @@ async def _campaign(
                     "unsafe" if turn.billing == "unsafe" else "subscription_included",
                     sha256_value(ledger),
                 )
-            if any(name not in {"read", "write", "exec", "cron", "Agent"} for name in turn.tool_names):
+            if any(name not in {"read", "write", "exec", "cron"} for name in turn.tool_names):
                 return False, "runtime_tool_escape", index, turn.billing, sha256_value(ledger)
             current_session = _external_session_hash(turn)
             if current_session is None:
@@ -464,11 +464,6 @@ async def _campaign(
             last_state = turn.state
             await asyncio.sleep(0)
 
-        # Give a detached native Agent completion a bounded opportunity to be
-        # delivered through the host after its parent terminal.
-        deadline = asyncio.get_running_loop().time() + 15.0
-        while not host.background_hashes and asyncio.get_running_loop().time() < deadline:
-            await asyncio.sleep(0.1)
     except Exception:
         return False, "runtime_campaign_exception", len(ledger), "none", sha256_value(ledger)
     finally:
@@ -490,8 +485,6 @@ async def _campaign(
         event.get("type") == "tool_call" and event.get("tool") == "cron"
         for event in host.trace_events
     )
-    agent_hash = sha256_value("Agent")
-    agent_calls = sum(item["tool_hashes"].count(agent_hash) for item in ledger)
     mutation = workspace / "mutation.txt"
     mutation_ok = (
         mutation.is_file()
@@ -514,8 +507,6 @@ async def _campaign(
         and host.recovery_observed
         and write_calls == 1
         and cron_calls == 1
-        and agent_calls == 1
-        and host.background_hashes
         and mutation_ok
         and isolation_ok
         and restart_teardown
@@ -531,8 +522,6 @@ async def _campaign(
             "recovery": host.recovery_observed,
             "write_calls": write_calls,
             "cron_calls": cron_calls,
-            "agent_calls": agent_calls,
-            "background_hashes": list(host.background_hashes),
             "mutation_hash": _sha256_file(mutation) if mutation.is_file() else None,
             "isolation_hash": isolation_probe.event_hash if isolation_probe else None,
             "restart_process_hash": restart_process_hash,
@@ -559,22 +548,24 @@ async def active_runtime_100_turn(context: ExecutionContext) -> ExecutionBundle:
         or context.capability.capability_id != "runtime:active-100-turn"
     ):
         return _blocked("runtime_catalog_execution_mismatch")
-    root = Path(context.repo_root).expanduser().resolve()
-    blocked = _exact_source_preflight(context, root)
-    if blocked is not None:
-        return _blocked(blocked)
     if (
         context.profile_id != "fable-v3-isolated"
         or context.profile_isolation_kind != "local_profile"
         or context.profile_persistent is not True
     ):
         return _blocked("runtime_profile_not_persistent_isolated")
+    if context.capability.source_item_id == "soak-100-turn":
+        return _blocked("installed_hermes_runtime_evidence_required")
+    root = Path(context.repo_root).expanduser().resolve()
+    blocked = _exact_source_preflight(context, root)
+    if blocked is not None:
+        return _blocked(blocked)
     if context.remaining_turn_budget != 100:
         return _blocked("runtime_requires_fresh_100_turn_budget")
     if os.environ.get("HERMES_PARITY_LIVE") != "1":
         return _blocked("runtime_live_execution_not_enabled")
-    model = os.environ.get("HERMES_PARITY_MODEL", "claude-fable-5")
-    if model != "claude-fable-5":
+    model = os.environ.get("HERMES_PARITY_MODEL", "claude-fable-5-1")
+    if model != "claude-fable-5-1":
         return _blocked("runtime_model_outside_authorized_route")
     host_raw = os.environ.get("HERMES_AGENT_HOST_ROOT", "")
     if not host_raw:

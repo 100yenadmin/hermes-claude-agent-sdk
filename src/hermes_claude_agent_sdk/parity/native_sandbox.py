@@ -346,7 +346,6 @@ class NativeSandboxHost:
         self.workspace = workspace.resolve()
         self.protected_paths = frozenset(path.resolve() for path in protected_paths)
         self.trace_events: list[dict[str, Any]] = []
-        self.background_hashes: list[str] = []
         self.denial_observed = False
         self.recovery_observed = False
         self.successful_calls = 0
@@ -355,21 +354,6 @@ class NativeSandboxHost:
 
     def cancellation_requested(self) -> bool:
         return False
-
-    async def emit_background_result(self, result: Any) -> None:
-        content = getattr(result, "content", None)
-        outcome = getattr(getattr(result, "outcome", None), "value", None)
-        if isinstance(content, str) and isinstance(outcome, str):
-            self.background_hashes.append(
-                hashlib.sha256(
-                    json.dumps(
-                        {"content": content, "outcome": outcome},
-                        ensure_ascii=False,
-                        sort_keys=True,
-                        separators=(",", ":"),
-                    ).encode("utf-8")
-                ).hexdigest()
-            )
 
     def _append(self, event: dict[str, Any]) -> None:
         event["seq"] = self._sequence

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -8,20 +9,20 @@ import pytest
 from hermes_claude_agent_sdk.parity import active_suite as active_suite_module
 from hermes_claude_agent_sdk.parity.active_suite import (
     ACTIVE_SOURCE_IDS,
-    _FANOUT_DELEGATION_PROMPT,
     LiveTurn,
     _normalize_event_tool_name,
     _inventory_matches,
     _is_silent_model_fallback,
     _is_silent_receipt_model_fallback,
     _source_docs_contract,
-    _subagent_contract,
+    active_agentic_suite,
     active_execution_ids,
 )
 from hermes_claude_agent_sdk.parity.executors import EXECUTORS
 from hermes_claude_agent_sdk.parity.native_sandbox import NativeSandboxHost, tool_schemas
 from hermes_claude_agent_sdk.parity.hashing import sha256_value
 from hermes_claude_agent_sdk.parity.results import ExecutionClassification
+from hermes_claude_agent_sdk.parity.runner import ExecutionContext
 from hermes_claude_agent_sdk.parity.tool_inventory import declared_tool_schemas
 from hermes_claude_agent_sdk.parity.trace import normalized_path_events
 
@@ -38,20 +39,8 @@ def test_active_execution_inventory_is_exactly_eleven_plus_thin_approval() -> No
     } <= set(EXECUTORS)
 
 
-def test_fanout_delegation_uses_two_fixed_harmless_child_tasks() -> None:
-    prompt = _FANOUT_DELEGATION_PROMPT
-
-    assert "exactly two times" in prompt
-    assert "count the letters in ORCHARD" in prompt
-    assert "sort BIRCH, ASPEN, CEDAR alphabetically" in prompt
-    assert "end CHILD_ONE_DONE" in prompt
-    assert "end CHILD_TWO_DONE" in prompt
-    assert "end this delegation turn with FANOUT_READY" in prompt
-    assert prompt.index("count the letters in ORCHARD") < prompt.index(
-        "sort BIRCH, ASPEN, CEDAR alphabetically"
-    )
-    assert "Do not add, substitute, or broaden either child topic" in prompt
-    assert "research" not in prompt.casefold()
+def test_delegation_prompt_is_not_defined_in_the_direct_suite() -> None:
+    assert not hasattr(active_suite_module, "_FANOUT_DELEGATION_PROMPT")
 
 
 def test_active_normalized_events_preserve_catalog_order_for_every_path(catalog) -> None:
@@ -87,14 +76,14 @@ def test_native_sandbox_can_disable_injected_denial(tmp_path) -> None:
 
 def test_event_tool_names_normalize_one_provider_namespace_only() -> None:
     assert _normalize_event_tool_name("mcp__hermes-tools__read") == "read"
-    assert _normalize_event_tool_name("Agent") == "Agent"
+    assert _normalize_event_tool_name("read") == "read"
     assert (
         _normalize_event_tool_name("mcp__hermes-tools__mcp__server__tool")
         == "mcp__server__tool"
     )
 
 
-def test_active_trace_separates_host_receipts_from_native_agent_observations(
+def test_active_trace_uses_host_receipts_without_sdk_tool_observations(
     tmp_path,
 ) -> None:
     host = NativeSandboxHost(tmp_path, (), deny_first=False)
@@ -104,19 +93,11 @@ def test_active_trace_separates_host_receipts_from_native_agent_observations(
 
     trace_start = len(host.trace_events)
     asyncio.run(scenario())
-    runtime = SimpleNamespace(
-        last_turn_tool_observations=("read", "Agent", "Agent"),
-    )
-
     host_names = active_suite_module._host_tool_names_from_receipts(host, trace_start)
-    agent_names = active_suite_module._agent_tool_names_from_observations(
-        runtime,
-        host_names,
-    )
 
     assert host_names == ("read",)
     assert all(type(name) is str for name in host_names)
-    assert agent_names == ("Agent", "Agent")
+    assert not hasattr(active_suite_module, "_agent_tool_names_from_observations")
 
 
 @pytest.mark.parametrize("resolution", ("unknown", "ambiguous", "mismatch"))
@@ -299,7 +280,6 @@ def test_live_case_auth_rejection_is_environment_blocked_without_billing(
             state_hash="a" * 64,
             tool_names=(),
             compaction_phases=(),
-            background_hashes=(),
             event_hash="b" * 64,
             silent_fallback=False,
         )
@@ -336,7 +316,6 @@ def test_live_case_auth_rejection_aggregates_multi_host_paths(
             state_hash="a" * 64,
             tool_names=(),
             compaction_phases=(),
-            background_hashes=(),
             event_hash="b" * 64,
             silent_fallback=False,
         )
@@ -376,7 +355,6 @@ def test_live_case_pre_usage_product_failure_is_not_subscription_labeled(
             state_hash="a" * 64,
             tool_names=(),
             compaction_phases=(),
-            background_hashes=(),
             event_hash="b" * 64,
             silent_fallback=False,
         )
@@ -411,7 +389,6 @@ def test_live_case_auth_code_with_tool_evidence_remains_verified_failure(
             state_hash="a" * 64,
             tool_names=("read",),
             compaction_phases=(),
-            background_hashes=(),
             event_hash="b" * 64,
             silent_fallback=False,
         )
@@ -446,7 +423,6 @@ def test_live_image_expected_denial_and_subscription_recovery_remain_complete(
                 state_hash="a" * 64,
                 tool_names=(),
                 compaction_phases=(),
-                background_hashes=(),
                 event_hash="b" * 64,
                 silent_fallback=False,
             ),
@@ -460,7 +436,6 @@ def test_live_image_expected_denial_and_subscription_recovery_remain_complete(
                 state_hash="c" * 64,
                 tool_names=(),
                 compaction_phases=(),
-                background_hashes=(),
                 event_hash="d" * 64,
                 silent_fallback=False,
             ),
@@ -500,7 +475,6 @@ def test_source_docs_contract_uses_host_receipts_when_projection_is_deduplicated
             state_hash="a" * 64,
             tool_names=tool_names,
             compaction_phases=(),
-            background_hashes=(),
             event_hash="b" * 64,
             silent_fallback=False,
         )
@@ -537,7 +511,6 @@ def test_source_docs_contract_reports_missing_tool_evidence_before_marker_gap(
             state_hash="a" * 64,
             tool_names=(),
             compaction_phases=(),
-            background_hashes=(),
             event_hash="b" * 64,
             silent_fallback=False,
         )
@@ -663,7 +636,6 @@ def test_source_docs_contract_reports_bounded_terminal_failure_before_other_gaps
         state_hash="a" * 64,
         tool_names=(),
         compaction_phases=(),
-        background_hashes=(),
         event_hash="b" * 64,
         silent_fallback=silent_fallback,
     )
@@ -678,7 +650,6 @@ def test_source_docs_contract_reports_bounded_terminal_failure_before_other_gaps
         state_hash="c" * 64,
         tool_names=("read",),
         compaction_phases=(),
-        background_hashes=(),
         event_hash="d" * 64,
         silent_fallback=False,
     )
@@ -705,7 +676,6 @@ def test_source_docs_contract_reports_docs_terminal_failure_before_tool_gaps(
         state_hash="a" * 64,
         tool_names=(),
         compaction_phases=(),
-        background_hashes=(),
         event_hash="b" * 64,
         silent_fallback=False,
     )
@@ -719,7 +689,6 @@ def test_source_docs_contract_reports_docs_terminal_failure_before_tool_gaps(
         state_hash="c" * 64,
         tool_names=(),
         compaction_phases=(),
-        background_hashes=(),
         event_hash="d" * 64,
         silent_fallback=False,
     )
@@ -760,7 +729,6 @@ def test_source_docs_contract_reports_denial_and_recovery_before_marker_gaps(
             state_hash="a" * 64,
             tool_names=("read",),
             compaction_phases=(),
-            background_hashes=(),
             event_hash="b" * 64,
             silent_fallback=False,
         )
@@ -796,7 +764,6 @@ def test_source_docs_contract_reports_marker_gap_after_host_tool_recovery(
             state_hash="a" * 64,
             tool_names=tool_names,
             compaction_phases=(),
-            background_hashes=(),
             event_hash="b" * 64,
             silent_fallback=False,
         )
@@ -819,40 +786,67 @@ def test_source_docs_contract_reports_marker_gap_after_host_tool_recovery(
     assert extra["docs_stage_ok"] is True
 
 
-def test_subagent_contract_reports_parent_marker_gap_without_content(tmp_path) -> None:
-    host = NativeSandboxHost(tmp_path, (), deny_first=False)
-    host.denial_observed = True
-    host.recovery_observed = True
-    turn = LiveTurn(
-        terminal="completed",
-        failure_code=None,
-        billing="subscription_included",
-        final_text="synthetic synthesis without contract markers",
-        final_hash=sha256_value("synthetic synthesis without contract markers"),
-        state=None,
-        state_hash="a" * 64,
-        tool_names=("read", "read"),
-        compaction_phases=(),
-        background_hashes=(),
-        event_hash="b" * 64,
-        silent_fallback=False,
-        agent_tool_names=("Agent", "Agent"),
-    )
+def test_subagent_contract_is_not_defined_in_the_direct_suite() -> None:
+    assert not hasattr(active_suite_module, "_subagent_contract")
 
-    ok, reason, extra = _subagent_contract(
-        (turn,),
-        host,
-        count=2,
-        final_marker="FANOUT_PASS",
-    )
 
-    assert ok is False
-    assert reason == "active_subagent_context_marker_missing"
-    assert extra == {
-        "agent_calls": 2,
-        "denial": True,
-        "recovery": True,
-        "context_marker": False,
-        "final_marker": False,
-        "provider_turns": 1,
-    }
+def test_delegation_rows_fail_closed_before_any_runtime_preflight(
+    catalog, candidate_fields, monkeypatch
+) -> None:
+    def unexpected(*_args, **_kwargs):
+        raise AssertionError("delegation evidence gate must precede runtime construction")
+
+    monkeypatch.setattr(active_suite_module, "_exact_source_preflight", unexpected)
+    monkeypatch.setattr(active_suite_module, "_run_live_case_bounded", unexpected)
+
+    for source_id in (
+        "subagent-handoff",
+        "subagent-fanout-synthesis",
+        "subagent-stale-child-links",
+    ):
+        capability = catalog.by_id[f"active:{source_id}"]
+        context = ExecutionContext(
+            capability=capability,
+            path="positive",
+            trial_index=1,
+            profile_id=candidate_fields["profile_id"],
+            profile_hash=candidate_fields["profile_hash"],
+            plugin_sha=candidate_fields["plugin_sha"],
+            host_sha=candidate_fields["host_sha"],
+            sdk_version=candidate_fields["sdk_version"],
+            runner_version=candidate_fields["runner_version"],
+            inventory_hash=candidate_fields["inventory_hash"],
+            contract_hash=catalog.contract_hash,
+            catalog_hash=catalog.catalog_hash,
+            remaining_turn_budget=100,
+            repo_root=str(Path(catalog.path).parent.parent),
+        )
+
+        bundle = asyncio.run(active_agentic_suite(context))
+
+        assert bundle.turn_count == 0
+        assert all(
+            outcome.classification is ExecutionClassification.ENVIRONMENT_BLOCKED
+            and outcome.reason_code == "installed_hermes_delegate_evidence_required"
+            for outcome in bundle.outcomes.values()
+        )
+
+
+def test_operational_parity_sources_have_no_native_background_route() -> None:
+    source_paths = (
+        Path(active_suite_module.__file__),
+        Path(active_suite_module.__file__).with_name("runtime_suite.py"),
+        Path(active_suite_module.__file__).with_name("native_sandbox.py"),
+    )
+    source = "\n".join(path.read_text(encoding="utf-8") for path in source_paths)
+    for forbidden in (
+        "native Agent",
+        "native-Agent",
+        "run_in_background",
+        "emit_background_result",
+        "background_hashes",
+        "agent_tool_names",
+        "_subagent_contract",
+        "_FANOUT_DELEGATION_PROMPT",
+    ):
+        assert forbidden not in source

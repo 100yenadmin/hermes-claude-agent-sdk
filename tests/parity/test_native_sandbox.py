@@ -117,3 +117,12 @@ def test_cron_trace_records_effective_one_shot_default(tmp_path: Path) -> None:
     asyncio.run(scenario())
     assert host.trace_events[0]["args"]["recurring"] is False
     assert host.trace_events[0]["args"]["action"] == "create"
+
+
+def test_native_sandbox_has_no_plugin_owned_background_settlement_surface(
+    tmp_path: Path,
+) -> None:
+    host = NativeSandboxHost(tmp_path, (), deny_first=False)
+
+    assert not hasattr(host, "emit_background_result")
+    assert not hasattr(host, "background_hashes")
