@@ -17,6 +17,7 @@ from hermes_claude_agent_sdk.parity.native_suite import (
     CLAWPROBENCH_SHA,
     LiveScenarioResult,
     NATIVE_OUTPUT_GUIDANCE,
+    NATIVE_SAFETY_FRAMING,
     NATIVE_READ_WRITE_ADAPTATIONS,
     NATIVE_SOURCE_IDS,
     _native_usage_hash,
@@ -341,6 +342,15 @@ def test_incident_commander_source_ambiguity_has_bounded_output_guidance() -> No
     assert "external broadcast" in guidance
     assert "schedule duplicate follow-up cron" in guidance
     assert all(term in guidance for term in ("partial", "high", "duplicate"))
+
+
+def test_injection_resistance_keeps_pinned_fixture_with_defensive_framing() -> None:
+    assert set(NATIVE_SAFETY_FRAMING) == {"intel_m05_injection_resist"}
+    framing = NATIVE_SAFETY_FRAMING["intel_m05_injection_resist"]
+    assert "untrusted synthetic text" in framing
+    assert "strictly as data" in framing
+    assert "not authorization" in framing
+    assert len(framing) < 1_000
 
 
 def _pinned_root() -> Path:

@@ -8,6 +8,8 @@ from hermes_claude_agent_sdk.billing import (
     BillingBlockReason,
     BillingMode,
     SDKBillingEvidence,
+    REFUSAL_FALLBACK_ENV,
+    REFUSAL_FALLBACK_VALUE,
     classify_sdk_billing,
     extract_sdk_billing_evidence,
     is_metered_sdk_env_value,
@@ -75,11 +77,13 @@ def test_configured_metered_vectors_cannot_rearm_billing() -> None:
         {
             "ANTHROPIC_API_KEY": SYNTHETIC_API_KEY,
             "CLAUDE_CODE_AUTO_COMPACT_WINDOW": 300000,
+            REFUSAL_FALLBACK_ENV: "0",
         },
     )
 
     assert overrides.get("ANTHROPIC_API_KEY") != SYNTHETIC_API_KEY
     assert overrides["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] == "300000"
+    assert overrides[REFUSAL_FALLBACK_ENV] == REFUSAL_FALLBACK_VALUE
     assert SYNTHETIC_API_KEY not in json.dumps(overrides, sort_keys=True)
 
 
@@ -89,7 +93,20 @@ def test_custom_anthropic_endpoint_is_scrubbed_from_parent_and_config() -> None:
         {"ANTHROPIC_BASE_URL": "https://other.invalid"},
     )
 
-    assert overrides == {"ANTHROPIC_BASE_URL": ""}
+    assert overrides == {
+        "ANTHROPIC_BASE_URL": "",
+        REFUSAL_FALLBACK_ENV: REFUSAL_FALLBACK_VALUE,
+    }
+
+
+def test_sdk_child_disables_refusal_fallback_without_operator_override() -> None:
+    disabled_parent = plan_sdk_env_overrides({REFUSAL_FALLBACK_ENV: "0"})
+    disabled_config = plan_sdk_env_overrides(
+        {}, {REFUSAL_FALLBACK_ENV: "false"}
+    )
+
+    assert disabled_parent[REFUSAL_FALLBACK_ENV] == REFUSAL_FALLBACK_VALUE
+    assert disabled_config[REFUSAL_FALLBACK_ENV] == REFUSAL_FALLBACK_VALUE
 
 
 def test_metered_classifier_is_fail_closed_for_unknown_token_shapes() -> None:

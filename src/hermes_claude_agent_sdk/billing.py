@@ -56,6 +56,13 @@ METERED_ENV_DENYLIST: tuple[str, ...] = (
     "GOOGLE_APPLICATION_CREDENTIALS",
 )
 
+# Claude Code may retry a model refusal on a different subscription model even
+# when the SDK caller did not configure ``fallback_model``.  Hermes selections
+# are exact and provider fallback is forbidden, so prevent that retry in the
+# child instead of merely rejecting its receipt after usage has occurred.
+REFUSAL_FALLBACK_ENV = "CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK"
+REFUSAL_FALLBACK_VALUE = "1"
+
 # Private aliases make the extraction's correspondence with the source easy
 # to audit without exposing any source-specific host module.
 _METERED_ENV_DENYLIST = METERED_ENV_DENYLIST
@@ -182,7 +189,9 @@ def plan_sdk_env_overrides(
     environment.
     """
 
-    overrides: dict[str, str] = {}
+    overrides: dict[str, str] = {
+        REFUSAL_FALLBACK_ENV: REFUSAL_FALLBACK_VALUE,
+    }
 
     if isinstance(parent_env, Mapping):
         for key in METERED_ENV_DENYLIST:
@@ -208,7 +217,11 @@ def plan_sdk_env_overrides(
             # Never allow config to overwrite the scrub or place a credential
             # into the SDK options dict.  The parent mapping owns the
             # recognized subscription token flow.
-            if key in METERED_ENV_DENYLIST or _looks_secretish_env_key(key):
+            if (
+                key in METERED_ENV_DENYLIST
+                or key == REFUSAL_FALLBACK_ENV
+                or _looks_secretish_env_key(key)
+            ):
                 continue
             value = _safe_env_value(raw_value)
             if value is not None:

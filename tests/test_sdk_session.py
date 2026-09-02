@@ -133,7 +133,10 @@ def test_import_and_configuration_do_not_import_sdk_or_retain_parent_secret() ->
     configuration = _configuration()
 
     assert SDK_IMPORTED_DURING_SESSION_IMPORT is False
-    assert configuration.env_overrides == (("ANTHROPIC_API_KEY", ""),)
+    assert configuration.env_overrides == (
+        ("ANTHROPIC_API_KEY", ""),
+        ("CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK", "1"),
+    )
     assert "synthetic-secret-not-real" not in repr(configuration)
 
 
@@ -285,7 +288,10 @@ def test_text_turn_uses_public_options_one_reader_projection_and_exact_close() -
         fields = client.options.fields
         assert fields["model"] == "claude-fable-synthetic"
         assert fields["cwd"] == "/synthetic/workspace"
-        assert fields["env"] == {"ANTHROPIC_API_KEY": ""}
+        assert fields["env"] == {
+            "ANTHROPIC_API_KEY": "",
+            "CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK": "1",
+        }
         assert fields["setting_sources"] == []
         assert fields["tools"] == ["Agent"]
         assert set(fields["hooks"]) == {"PreCompact"}
