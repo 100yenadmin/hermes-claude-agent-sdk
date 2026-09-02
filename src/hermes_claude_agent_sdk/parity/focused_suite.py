@@ -10,6 +10,7 @@ import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from ..compatibility import FABLE_51_MODEL_ID, check_model_compatibility
 from .catalog import load_catalog
 from .hashing import sha256_value
 from .results import ExecutionClassification
@@ -173,6 +174,19 @@ def _pending_path(reason: str) -> ExecutionOutcome:
     )
 
 
+def _bundled_cli_failure() -> str | None:
+    """Return a fail-closed reason for bundled CLI metadata drift."""
+
+    try:
+        decision = check_model_compatibility(FABLE_51_MODEL_ID)
+    except Exception:  # noqa: BLE001 - metadata faults fail the gate closed
+        return "bundled_cli_metadata_unavailable"
+    if isinstance(decision, Mapping) and decision.get("compatible") is True:
+        return None
+    reason = decision.get("reason") if isinstance(decision, Mapping) else None
+    return reason if isinstance(reason, str) and reason else "bundled_cli_metadata_unavailable"
+
+
 def _exact_source_preflight(
     context: ExecutionContext,
     root: Path,
@@ -183,6 +197,9 @@ def _exact_source_preflight(
     sdk_failure = candidate_sdk_failure(context.sdk_version)
     if sdk_failure is not None:
         return sdk_failure
+    cli_failure = _bundled_cli_failure()
+    if cli_failure is not None:
+        return cli_failure
     if os.environ.get("HERMES_PARITY_PLUGIN_SHA") != context.plugin_sha:
         return "plugin_sha_unverified"
     if os.environ.get("HERMES_AGENT_HOST_SHA") != context.host_sha:

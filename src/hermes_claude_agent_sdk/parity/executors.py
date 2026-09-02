@@ -7,6 +7,7 @@ import os
 from collections.abc import Mapping
 from typing import Any
 
+from ..compatibility import FABLE_51_MODEL_ID, check_model_compatibility
 from .active_suite import active_agentic_suite, active_execution_ids
 from .focused_suite import boundary_execution_ids, boundary_focused_suite
 from .hashing import sha256_value
@@ -36,6 +37,19 @@ def _blocked_bundle(reason: str) -> ExecutionBundle:
 
 def _event_hash(value: Any) -> str:
     return sha256_value(value)
+
+
+def _bundled_cli_failure() -> str | None:
+    """Return a fail-closed reason for bundled CLI metadata drift."""
+
+    try:
+        decision = check_model_compatibility(FABLE_51_MODEL_ID)
+    except Exception:  # noqa: BLE001 - metadata faults fail the gate closed
+        return "bundled_cli_metadata_unavailable"
+    if isinstance(decision, Mapping) and decision.get("compatible") is True:
+        return None
+    reason = decision.get("reason") if isinstance(decision, Mapping) else None
+    return reason if isinstance(reason, str) and reason else "bundled_cli_metadata_unavailable"
 
 
 class _ApprovalAgent:
@@ -151,6 +165,9 @@ async def approval_followthrough(context: ExecutionContext) -> ExecutionBundle:
     sdk_failure = candidate_sdk_failure(context.sdk_version)
     if sdk_failure is not None:
         return _blocked_bundle(sdk_failure)
+    cli_failure = _bundled_cli_failure()
+    if cli_failure is not None:
+        return _blocked_bundle(cli_failure)
     if os.environ.get("HERMES_PARITY_PLUGIN_SHA") != context.plugin_sha:
         return _blocked_bundle("plugin_sha_unverified")
     if os.environ.get("HERMES_AGENT_HOST_SHA") != context.host_sha:

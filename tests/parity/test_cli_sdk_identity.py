@@ -6,7 +6,9 @@ from types import SimpleNamespace
 
 import pytest
 
+from hermes_claude_agent_sdk.compatibility import FABLE_51_MODEL_ID
 from hermes_claude_agent_sdk.parity import cli
+from hermes_claude_agent_sdk.parity.sdk_identity import SDKIdentityViolation
 
 
 def _run_args(tmp_path) -> argparse.Namespace:
@@ -72,6 +74,34 @@ def test_run_uses_exact_installed_sdk_when_cli_argument_is_omitted(
 
     assert cli._run(args) == 75
     assert observed == {"sdk_version": "0.2.151"}
+
+
+def test_run_checks_bundled_cli_metadata_before_loading_executor(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    args = _run_args(tmp_path)
+    monkeypatch.setattr(metadata, "version", lambda _: "0.2.151")
+    observed: list[str] = []
+
+    def incompatible(model: object) -> dict[str, object]:
+        observed.append(str(model))
+        return {
+            "model": model,
+            "compatible": False,
+            "reason": "bundled_cli_version_unsupported",
+        }
+
+    monkeypatch.setattr(cli, "check_model_compatibility", incompatible)
+    monkeypatch.setattr(
+        cli,
+        "load_catalog",
+        lambda *_: pytest.fail("catalog must not load after CLI drift"),
+    )
+
+    with pytest.raises(SDKIdentityViolation, match="bundled_cli_version_unsupported"):
+        cli._run(args)
+    assert observed == [FABLE_51_MODEL_ID]
 
 
 @pytest.mark.parametrize("command", ["run", "grade"])

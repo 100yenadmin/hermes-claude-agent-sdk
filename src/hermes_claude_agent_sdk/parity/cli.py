@@ -1,4 +1,4 @@
-"""Command line interface for parity-v3 inventory, execution, and grading."""
+"""Command line interface for parity inventory, execution, and grading."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from typing import Any
 
 import yaml
 
+from ..compatibility import FABLE_51_MODEL_ID, check_model_compatibility
 from .catalog import CatalogViolation, load_catalog
 from .grader import grade_packets
 from .inventory import InventoryViolation, capture_tool_inventory, load_tool_inventory
@@ -87,7 +88,23 @@ def _validate_profile(catalog, profile_id: str) -> None:
         raise ResultViolation("requested profile is outside the isolated v3 profile policy")
 
 
+def _validate_bundled_cli_identity() -> None:
+    """Reject SDKs whose public bundled CLI metadata is not exact."""
+
+    try:
+        decision = check_model_compatibility(FABLE_51_MODEL_ID)
+    except Exception as exc:  # noqa: BLE001 - metadata faults fail closed
+        raise SDKIdentityViolation("bundled_cli_metadata_unavailable") from exc
+    if not isinstance(decision, dict) or decision.get("compatible") is not True:
+        reason = decision.get("reason") if isinstance(decision, dict) else None
+        raise SDKIdentityViolation(
+            reason if isinstance(reason, str) and reason else "bundled_cli_metadata_unavailable"
+        )
+
+
 def _inventory(args: argparse.Namespace) -> int:
+    sdk_version = resolve_candidate_sdk_version(args.sdk_version)
+    _validate_bundled_cli_identity()
     catalog = load_catalog(args.catalog)
     source_authority = validate_source_authority(catalog)
     lane_capabilities = catalog.for_lane(args.lane)
@@ -100,6 +117,7 @@ def _inventory(args: argparse.Namespace) -> int:
         "catalog_file_hash": catalog.file_hash,
         "source_authority_hash": source_authority.authority_hash,
         "lane": args.lane,
+        "sdk_version": sdk_version,
         "lane_capability_count": len(lane_capabilities),
         "source_counts": dict(catalog.source_counts),
         "registered_execution_ids": list(load_entrypoint_executors().execution_ids),
@@ -162,6 +180,7 @@ def _inventory(args: argparse.Namespace) -> int:
 def _run(args: argparse.Namespace) -> int:
     _require_run_fields(args)
     sdk_version = resolve_candidate_sdk_version(args.sdk_version)
+    _validate_bundled_cli_identity()
     catalog = load_catalog(args.catalog)
     validate_source_authority(catalog)
     _validate_profile(catalog, args.profile)
@@ -214,6 +233,7 @@ def _run(args: argparse.Namespace) -> int:
 def _grade(args: argparse.Namespace) -> int:
     _require_run_fields(args)
     sdk_version = resolve_candidate_sdk_version(args.sdk_version)
+    _validate_bundled_cli_identity()
     catalog = load_catalog(args.catalog)
     validate_source_authority(catalog)
     _validate_profile(catalog, args.profile)

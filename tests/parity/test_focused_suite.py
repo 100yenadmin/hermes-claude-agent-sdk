@@ -20,7 +20,7 @@ def _context(
     catalog,
     capability_id: str,
     *,
-    sdk_version: str = "0.2.144",
+    sdk_version: str = "0.2.151",
 ) -> ExecutionContext:
     return ExecutionContext(
         capability=catalog.by_id[capability_id],
@@ -167,7 +167,7 @@ def test_focused_suite_environment_does_not_forward_secret_shaped_keys(monkeypat
     assert environment["PYTHONDONTWRITEBYTECODE"] == "1"
 
 
-@pytest.mark.parametrize("sdk_version", ["0.2.144", "0.2.151"])
+@pytest.mark.parametrize("sdk_version", ["0.2.151"])
 def test_source_preflight_forwards_isolated_environment_to_git_subprocesses(
     catalog,
     monkeypatch,
@@ -240,3 +240,33 @@ def test_source_preflight_rejects_sdk_mismatch_before_git_subprocesses(
         ),
         tmp_path / "missing-repo",
     ) == "sdk_version_mismatch"
+
+
+def test_source_preflight_rejects_bundled_cli_drift_before_git_subprocesses(
+    catalog,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr(metadata, "version", lambda _: "0.2.151")
+    monkeypatch.setattr(
+        focused_suite,
+        "check_model_compatibility",
+        lambda _: {
+            "compatible": False,
+            "reason": "bundled_cli_version_unsupported",
+        },
+    )
+    monkeypatch.setattr(
+        focused_suite,
+        "_run",
+        lambda *_args, **_kwargs: pytest.fail("git subprocess must not run"),
+    )
+
+    assert focused_suite._exact_source_preflight(
+        _context(
+            catalog,
+            "boundary:terminal-error-warm-query-reuse",
+            sdk_version="0.2.151",
+        ),
+        tmp_path / "missing-repo",
+    ) == "bundled_cli_version_unsupported"
