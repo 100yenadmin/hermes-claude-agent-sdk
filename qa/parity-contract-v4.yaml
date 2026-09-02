@@ -1,0 +1,172 @@
+schema_version: 4
+contract:
+  name: "Hermes-owned Claude Subscription Runtime Parity"
+  version: "4.0.0"
+  runner_version: "4.0.0"
+  predecessor:
+    source_commit: "228cd52f21ed28b4e314a1d0b2c0225229b859fe"
+    contract_sha256: "e601f41313deb68b77a01402fe3b79c5da90afc7c46e40f87a6bac1850b69d8a"
+    boundary_ledger_sha256: "22e738bebca804514cfd8311d0ff1bf1bc9da6e6a8d21cce5fb9f6aa31f1463b"
+    result_schema_sha256: "dde70d2fbaa5e1cc669ff6167f89f043cc6854cf740ddff8e40c3dcb68ee1295"
+  target:
+    sdk_distribution: "claude-agent-sdk"
+    sdk_version: "0.2.151"
+    cli_version: "2.1.258"
+    model: "claude-fable-5-1"
+  candidate_inputs:
+    plugin_sha: null
+    host_sha: null
+    wheel_sha256: null
+    profile_sha256: null
+    runner_id: "hermes-parity-v4"
+    runner_version: "4.0.0"
+  required_coverage:
+    v2_non_soak: 53
+    openclaw_active: 12
+    agent_sdk_boundary: 23
+    clawprobench_native: 36
+  mandatory_path_count: 220
+  turn_budget: 180
+  ownership_preflights:
+    - zero_native_absence
+    - exact_prompt_settings_tools_mcp
+    - no_native_events_projector
+    - delegate_owner
+    - background_owner
+    - canonical_transcript_content
+    - streaming_owner
+    - redaction_fail_closed
+# Each tuple is [v3 source pack, v3 source item, disposition, path codes].
+# p/d/r retain v3 positive/denial/recovery applicability exactly.
+source_rows:
+  - ["v2_non_soak", "AUTH-01", "replace", "p"]
+  - ["v2_non_soak", "AUTH-02", "replace", "p"]
+  - ["v2_non_soak", "AUTH-03", "replace", "p"]
+  - ["v2_non_soak", "AUTH-04", "replace", "p"]
+  - ["v2_non_soak", "AUTH-05", "replace", "p"]
+  - ["v2_non_soak", "AUTH-06", "replace", "p"]
+  - ["v2_non_soak", "AUTH-07", "replace", "p"]
+  - ["v2_non_soak", "AUTH-08", "replace", "p"]
+  - ["v2_non_soak", "AUTH-09", "replace", "p"]
+  - ["v2_non_soak", "AUTH-10", "replace", "p"]
+  - ["v2_non_soak", "AUTH-11", "replace", "p"]
+  - ["v2_non_soak", "PARENT-01", "replace", "p"]
+  - ["v2_non_soak", "PARENT-02", "replace", "p"]
+  - ["v2_non_soak", "PARENT-03", "replace", "p"]
+  - ["v2_non_soak", "PARENT-04", "replace", "p"]
+  - ["v2_non_soak", "PARENT-05", "replace", "p"]
+  - ["v2_non_soak", "PARENT-06", "replace", "p"]
+  - ["v2_non_soak", "PARENT-07", "replace", "p"]
+  - ["v2_non_soak", "PARENT-08", "replace", "p"]
+  - ["v2_non_soak", "PARENT-09", "replace", "p"]
+  - ["v2_non_soak", "PARENT-10", "replace", "p"]
+  - ["v2_non_soak", "TOOL-01", "replace", "p"]
+  - ["v2_non_soak", "TOOL-02", "replace", "p"]
+  - ["v2_non_soak", "TOOL-03", "replace", "p"]
+  - ["v2_non_soak", "TOOL-04", "replace", "p"]
+  - ["v2_non_soak", "TOOL-05", "replace", "p"]
+  - ["v2_non_soak", "TOOL-06", "replace", "p"]
+  - ["v2_non_soak", "ORCH-01", "retire-with-successor", "p"]
+  - ["v2_non_soak", "ORCH-02", "split", "p"]
+  - ["v2_non_soak", "ORCH-03", "replace", "p"]
+  - ["v2_non_soak", "ORCH-04", "replace", "p"]
+  - ["v2_non_soak", "ORCH-05", "replace", "p"]
+  - ["v2_non_soak", "ORCH-06", "retire-with-successor", "p"]
+  - ["v2_non_soak", "ORCH-07", "replace", "p"]
+  - ["v2_non_soak", "ORCH-08", "replace", "p"]
+  - ["v2_non_soak", "ORCH-09", "replace", "p"]
+  - ["v2_non_soak", "ORCH-10", "replace", "p"]
+  - ["v2_non_soak", "BG-01", "split", "p"]
+  - ["v2_non_soak", "BG-02", "split", "p"]
+  - ["v2_non_soak", "BG-03", "split", "p"]
+  - ["v2_non_soak", "BG-04", "split", "p"]
+  - ["v2_non_soak", "OPS-01", "carry", "p"]
+  - ["v2_non_soak", "OPS-02", "replace", "p"]
+  - ["v2_non_soak", "OPS-03", "carry", "p"]
+  - ["v2_non_soak", "OPS-04", "replace", "p"]
+  - ["v2_non_soak", "OPS-05", "replace", "p"]
+  - ["v2_non_soak", "OPS-06", "carry", "p"]
+  - ["v2_non_soak", "OPS-07", "carry", "p"]
+  - ["v2_non_soak", "OPS-08", "carry", "p"]
+  - ["v2_non_soak", "OPS-09", "carry", "p"]
+  - ["v2_non_soak", "EFF-01", "retire-with-successor", "p"]
+  - ["v2_non_soak", "EFF-02", "carry", "p"]
+  - ["v2_non_soak", "EFF-03", "carry", "p"]
+  - ["openclaw_active", "approval-turn-tool-followthrough", "replace", "pdr"]
+  - ["openclaw_active", "model-switch-tool-continuity", "replace", "pdr"]
+  - ["openclaw_active", "source-docs-discovery-report", "replace", "pdr"]
+  - ["openclaw_active", "image-understanding-attachment", "replace", "pdr"]
+  - ["openclaw_active", "compaction-retry-mutating-tool", "replace", "pdr"]
+  - ["openclaw_active", "subagent-handoff", "split", "pdr"]
+  - ["openclaw_active", "subagent-fanout-synthesis", "split", "pdr"]
+  - ["openclaw_active", "subagent-stale-child-links", "split", "pdr"]
+  - ["openclaw_active", "memory-recall", "replace", "pdr"]
+  - ["openclaw_active", "thread-memory-isolation", "replace", "pdr"]
+  - ["openclaw_active", "config-restart-capability-flip", "replace", "pdr"]
+  - ["openclaw_active", "instruction-followthrough-repo-contract", "replace", "pdr"]
+  - ["agent_sdk_boundary", "sdk-identity-credential-privacy-side-question-isolation", "replace", "p"]
+  - ["agent_sdk_boundary", "authenticated-executable-exact-host-environment", "replace", "p"]
+  - ["agent_sdk_boundary", "cancellation-race-during-async-module-load", "replace", "p"]
+  - ["agent_sdk_boundary", "fresh-resume-native-session-identity", "replace", "p"]
+  - ["agent_sdk_boundary", "cache-effort-checkpoint-fork-options", "replace", "p"]
+  - ["agent_sdk_boundary", "compatible-warm-query-process-reuse", "replace", "p"]
+  - ["agent_sdk_boundary", "terminal-error-warm-query-reuse", "replace", "p"]
+  - ["agent_sdk_boundary", "execution-fingerprint-change-restarts-warm-query", "replace", "p"]
+  - ["agent_sdk_boundary", "inactive-owner-refuses-live-process", "replace", "p"]
+  - ["agent_sdk_boundary", "abort-closes-process-and-fences-permissions", "replace", "p"]
+  - ["agent_sdk_boundary", "approval-callback-active-turn-rebind", "replace", "p"]
+  - ["agent_sdk_boundary", "late-approval-rejected", "replace", "p"]
+  - ["agent_sdk_boundary", "background-provisional-result-settlement", "split", "p"]
+  - ["agent_sdk_boundary", "restricted-native-tools-and-mcp-grants", "replace", "p"]
+  - ["agent_sdk_boundary", "variadic-directories-tools-managed-mcp-isolation", "replace", "p"]
+  - ["agent_sdk_boundary", "wildcard-mcp-grants-expand-to-admitted-tools", "replace", "p"]
+  - ["agent_sdk_boundary", "missing-terminal-result-fails-closed", "replace", "p"]
+  - ["agent_sdk_boundary", "structured-question-not-tool-approval", "replace", "p"]
+  - ["agent_sdk_boundary", "native-tool-policy-precedes-user-shadow", "replace", "p"]
+  - ["agent_sdk_boundary", "bypass-shaped-arguments-remain-permissioned", "replace", "p"]
+  - ["agent_sdk_boundary", "structured-question-answer-mapping-dedup", "replace", "p"]
+  - ["agent_sdk_boundary", "structured-question-skip-denial-guidance", "replace", "p"]
+  - ["agent_sdk_boundary", "malformed-question-rejected-before-host", "replace", "p"]
+  - ["clawprobench_native", "constraints_19_cron_conflict_buffer_live", "replace", "pdr"]
+  - ["clawprobench_native", "constraints_22_message_audience_boundary_live", "replace", "pdr"]
+  - ["clawprobench_native", "constraints_23_external_approval_boundary_live", "replace", "pdr"]
+  - ["clawprobench_native", "intel_h03_temporal_constraint_scheduling", "replace", "pdr"]
+  - ["clawprobench_native", "intel_x02_adversarial_multi_step", "replace", "pdr"]
+  - ["clawprobench_native", "error_recovery_13_openclaw_memory_search_diagnosis_live", "replace", "pdr"]
+  - ["clawprobench_native", "error_recovery_20_browser_cron_message_orchestration_live", "replace", "pdr"]
+  - ["clawprobench_native", "error_recovery_22_incident_commander_sequence_live", "replace", "pdr"]
+  - ["clawprobench_native", "error_recovery_23_partial_containment_boundary_live", "replace", "pdr"]
+  - ["clawprobench_native", "error_recovery_24_partial_vs_containment_live", "replace", "pdr"]
+  - ["clawprobench_native", "error_recovery_25_rollback_gate_decision_live", "replace", "pdr"]
+  - ["clawprobench_native", "error_recovery_26_duplicate_automation_suppression_live", "replace", "pdr"]
+  - ["clawprobench_native", "intel_h02_cross_surface_diagnosis", "replace", "pdr"]
+  - ["clawprobench_native", "planning_13_openclaw_skill_routing_live", "replace", "pdr"]
+  - ["clawprobench_native", "planning_19_agent_delegation_boundary_live", "split", "pdr"]
+  - ["clawprobench_native", "planning_20_session_agent_handoff_live", "split", "pdr"]
+  - ["clawprobench_native", "planning_21_long_horizon_preference_override_live", "replace", "pdr"]
+  - ["clawprobench_native", "intel_m01_skill_routing", "replace", "pdr"]
+  - ["clawprobench_native", "intel_x01_full_system_audit", "replace", "pdr"]
+  - ["clawprobench_native", "intel_m05_injection_resist", "replace", "pdr"]
+  - ["clawprobench_native", "synthesis_15_openclaw_skill_source_audit_live", "replace", "pdr"]
+  - ["clawprobench_native", "synthesis_16_openclaw_runtime_surface_matrix_live", "replace", "pdr"]
+  - ["clawprobench_native", "synthesis_17_openclaw_gateway_surface_matrix_live", "replace", "pdr"]
+  - ["clawprobench_native", "synthesis_24_browser_message_reschedule_live", "replace", "pdr"]
+  - ["clawprobench_native", "synthesis_25_memory_conflict_resolution_live", "replace", "pdr"]
+  - ["clawprobench_native", "synthesis_26_memory_staleness_resolution_live", "replace", "pdr"]
+  - ["clawprobench_native", "synthesis_27_memory_quadrant_resolution_live", "replace", "pdr"]
+  - ["clawprobench_native", "synthesis_28_browser_internal_external_split_live", "replace", "pdr"]
+  - ["clawprobench_native", "synthesis_29_memory_conflict_action_gate_live", "replace", "pdr"]
+  - ["clawprobench_native", "intel_m06_session_health_check", "replace", "pdr"]
+  - ["clawprobench_native", "tool_use_14_openclaw_skill_inventory_live", "replace", "pdr"]
+  - ["clawprobench_native", "tool_use_21_recurring_cron_expiry_notice_live", "replace", "pdr"]
+  - ["clawprobench_native", "tool_use_22_browser_dom_console_triage_live", "replace", "pdr"]
+  - ["clawprobench_native", "intel_e01_skill_inventory", "replace", "pdr"]
+  - ["clawprobench_native", "intel_h01_skill_gap_remediation", "replace", "pdr"]
+  - ["clawprobench_native", "intel_m02_multi_surface_probe", "replace", "pdr"]
+runtime_soak:
+  source_item_id: "soak-100-turn"
+  source_pack: "runtime_active"
+  predecessor_execution_id: "runtime-active-100-turn"
+  successor_id: "hermes-v4/runtime_active/soak-100-turn"
+  mandatory_paths: [positive, denial, recovery]
+  turns: 100

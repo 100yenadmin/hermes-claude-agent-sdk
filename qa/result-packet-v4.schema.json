@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/100yenadmin/hermes-claude-agent-sdk/schema/result-packet-v4.json",
+  "title": "Hermes parity v4 result packet",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "contract_version", "contract_sha256", "predecessor",
+    "source_pack", "source_item_id", "execution_id", "successor_id", "path",
+    "classification", "candidate", "candidate_hash", "billing_classification", "silent_fallback",
+    "preflight_results", "proof_hashes", "events", "turn_count", "packet_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": 4},
+    "contract_version": {"const": "4.0.0"},
+    "contract_sha256": {"$ref": "#/$defs/sha256"},
+    "predecessor": {
+      "type": "object", "additionalProperties": false,
+      "required": ["contract_sha256", "ledger_sha256", "result_schema_sha256", "execution_id", "path"],
+      "properties": {
+        "contract_sha256": {"$ref": "#/$defs/sha256"},
+        "ledger_sha256": {"$ref": "#/$defs/sha256"},
+        "result_schema_sha256": {"$ref": "#/$defs/sha256"},
+        "execution_id": {"$ref": "#/$defs/id"},
+        "path": {"enum": ["positive", "denial", "recovery"]}
+      }
+    },
+    "source_pack": {"$ref": "#/$defs/id"},
+    "source_item_id": {"$ref": "#/$defs/id"},
+    "execution_id": {"$ref": "#/$defs/id"},
+    "successor_id": {"$ref": "#/$defs/id"},
+    "path": {"enum": ["positive", "denial", "recovery"]},
+    "classification": {"enum": ["PENDING", "EXPECTED_NEGATIVE", "ENVIRONMENT_BLOCKED", "VERIFIED_FAILURE", "COMPLETE"]},
+    "candidate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["plugin_sha", "host_sha", "wheel_sha256", "profile_sha256", "sdk_distribution", "sdk_version", "cli_version", "model", "runner_id", "runner_version"],
+      "properties": {
+        "plugin_sha": {"$ref": "#/$defs/sha1"},
+        "host_sha": {"$ref": "#/$defs/sha1"},
+        "wheel_sha256": {"$ref": "#/$defs/sha256"},
+        "profile_sha256": {"$ref": "#/$defs/sha256"},
+        "sdk_distribution": {"const": "claude-agent-sdk"},
+        "sdk_version": {"const": "0.2.151"},
+        "cli_version": {"const": "2.1.258"},
+        "model": {"const": "claude-fable-5-1"},
+        "runner_id": {"const": "hermes-parity-v4"},
+        "runner_version": {"const": "4.0.0"}
+      }
+    },
+    "billing_classification": {"enum": ["subscription_included", "explicitly_free", "none"]},
+    "candidate_hash": {"$ref": "#/$defs/sha256"},
+    "silent_fallback": {"const": false},
+    "preflight_results": {
+      "type": "object", "additionalProperties": false,
+      "required": ["zero_native_absence", "exact_prompt_settings_tools_mcp", "no_native_events_projector", "delegate_owner", "background_owner", "canonical_transcript_content", "streaming_owner", "redaction_fail_closed"],
+      "properties": {
+        "zero_native_absence": {"const": "PASS"},
+        "exact_prompt_settings_tools_mcp": {"const": "PASS"},
+        "no_native_events_projector": {"const": "PASS"},
+        "delegate_owner": {"const": "PASS"},
+        "background_owner": {"const": "PASS"},
+        "canonical_transcript_content": {"const": "PASS"},
+        "streaming_owner": {"const": "PASS"},
+        "redaction_fail_closed": {"const": "PASS"}
+      }
+    },
+    "proof_hashes": {
+      "type": "object", "additionalProperties": false,
+      "required": ["primary", "secondary", "transcript", "stream"],
+      "properties": {
+        "primary": {"$ref": "#/$defs/sha256"},
+        "secondary": {"$ref": "#/$defs/sha256"},
+        "transcript": {"$ref": "#/$defs/sha256"},
+        "stream": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "events": {
+      "type": "array", "minItems": 1, "maxItems": 10000,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["sequence", "kind"],
+        "properties": {
+          "sequence": {"type": "integer", "minimum": 1},
+          "kind": {"enum": ["preflight", "start", "state", "delegate", "background", "stream", "approval", "tool", "restart", "terminal"]},
+          "status": {"$ref": "#/$defs/id"},
+          "terminal_outcome": {"enum": ["completed", "denied", "failed", "cancelled"]},
+          "event_sha256": {"$ref": "#/$defs/sha256"}
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"kind": {"const": "terminal"}}},
+            "then": {"required": ["terminal_outcome"]},
+            "else": {"not": {"required": ["terminal_outcome"]}}
+          }
+        ]
+      }
+    },
+    "turn_count": {"type": "integer", "minimum": 0, "maximum": 180},
+    "reason_code": {"$ref": "#/$defs/id"},
+    "packet_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha1": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "id": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9_.:@/+\\-]+$"}
+  }
+}
