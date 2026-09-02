@@ -347,6 +347,20 @@ class ClaudeAgentSDKRuntime:
                 request.tool_schema_hash,
                 system_prompt_append,
             )
+
+            def new_projector() -> Any:
+                return ClaudeSdkEventProjector(
+                    runtime_id=RUNTIME_ID,
+                    provider=request.selection.provider,
+                    # The request model is selection metadata only.  The
+                    # projector uses it to classify exact/mismatch; effective
+                    # identity still comes only from SDK message/model_usage
+                    # evidence and never falls back to this value.
+                    model=request.selection.model,
+                    billing_mode="subscription_included",
+                    correlation_id=request.correlation_id,
+                )
+
             if self._session is None:
                 self._host = host
                 bridge = HostToolBridge(
@@ -374,17 +388,7 @@ class ClaudeAgentSDKRuntime:
                 self._session_contract = session_contract
                 self._session_configuration = configuration
                 self._session = self._new_session(configuration)
-                self._projector = ClaudeSdkEventProjector(
-                    runtime_id=RUNTIME_ID,
-                    provider=request.selection.provider,
-                    # The request model is selection metadata only.  The
-                    # projector uses it to classify exact/mismatch; effective
-                    # identity still comes only from SDK message/model_usage
-                    # evidence and never falls back to this value.
-                    model=request.selection.model,
-                    billing_mode="subscription_included",
-                    correlation_id=request.correlation_id,
-                )
+                self._projector = new_projector()
             elif session_contract != self._session_contract:
                 yield RuntimeFailedEvent(
                     failure=_failure(
@@ -404,6 +408,10 @@ class ClaudeAgentSDKRuntime:
                 )
                 self._session_configuration = replacement_configuration
                 self._session = self._new_session(replacement_configuration)
+                # A cancelled SDK client is a new runtime session.  Its
+                # model-provenance evidence must start empty even when it
+                # resumes the same external conversation state.
+                self._projector = new_projector()
             bridge = self._bridge
             assert bridge is not None
             bridge.begin_turn(request.correlation_id)

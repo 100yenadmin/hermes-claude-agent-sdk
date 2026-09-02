@@ -298,13 +298,22 @@ class _SuccessThenInterruptThenSuccessClient(_Client):
         session_id = (
             "synthetic-turn-a" if self.phase == 0 else "synthetic-turn-c"
         )
-        await self._messages.put(SystemMessage("init", {"apiKeySource": "none"}))
-        await self._messages.put(AssistantMessage([TextBlock(text)]))
+        init_data: dict[str, object] = {"apiKeySource": "none"}
+        if self.phase == 0:
+            init_data["model"] = "claude-fable-5"
+        await self._messages.put(SystemMessage("init", init_data))
+        await self._messages.put(
+            AssistantMessage(
+                [TextBlock(text)],
+                model="claude-fable-synthetic" if self.phase == 0 else None,
+            )
+        )
         await self._messages.put(
             ResultMessage(
                 result=text,
                 session_id=session_id,
                 usage={"input_tokens": 2, "output_tokens": 3},
+                model_usage={},
             )
         )
 
@@ -1235,12 +1244,22 @@ def test_successful_turn_then_cancelled_turn_reuses_current_resume_on_replacemen
     terminal_kinds = {"completed", "cancelled", "failed"}
     assert first_events[-1].kind.value == "completed"
     assert first_events[-1].result["text"] == "turn A"
+    first_receipt = next(
+        event.receipt for event in first_events if event.kind.value == "usage"
+    )
+    assert first_receipt.effective_model == "claude-fable-5"
+    assert first_receipt.model_resolution == "exact"
     assert [event.kind.value for event in second_events] == [
         "content",
         "cancelled",
     ]
     assert third_events[-1].kind.value == "completed"
     assert third_events[-1].result["text"] == "turn C"
+    third_receipt = next(
+        event.receipt for event in third_events if event.kind.value == "usage"
+    )
+    assert third_receipt.effective_model is None
+    assert third_receipt.model_resolution == "unknown"
     assert clients[1].options.fields["resume"] == "synthetic-turn-a"
     assert clients[0].interrupted == 1
     assert clients[1].interrupted == 0
