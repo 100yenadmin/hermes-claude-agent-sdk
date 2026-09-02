@@ -28,11 +28,23 @@ def _receipt(trial):
     return {"schema_version": 1, "candidate": candidate, "candidate_hash": sha256_value(candidate), "trial_candidate_hash": trial.candidate_hash, "trial_index": trial.trial_index, "preflight_results": {name: {"status": "PASS", "evidence_sha256": "7" * 64} for name in PREFLIGHTS}, "proof_hashes": {"primary": trial.primary_proof_hash, "secondary": trial.secondary_proof_hash, "transcript": trial.trace_hash, "stream": "8" * 64}}
 
 
+def _valid_nonpassing_trial(contract, classification):
+    raw = _trial(contract).to_dict()
+    events = normalized_path_events(("start",), path="positive", evidence_hash=H)
+    if classification is ExecutionClassification.VERIFIED_FAILURE:
+        events = ({"sequence": 1, "kind": "terminal", "terminal_outcome": "failed"},)
+    raw.update(classification=classification.value, normalized_events=[dict(event) for event in events], trace_hash=sha256_value(events), primary_proof_hash="4" * 64, secondary_proof_hash="5" * 64, reason_code=classification.value.lower())
+    raw.pop("packet_hash")
+    raw["packet_hash"] = sha256_value(raw)
+    return ResultPacket.from_dict(raw)
+
+
 def test_binds_without_rewriting_observations() -> None:
     contract = load_v4_contract(ROOT / "qa/parity-contract-v4.yaml")
     trial = _trial(contract)
     packet = bind_v4_evidence(contract, trial, _receipt(trial))
     assert (packet["classification"], packet["path"], packet["turn_count"]) == (trial.classification.value, trial.path, trial.turn_count)
+    assert packet["trial_index"] == trial.trial_index
     assert packet["events"] == [dict(event) for event in trial.normalized_events]
     assert packet["proof_hashes"]["stream"] == "8" * 64
 
@@ -50,6 +62,38 @@ def test_rejects_incomplete_or_failed_trial(classification) -> None:
     trial = _trial(contract, classification)
     with pytest.raises(V4EvidenceViolation):
         bind_v4_evidence(contract, trial, _receipt(trial))
+
+
+@pytest.mark.parametrize("classification", [ExecutionClassification.PENDING, ExecutionClassification.ENVIRONMENT_BLOCKED, ExecutionClassification.VERIFIED_FAILURE])
+def test_preserves_nonpassing_observations(classification) -> None:
+    contract = load_v4_contract(ROOT / "qa/parity-contract-v4.yaml")
+    trial = _valid_nonpassing_trial(contract, classification)
+    packet = bind_v4_evidence(contract, trial, _receipt(trial))
+    assert packet["classification"] == classification.value
+    assert packet["events"] == [dict(event) for event in trial.normalized_events]
+    assert packet["proof_hashes"]["primary"] == trial.primary_proof_hash
+
+
+def test_binds_representative_v3_event_kinds() -> None:
+    contract = load_v4_contract(ROOT / "qa/parity-contract-v4.yaml")
+    raw = _trial(contract).to_dict()
+    events = (
+        {"sequence": 1, "kind": "start", "status": "started"},
+        {"sequence": 2, "kind": "approval_requested", "request_hash": H},
+        {"sequence": 3, "kind": "approval_decision", "metadata_hash": H},
+        {"sequence": 4, "kind": "tool_requested", "request_hash": H},
+        {"sequence": 5, "kind": "tool_result", "tool_hash": H},
+        {"sequence": 6, "kind": "usage", "usage_hash": H},
+        {"sequence": 7, "kind": "compaction", "metadata_hash": H},
+        {"sequence": 8, "kind": "terminal", "terminal_outcome": "completed"},
+    )
+    raw["normalized_events"] = [dict(event) for event in events]
+    raw["trace_hash"] = sha256_value(events)
+    raw.pop("packet_hash")
+    raw["packet_hash"] = sha256_value(raw)
+    trial = ResultPacket.from_dict(raw)
+    packet = bind_v4_evidence(contract, trial, _receipt(trial))
+    assert packet["events"] == [dict(event) for event in events]
 
 
 def test_rejects_contract_hash_mismatch() -> None:
@@ -83,6 +127,19 @@ def test_rejects_candidate_mismatch_and_zero_preflight_digest() -> None:
         bind_v4_evidence(contract, trial, receipt)
     receipt = _receipt(trial)
     receipt["preflight_results"]["delegate_owner"]["evidence_sha256"] = "0" * 64
+    with pytest.raises(V4EvidenceViolation):
+        bind_v4_evidence(contract, trial, receipt)
+
+
+@pytest.mark.parametrize("value", [None, 0, True, "2", 3])
+def test_rejects_malformed_or_mismatched_trial_index(value) -> None:
+    contract = load_v4_contract(ROOT / "qa/parity-contract-v4.yaml")
+    trial = _trial(contract)
+    receipt = _receipt(trial)
+    if value is None:
+        receipt.pop("trial_index")
+    else:
+        receipt["trial_index"] = value
     with pytest.raises(V4EvidenceViolation):
         bind_v4_evidence(contract, trial, receipt)
 

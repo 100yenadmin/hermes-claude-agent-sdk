@@ -41,6 +41,7 @@ def _packet(contract, row, path="positive", classification="COMPLETE"):
         },
         proof_hashes={name: H for name in ("primary", "secondary", "transcript", "stream")},
         events=[{"sequence": 1, "kind": "terminal", "terminal_outcome": "completed"}],
+        trial_index=1,
     )
 
 
@@ -49,6 +50,7 @@ def test_packet_identity_and_grade_are_deterministic() -> None:
     row = contract["source_rows"][0]
     packet = _packet(contract, row)
     assert validate_result_packet(packet, contract=contract) == packet
+    assert packet["trial_index"] == 1
     report = grade_result_packets([packet], contract=contract)
     assert report["required_paths"] == 220
     assert report["complete_paths"] == 1
@@ -104,5 +106,18 @@ def test_runner_rejects_duplicate_paths_and_wrong_runtime_turn_budget() -> None:
                 "kind": "terminal",
                 "terminal_outcome": "completed",
             }],
+            trial_index=1,
             turn_count=99,
         )
+
+
+@pytest.mark.parametrize("value", [None, 0, True, "1"])
+def test_runner_rejects_malformed_trial_index(value) -> None:
+    contract = load_v4_contract(ROOT / "qa/parity-contract-v4.yaml")
+    packet = _packet(contract, contract["source_rows"][0])
+    if value is None:
+        packet.pop("trial_index")
+    else:
+        packet["trial_index"] = value
+    with pytest.raises(V4ResultViolation):
+        validate_result_packet(packet, contract=contract)

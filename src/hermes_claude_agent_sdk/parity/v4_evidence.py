@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from .hashing import sha256_value
-from .results import ExecutionClassification, ResultPacket
+from .results import ResultPacket
 from .v4_contract import (
     OWNERSHIP_PREFLIGHTS,
     V4_CLI_VERSION,
@@ -17,7 +17,7 @@ from .v4_contract import (
     V4_SDK_VERSION,
     validate_v4_contract,
 )
-from .v4_runner import build_result_packet
+from .v4_runner import CLASSIFICATIONS, build_result_packet
 
 V3_CONTRACT_HASH = "aaddc44c53b5648202e34c5682a5c0ee599fa52b896c0530d0945cac95eb3244"
 V3_CATALOG_HASH = "768c2d8f99077f8557a192d1053fc80401e83dee80d77475d12119df75b63abb"
@@ -112,7 +112,7 @@ def _source_row(contract: Mapping[str, Any], trial: ResultPacket) -> Mapping[str
 
 
 def bind_v4_evidence(contract: Mapping[str, Any], trial: ResultPacket | Mapping[str, Any], ownership_receipt: Mapping[str, Any]) -> dict[str, Any]:
-    """Create one v4 packet from one completed, already-recorded trial.
+    """Create one v4 packet from one already-recorded trial with valid evidence.
 
     This function performs no execution and copies the validated trial events
     unchanged.  Missing evidence never becomes a synthetic v4 outcome.
@@ -124,15 +124,15 @@ def bind_v4_evidence(contract: Mapping[str, Any], trial: ResultPacket | Mapping[
             raise V4EvidenceViolation("trial contract hash is not the immutable v3 envelope")
         if observed.catalog_hash != V3_CATALOG_HASH:
             raise V4EvidenceViolation("trial catalog hash is not the immutable v3 catalog")
-        if observed.classification not in {ExecutionClassification.COMPLETE, ExecutionClassification.EXPECTED_NEGATIVE}:
-            raise V4EvidenceViolation("only completed trial classifications can bind")
+        if observed.classification.value not in CLASSIFICATIONS:
+            raise V4EvidenceViolation("trial classification is unsupported by v4")
         row = _source_row(contract, observed)
         if observed.path not in row["mandatory_paths"]:
             raise V4EvidenceViolation("trial path is not mandatory for its v4 row")
         candidate, statuses, proofs = _receipt(ownership_receipt, observed)
         events = [dict(event) for event in observed.normalized_events]
-        packet = build_result_packet(contract, row, path=observed.path, classification=observed.classification.value, candidate=candidate, billing_classification=observed.billing_classification, preflight_results=statuses, proof_hashes=proofs, events=events, turn_count=observed.turn_count, reason_code=observed.reason_code)
-        if (packet["classification"], packet["path"], packet["turn_count"], packet["events"]) != (observed.classification.value, observed.path, observed.turn_count, events):
+        packet = build_result_packet(contract, row, path=observed.path, classification=observed.classification.value, candidate=candidate, billing_classification=observed.billing_classification, preflight_results=statuses, proof_hashes=proofs, events=events, trial_index=observed.trial_index, turn_count=observed.turn_count, reason_code=observed.reason_code)
+        if (packet["classification"], packet["path"], packet["trial_index"], packet["turn_count"], packet["events"]) != (observed.classification.value, observed.path, observed.trial_index, observed.turn_count, events):
             raise V4EvidenceViolation("adapter changed observed trial evidence")
         if packet["candidate_hash"] != ownership_receipt["candidate_hash"]:
             raise V4EvidenceViolation("adapter produced an unbound candidate identity")

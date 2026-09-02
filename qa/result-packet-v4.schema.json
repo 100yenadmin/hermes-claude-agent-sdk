@@ -8,7 +8,7 @@
     "schema_version", "contract_version", "contract_sha256", "predecessor",
     "source_pack", "source_item_id", "execution_id", "successor_id", "path",
     "classification", "candidate", "candidate_hash", "billing_classification", "silent_fallback",
-    "preflight_results", "proof_hashes", "events", "turn_count", "packet_sha256"
+    "preflight_results", "proof_hashes", "events", "trial_index", "turn_count", "packet_sha256"
   ],
   "properties": {
     "schema_version": {"const": 4},
@@ -81,10 +81,18 @@
         "required": ["sequence", "kind"],
         "properties": {
           "sequence": {"type": "integer", "minimum": 1},
-          "kind": {"enum": ["preflight", "start", "state", "delegate", "background", "stream", "approval", "tool", "restart", "terminal"]},
+          "kind": {"enum": ["preflight", "start", "state", "delegate", "background", "stream", "approval", "tool", "restart", "terminal", "approval_requested", "approval_decision", "tool_requested", "tool_result", "usage", "compaction"]},
           "status": {"$ref": "#/$defs/id"},
           "terminal_outcome": {"enum": ["completed", "denied", "failed", "cancelled"]},
-          "event_sha256": {"$ref": "#/$defs/sha256"}
+          "event_sha256": {"$ref": "#/$defs/sha256"},
+          "name_hash": {"$ref": "#/$defs/sha256"},
+          "request_hash": {"$ref": "#/$defs/sha256"},
+          "state_hash": {"$ref": "#/$defs/sha256"},
+          "usage_hash": {"$ref": "#/$defs/sha256"},
+          "schema_hash": {"$ref": "#/$defs/sha256"},
+          "tool_hash": {"$ref": "#/$defs/sha256"},
+          "parent_hash": {"$ref": "#/$defs/sha256"},
+          "metadata_hash": {"$ref": "#/$defs/sha256"}
         },
         "allOf": [
           {
@@ -95,6 +103,7 @@
         ]
       }
     },
+    "trial_index": {"type": "integer", "minimum": 1},
     "turn_count": {"type": "integer", "minimum": 0, "maximum": 180},
     "reason_code": {"$ref": "#/$defs/id"},
     "packet_sha256": {"$ref": "#/$defs/sha256"}

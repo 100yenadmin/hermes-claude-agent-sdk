@@ -31,7 +31,8 @@ from .v4_contract import (
 CLASSIFICATIONS = frozenset({"PENDING", "EXPECTED_NEGATIVE", "ENVIRONMENT_BLOCKED", "VERIFIED_FAILURE", "COMPLETE"})
 BILLING = frozenset({"subscription_included", "explicitly_free", "none"})
 PATHS = frozenset({"positive", "denial", "recovery"})
-EVENT_KINDS = frozenset({"preflight", "start", "state", "delegate", "background", "stream", "approval", "tool", "restart", "terminal"})
+EVENT_KINDS = frozenset({"preflight", "start", "state", "delegate", "background", "stream", "approval", "tool", "restart", "terminal", "approval_requested", "approval_decision", "tool_requested", "tool_result", "usage", "compaction"})
+EVENT_FIELDS = frozenset({"sequence", "kind", "status", "terminal_outcome", "event_sha256", "name_hash", "request_hash", "state_hash", "usage_hash", "schema_hash", "tool_hash", "parent_hash", "metadata_hash"})
 TERMINAL_OUTCOMES = frozenset({"completed", "denied", "failed", "cancelled"})
 HEX40 = set("0123456789abcdef")
 HEX64 = set("0123456789abcdef")
@@ -39,7 +40,7 @@ PACKET_FIELDS = frozenset({
     "schema_version", "contract_version", "contract_sha256", "predecessor",
     "source_pack", "source_item_id", "execution_id", "successor_id", "path",
     "classification", "candidate", "candidate_hash", "billing_classification",
-    "silent_fallback", "preflight_results", "proof_hashes", "events", "turn_count",
+    "silent_fallback", "preflight_results", "proof_hashes", "events", "trial_index", "turn_count",
     "packet_sha256",
 })
 
@@ -108,13 +109,15 @@ def _events(value: Any, classification: str) -> list[dict[str, Any]]:
     terminal = []
     for ordinal, raw in enumerate(value, 1):
         item = _mapping(raw, f"events[{ordinal - 1}]")
-        allowed = {"sequence", "kind", "status", "terminal_outcome", "event_sha256"}
-        if set(item) - allowed or item.get("sequence") != ordinal or item.get("kind") not in EVENT_KINDS:
+        if set(item) - EVENT_FIELDS or item.get("sequence") != ordinal or item.get("kind") not in EVENT_KINDS:
             raise V4ResultViolation("events are not contiguous or sanitized")
         if "status" in item:
             _id(item["status"], f"events[{ordinal - 1}].status")
         if "event_sha256" in item:
             _digest(item["event_sha256"], f"events[{ordinal - 1}].event_sha256")
+        for field, field_value in item.items():
+            if field.endswith("_hash"):
+                _digest(field_value, f"events[{ordinal - 1}].{field}")
         if item["kind"] == "terminal":
             if item.get("terminal_outcome") not in TERMINAL_OUTCOMES:
                 raise V4ResultViolation("terminal event has no supported outcome")
@@ -147,7 +150,7 @@ def _row_for_packet(packet: Mapping[str, Any], contract: Mapping[str, Any]) -> M
     raise V4ResultViolation("packet source row is not in the v4 contract")
 
 
-def build_result_packet(contract: Mapping[str, Any], row: Mapping[str, Any], *, path: str, classification: str, candidate: Mapping[str, Any], billing_classification: str, preflight_results: Mapping[str, str], proof_hashes: Mapping[str, str], events: Sequence[Mapping[str, Any]], turn_count: int = 0, reason_code: str | None = None) -> dict[str, Any]:
+def build_result_packet(contract: Mapping[str, Any], row: Mapping[str, Any], *, path: str, classification: str, candidate: Mapping[str, Any], billing_classification: str, preflight_results: Mapping[str, str], proof_hashes: Mapping[str, str], events: Sequence[Mapping[str, Any]], trial_index: int, turn_count: int = 0, reason_code: str | None = None) -> dict[str, Any]:
     """Build one sanitized packet; callers still need no provider or SDK."""
 
     validate_v4_contract(contract)
@@ -155,6 +158,8 @@ def build_result_packet(contract: Mapping[str, Any], row: Mapping[str, Any], *, 
         raise V4ResultViolation("unsupported path, classification, or billing")
     if reason_code is not None:
         _id(reason_code, "reason_code")
+    if type(trial_index) is not int or trial_index < 1:
+        raise V4ResultViolation("trial_index must be a positive integer")
     if type(turn_count) is not int or not 0 <= turn_count <= 180:
         raise V4ResultViolation("turn_count must be in [0, 180]")
     normalized_candidate = _candidate(candidate)
@@ -195,6 +200,7 @@ def build_result_packet(contract: Mapping[str, Any], row: Mapping[str, Any], *, 
         "preflight_results": preflights,
         "proof_hashes": proofs,
         "events": [dict(event) for event in events],
+        "trial_index": trial_index,
         "turn_count": turn_count,
     }
     if reason_code is not None:
@@ -240,6 +246,9 @@ def validate_result_packet(packet: Mapping[str, Any], *, contract: Mapping[str, 
         for key, value in proofs.items():
             _digest(value, f"proof_hashes.{key}")
         events = _events(raw["events"], classification)
+        trial_index = raw["trial_index"]
+        if type(trial_index) is not int or trial_index < 1:
+            raise V4ResultViolation("trial_index must be a positive integer")
         turn_count = raw["turn_count"]
         if type(turn_count) is not int or not 0 <= turn_count <= 180:
             raise V4ResultViolation("turn_count is outside the bounded budget")
