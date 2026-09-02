@@ -88,7 +88,6 @@ class ClaudeAgentSDKRuntime:
         self._cwd = cwd
         self._parent_env = parent_env
         self._compaction_watchdog_seconds = compaction_watchdog_seconds
-        self._auth_allowed: bool | None = None
         self._session: Any | None = None
         self._bridge: HostToolBridge | None = None
         self._host: Any | None = None
@@ -123,19 +122,16 @@ class ClaudeAgentSDKRuntime:
         return module.probe_claude_auth()
 
     def _check_auth(self) -> bool:
-        if self._auth_allowed is not None:
-            return self._auth_allowed
         try:
             result = (self._auth_probe or self._default_auth_probe)()
             category = getattr(result, "category", None)
             category = getattr(category, "value", category)
-            self._auth_allowed = (
+            return (
                 getattr(result, "allowed", None) is True
                 and category == "subscription_oauth"
             )
         except Exception:
-            self._auth_allowed = False
-        return self._auth_allowed
+            return False
 
     def _new_session(self, configuration: SDKSessionConfiguration) -> Any:
         from .sdk_session import SDKSession

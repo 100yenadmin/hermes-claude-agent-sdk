@@ -378,6 +378,56 @@ def test_auth_rejection_stops_before_sdk_import_or_query(monkeypatch):
     assert "claude_agent_sdk" not in sys.modules
 
 
+def test_preflight_revalidates_subscription_auth_for_each_turn() -> None:
+    decisions = iter((True, False))
+    auth_calls: list[bool] = []
+
+    def auth_probe():
+        allowed = next(decisions)
+        auth_calls.append(allowed)
+        return type(
+            "AuthResult",
+            (),
+            {"allowed": allowed, "category": "subscription_oauth"},
+        )()
+
+    runtime = runtime_module.ClaudeAgentSDKRuntime(auth_probe=auth_probe)
+    first = _request()
+    second = replace(first, correlation_id="synthetic-correlation-2")
+
+    assert runtime.preflight(first) is None
+    failure = runtime.preflight(second)
+
+    assert failure is not None
+    assert failure.code == "claude_subscription_auth_rejected"
+    assert auth_calls == [True, False]
+
+
+def test_preflight_rechecks_after_transient_auth_probe_failure() -> None:
+    auth_calls = 0
+
+    def auth_probe():
+        nonlocal auth_calls
+        auth_calls += 1
+        if auth_calls == 1:
+            raise RuntimeError("synthetic auth probe failure")
+        return type(
+            "AuthResult",
+            (),
+            {"allowed": True, "category": "subscription_oauth"},
+        )()
+
+    runtime = runtime_module.ClaudeAgentSDKRuntime(auth_probe=auth_probe)
+    first = _request()
+    second = replace(first, correlation_id="synthetic-correlation-2")
+
+    failure = runtime.preflight(first)
+    assert failure is not None
+    assert failure.code == "claude_subscription_auth_rejected"
+    assert runtime.preflight(second) is None
+    assert auth_calls == 2
+
+
 def test_incompatible_host_manifest_is_reported_before_any_sdk_access(monkeypatch):
     monkeypatch.delitem(sys.modules, "claude_agent_sdk", raising=False)
 
