@@ -28,9 +28,10 @@
     "clawprobench_native": {"rows": 36, "mandatory_paths": 108},
     "total_rows": 124,
     "mandatory_paths": 220,
-    "required_trial_packets": 390
+    "required_trial_packets": 390,
+    "provider_live_rows": 70
   },
-  "source_rows_sha256": "974393ba285ea35d01f7cfdebf64ce8ed12d4cc93810d145df853d7b64571a03",
+  "source_rows_sha256": "33a3230b7f8da1483bc1db2ae54b41ca2af29e80ca80e66231a474455f49aa0a",
   "runtime_soak": {"turns": 100, "mandatory_paths": 3},
   "ownership_preflights": [
     "zero_native_absence",
@@ -48,6 +49,6 @@
     "wheel_sha256": null,
     "profile_sha256": null
   },
-  "manifest_sha256": "eacdd44460aacdae692384be1cdfb0a22ad4f0eb95cd13e71560d45d0e0db86c",
+  "manifest_sha256": "d692132e81ca3f54159de0364a1dbf7ee237d734af210e8bcec19287c8efb039",
   "proof_boundary": "Deterministic artifact and packet-grading identity only; no provider-live, installed-runtime, release, fleet, or customer proof."
 }

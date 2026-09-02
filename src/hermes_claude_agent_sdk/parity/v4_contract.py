@@ -32,9 +32,21 @@ V4_TURN_BUDGET = 180
 V4_RUNTIME_TURNS = 100
 REQUIRED_TRIAL_PACKETS = 390
 CONSEQUENTIAL_ROW_COUNT = 55
+PROVIDER_LIVE_ROW_COUNT = 70
 V3_RESULT_CONTRACT_HASH = "aaddc44c53b5648202e34c5682a5c0ee599fa52b896c0530d0945cac95eb3244"
 V3_RESULT_CATALOG_HASH = "768c2d8f99077f8557a192d1053fc80401e83dee80d77475d12119df75b63abb"
-PROVIDER_LIVE_SOURCE_IDS = frozenset(("approval-turn-tool-followthrough", "source-docs-discovery-report", "image-understanding-attachment", "subagent-handoff", "subagent-fanout-synthesis", "memory-recall", "thread-memory-isolation", "config-restart-capability-flip"))
+PROVIDER_LIVE_SOURCE_IDS = frozenset(
+    {
+        "source-docs-discovery-report",
+        "image-understanding-attachment",
+        "subagent-handoff",
+        "subagent-fanout-synthesis",
+        "memory-recall",
+        "thread-memory-isolation",
+        "config-restart-capability-flip",
+        "instruction-followthrough-repo-contract",
+    }
+)
 PACK_COUNTS = {
     "v2_non_soak": (53, 53),
     "openclaw_active": (12, 36),
@@ -171,7 +183,11 @@ def required_trial_indexes(row: Mapping[str, Any]) -> tuple[int, ...]:
 
 def _provider_live_required(source_pack: str, source_item_id: str, predecessor: Mapping[str, Any]) -> bool:
     proofs = tuple(predecessor["primary_proof"]) + tuple(predecessor["secondary_proof"])
-    return source_pack in {"clawprobench_native", "runtime_active"} or source_item_id in PROVIDER_LIVE_SOURCE_IDS or "live" in proofs
+    return (
+        source_pack in {"clawprobench_native", "runtime_active"}
+        or (source_pack == "openclaw_active" and source_item_id in PROVIDER_LIVE_SOURCE_IDS)
+        or "live" in proofs
+    )
 
 
 def _expand_row(raw: Any, v3: Mapping[tuple[str, str], Mapping[str, Any]], index: int) -> dict[str, Any]:
@@ -356,9 +372,12 @@ def validate_v4_contract(value: Mapping[str, Any], *, ledger: Mapping[str, Any] 
         _validate_predecessor_map(predecessor_map, rows)
     required_trial_packets = sum(len(row["mandatory_paths"]) * len(required_trial_indexes(row)) for row in rows)
     consequential_rows = sum("consequential" in row["repeat_policy"]["triggers"] for row in rows)
+    provider_live_rows = sum(row["provider_live_required"] is True for row in rows)
     if required_trial_packets != REQUIRED_TRIAL_PACKETS or consequential_rows != CONSEQUENTIAL_ROW_COUNT:
         raise V4ContractViolation("v4 repeat accounting does not preserve immutable v3 semantics")
-    return {"counts": per_pack, "total_rows": len(rows), "mandatory_paths": sum(len(row["mandatory_paths"]) for row in rows), "required_trial_packets": required_trial_packets, "disposition_totals": dict(dispositions), "predecessor_rows": len(seen)}
+    if provider_live_rows != PROVIDER_LIVE_ROW_COUNT:
+        raise V4ContractViolation("v4 provider-live accounting does not match the frozen execution map")
+    return {"counts": per_pack, "total_rows": len(rows), "mandatory_paths": sum(len(row["mandatory_paths"]) for row in rows), "required_trial_packets": required_trial_packets, "provider_live_rows": provider_live_rows, "disposition_totals": dict(dispositions), "predecessor_rows": len(seen)}
 
 
 def _validate_ledger(value: Mapping[str, Any], contract: Mapping[str, Any]) -> None:
@@ -457,7 +476,7 @@ def load_v4_manifest(path: str | Path) -> dict[str, Any]:
     predecessor = _mapping(document["predecessor"], "manifest.predecessor")
     if predecessor != {"plugin_source_commit": V3_SOURCE_COMMIT, "contract_sha256": V3_HASHES["contract_sha256"], "boundary_ledger_sha256": V3_HASHES["boundary_ledger_sha256"], "result_schema_sha256": V3_HASHES["result_schema_sha256"]}:
         raise V4ContractViolation("v4 manifest predecessor mismatch")
-    if document["target"] != {"sdk_distribution": V4_SDK_DISTRIBUTION, "sdk_version": V4_SDK_VERSION, "cli_version": V4_CLI_VERSION, "model": V4_MODEL} or document["counts"] != {"v2_non_soak": {"rows": 53, "mandatory_paths": 53}, "openclaw_active": {"rows": 12, "mandatory_paths": 36}, "agent_sdk_boundary": {"rows": 23, "mandatory_paths": 23}, "clawprobench_native": {"rows": 36, "mandatory_paths": 108}, "total_rows": 124, "mandatory_paths": 220, "required_trial_packets": REQUIRED_TRIAL_PACKETS} or document["runtime_soak"] != {"turns": 100, "mandatory_paths": 3} or document["ownership_preflights"] != list(OWNERSHIP_PREFLIGHTS):
+    if document["target"] != {"sdk_distribution": V4_SDK_DISTRIBUTION, "sdk_version": V4_SDK_VERSION, "cli_version": V4_CLI_VERSION, "model": V4_MODEL} or document["counts"] != {"v2_non_soak": {"rows": 53, "mandatory_paths": 53}, "openclaw_active": {"rows": 12, "mandatory_paths": 36}, "agent_sdk_boundary": {"rows": 23, "mandatory_paths": 23}, "clawprobench_native": {"rows": 36, "mandatory_paths": 108}, "total_rows": 124, "mandatory_paths": 220, "required_trial_packets": REQUIRED_TRIAL_PACKETS, "provider_live_rows": PROVIDER_LIVE_ROW_COUNT} or document["runtime_soak"] != {"turns": 100, "mandatory_paths": 3} or document["ownership_preflights"] != list(OWNERSHIP_PREFLIGHTS):
         raise V4ContractViolation("v4 manifest accounting or target identity drifted")
     candidate = _mapping(document["candidate_freeze_inputs"], "manifest.candidate_freeze_inputs")
     if set(candidate) != {"plugin_sha", "host_sha", "wheel_sha256", "profile_sha256"} or any(value is not None for value in candidate.values()):

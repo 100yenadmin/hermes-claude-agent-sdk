@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from hermes_claude_agent_sdk.parity.hashing import sha256_value
 from hermes_claude_agent_sdk.parity.v4_contract import (
     V3_RESULT_CATALOG_HASH,
     load_v4_contract,
@@ -32,8 +31,11 @@ def _candidate() -> dict[str, str]:
 
 
 def _packet(contract, row, path="positive", classification="COMPLETE", trial_index=1, turn_count=0, billing_classification=None):
-    events = [{"sequence": index, "kind": kind} for index, kind in enumerate(row["expected_trace"], 1)]
-    events[-1]["terminal_outcome"] = "denied" if classification == "EXPECTED_NEGATIVE" else "completed"
+    if classification in {"PENDING", "ENVIRONMENT_BLOCKED"}:
+        events = [{"sequence": 1, "kind": "preflight"}]
+    else:
+        events = [{"sequence": index, "kind": kind} for index, kind in enumerate(row["expected_trace"], 1)]
+        events[-1]["terminal_outcome"] = "denied" if classification == "EXPECTED_NEGATIVE" else "completed"
     return build_result_packet(
         contract,
         row,
@@ -152,18 +154,22 @@ def test_runner_rejects_predecessor_identity_drift(field) -> None:
         validate_result_packet(packet, contract=contract)
 
 
-def test_runner_rejects_none_billing_for_live_proof_but_accepts_deterministic() -> None:
+def test_runner_requires_subscription_billing_only_for_passing_provider_live_trials() -> None:
     contract = load_v4_contract(ROOT / "qa/parity-contract-v4.yaml")
-    live = next(row for row in contract["source_rows"] if row["source_item_id"] == "approval-turn-tool-followthrough")
-    packet = _packet(contract, live)
-    packet["billing_classification"] = "none"
-    unsigned = dict(packet)
-    unsigned.pop("packet_sha256")
-    packet["packet_sha256"] = sha256_value(unsigned)
-    with pytest.raises(V4ResultViolation):
-        grade_result_packets([packet], contract=contract)
-    deterministic = next(row for row in contract["source_rows"] if not row["provider_live_required"] and not set(row["repeat_policy"]["triggers"]) & {"consequential", "unstable"})
-    assert grade_result_packets([_packet(contract, deterministic)], contract=contract)["complete_paths"] == 1
+    live = next(row for row in contract["source_rows"] if row["source_item_id"] == "instruction-followthrough-repo-contract")
+    for unsafe_billing in ("none", "explicitly_free"):
+        with pytest.raises(V4ResultViolation):
+            _packet(contract, live, billing_classification=unsafe_billing)
+    blocked = _packet(
+        contract,
+        live,
+        classification="ENVIRONMENT_BLOCKED",
+        billing_classification="none",
+    )
+    assert grade_result_packets([blocked], contract=contract)["pending_paths"] == 1
+    deterministic = next(row for row in contract["source_rows"] if row["source_item_id"] == "approval-turn-tool-followthrough")
+    packet = _packet(contract, deterministic, billing_classification="none")
+    assert validate_result_packet(packet, contract=contract) == packet
 
 
 def test_runner_marks_wrong_terminal_classification_as_failure() -> None:

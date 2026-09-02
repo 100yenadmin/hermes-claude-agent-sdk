@@ -171,8 +171,8 @@ def build_result_packet(contract: Mapping[str, Any], row: Mapping[str, Any], *, 
     source = _row_for_packet({"source_pack": row.get("source_pack"), "source_item_id": row.get("source_item_id")}, contract)
     if path not in source["mandatory_paths"]:
         raise V4ResultViolation("packet path is not mandatory for its source row")
-    if billing_classification == "none" and _requires_live_proof(source):
-        raise V4ResultViolation("provider-live predecessor evidence cannot use billing none")
+    if _requires_subscription_receipt(source, path, classification) and billing_classification != "subscription_included":
+        raise V4ResultViolation("passing provider-live evidence requires subscription billing")
     preflights = dict(preflight_results)
     if set(preflights) != set(OWNERSHIP_PREFLIGHTS) or any(value != "PASS" for value in preflights.values()):
         raise V4ResultViolation("all Hermes ownership preflights must pass")
@@ -238,8 +238,8 @@ def validate_result_packet(packet: Mapping[str, Any], *, contract: Mapping[str, 
             raise V4ResultViolation("packet predecessor/path identity is wrong")
         if raw["path"] not in row["mandatory_paths"]:
             raise V4ResultViolation("packet path is not mandatory")
-        if raw["billing_classification"] == "none" and _requires_live_proof(row):
-            raise V4ResultViolation("provider-live predecessor evidence cannot use billing none")
+        if _requires_subscription_receipt(row, raw["path"], raw["classification"]) and raw["billing_classification"] != "subscription_included":
+            raise V4ResultViolation("passing provider-live evidence requires subscription billing")
         classification = raw["classification"]
         if classification not in CLASSIFICATIONS or classification in {"NOT_RUN", "PARTIAL"}:
             raise V4ResultViolation("packet classification is unsupported")
@@ -287,6 +287,11 @@ def _is_pass(packet: Mapping[str, Any]) -> bool:
 
 def _requires_live_proof(row: Mapping[str, Any]) -> bool:
     return row["provider_live_required"]
+
+
+def _requires_subscription_receipt(row: Mapping[str, Any], path: str, classification: str) -> bool:
+    required = "EXPECTED_NEGATIVE" if path == "denial" else "COMPLETE"
+    return _requires_live_proof(row) and classification == required
 
 
 def _trace_matches(packet: Mapping[str, Any], row: Mapping[str, Any]) -> bool:

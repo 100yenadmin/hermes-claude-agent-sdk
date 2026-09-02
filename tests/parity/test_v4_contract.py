@@ -39,10 +39,25 @@ def test_v4_artifacts_are_valid_and_preserve_the_frozen_budget() -> None:
     assert validated["total_rows"] == 124
     assert validated["mandatory_paths"] == 220
     assert validated["required_trial_packets"] == 390
+    assert validated["provider_live_rows"] == 70
     assert sum("consequential" in row["repeat_policy"]["triggers"] for row in contract["source_rows"]) == 55
     assert all(row["expected_trace"] and row["repeat_policy"] for row in contract["source_rows"])
     assert all(row["primary_proof"] and row["secondary_proof"] for row in contract["source_rows"])
     assert sum(row["provider_live_required"] for row in contract["source_rows"]) == 70
+    assert {
+        row["source_item_id"]
+        for row in contract["source_rows"]
+        if row["source_pack"] == "openclaw_active" and row["provider_live_required"]
+    } == {
+        "source-docs-discovery-report",
+        "image-understanding-attachment",
+        "subagent-handoff",
+        "subagent-fanout-synthesis",
+        "memory-recall",
+        "thread-memory-isolation",
+        "config-restart-capability-flip",
+        "instruction-followthrough-repo-contract",
+    }
     assert validated["disposition_totals"] == {
         "carry": 8,
         "replace": 102,
@@ -73,6 +88,7 @@ def test_v4_manifest_binds_every_immutable_artifact() -> None:
 
     assert manifest["counts"]["total_rows"] == 124
     assert manifest["counts"]["mandatory_paths"] == 220
+    assert manifest["counts"]["provider_live_rows"] == 70
     assert manifest["target"]["sdk_version"] == "0.2.151"
     assert manifest["target"]["cli_version"] == "2.1.258"
 
