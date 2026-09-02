@@ -158,18 +158,25 @@ def _parse_bundled_cli_version(source: object) -> str | None:
 
     value: str | None = None
     for node in tree.body:
-        if isinstance(node, ast.Assign):
-            targets = node.targets
-        elif isinstance(node, ast.AnnAssign):
-            targets = [node.target]
-        else:
-            continue
-        if not any(
-            isinstance(target, ast.Name) and target.id == "__cli_version__"
-            for target in targets
+        # The published SDK resource is a module docstring followed by one
+        # plain literal assignment.  Accept only that inert shape so a later
+        # mutation, deletion, conditional reassignment, or executable helper
+        # cannot disagree with the metadata decision made before import.
+        if (
+            isinstance(node, ast.Expr)
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str)
         ):
             continue
-        if value is not None or not isinstance(node.value, ast.Constant):
+        if not (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == "__cli_version__"
+            and isinstance(node.value, ast.Constant)
+        ):
+            return None
+        if value is not None:
             return None
         candidate = node.value.value
         if _version_tuple(candidate) is None:
