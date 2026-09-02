@@ -13,6 +13,7 @@ from .compatibility import (
     API_MODES,
     PROVIDER_IDS,
     RUNTIME_ID,
+    check_model_compatibility,
     is_supported_model_id,
 )
 from .configuration import SDKSessionConfiguration
@@ -169,6 +170,24 @@ class ClaudeAgentSDKRuntime:
                 "Claude runtime state is incompatible",
                 RuntimeFailurePhase.PREFLIGHT,
                 replay_safe=False,
+            )
+        try:
+            model_compatibility = check_model_compatibility(selection.model)
+            model_compatible = (
+                isinstance(model_compatibility, Mapping)
+                and model_compatibility.get("compatible") is True
+            )
+        except Exception:
+            model_compatible = False
+        if not model_compatible:
+            return _failure(
+                "claude_runtime_sdk_compatibility_unsupported",
+                (
+                    "Claude runtime SDK/CLI compatibility is unavailable "
+                    "for the selected model"
+                ),
+                RuntimeFailurePhase.PREFLIGHT,
+                replay_safe=True,
             )
         if not self._check_auth():
             return _failure(

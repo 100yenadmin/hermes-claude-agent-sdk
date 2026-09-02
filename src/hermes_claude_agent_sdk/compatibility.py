@@ -7,6 +7,7 @@ therefore safe in a clean Python environment and never imports the Claude SDK.
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 from importlib import metadata
@@ -19,7 +20,17 @@ if TYPE_CHECKING:  # pragma: no cover - imports are documentation-only at runtim
 PLUGIN_VERSION = "0.1.0rc1"
 RUNTIME_ID = "hermes-claude-agent-sdk"
 SDK_DISTRIBUTION = "claude-agent-sdk"
+# ``SDK_VERSION`` remains the immutable exact dependency used by the frozen
+# parity-v2 lane.  The standalone package policy is now a bounded range so a
+# newer bundled Claude Code can be admitted for the successor model.
 SDK_VERSION = "0.2.144"
+SDK_MIN_VERSION = "0.2.144"
+SDK_MAX_VERSION = "0.2.152"
+FABLE_51_MODEL_ID = "claude-fable-5-1"
+FABLE_51_MIN_SDK_VERSION = "0.2.151"
+FABLE_51_MIN_CLI_VERSION = "2.1.257"
+_CLI_VERSION_RESOURCE = "claude_agent_sdk/_cli_version.py"
+_VERSION_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 
 # The extracted runtime will need the complete v1 host facade.  Declaring the
 # concrete set here lets the host reject an incomplete installation before a
@@ -82,21 +93,208 @@ def build_runtime_descriptor() -> "RuntimeDescriptor":
 runtime_descriptor = build_runtime_descriptor
 
 
-def _sdk_metadata() -> dict[str, Any]:
-    """Read package metadata only; never import or instantiate the SDK."""
+def _version_tuple(value: object) -> tuple[int, int, int] | None:
+    if not isinstance(value, str):
+        return None
+    match = _VERSION_RE.fullmatch(value)
+    if match is None:
+        return None
+    return tuple(int(part) for part in match.groups())
+
+
+def _range_version_tuple(value: object) -> tuple[int, int, int] | None:
+    """Parse a three-part version or a two-part exclusive upper bound."""
+
+    parsed = _version_tuple(value)
+    if parsed is not None:
+        return parsed
+    if isinstance(value, str) and re.fullmatch(
+        r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$", value
+    ):
+        major, minor = (int(part) for part in value.split("."))
+        return major, minor, 0
+    return None
+
+
+def _read_bundled_cli_source(distribution: Any) -> str | None:
+    """Read the SDK's version declaration without importing its package."""
+
+    # A small fake distribution seam keeps this check deterministic in tests.
+    # Real importlib.metadata distributions expose package files through
+    # ``locate_file``; ``read_text`` only covers dist-info files and therefore
+    # is not sufficient by itself for the package resource.
+    try:
+        source = distribution.read_text(_CLI_VERSION_RESOURCE)
+    except Exception:
+        source = None
+    if isinstance(source, str):
+        return source
 
     try:
-        installed = metadata.version(SDK_DISTRIBUTION)
-    except metadata.PackageNotFoundError:
-        installed = None
+        files = distribution.files
+        candidates = [
+            item
+            for item in (files or ())
+            if str(item).replace("\\", "/") == _CLI_VERSION_RESOURCE
+        ]
+        if len(candidates) != 1:
+            return None
+        path = distribution.locate_file(candidates[0])
+        source = path.read_text(encoding="utf-8")
     except Exception:
-        installed = None
-    return {
+        return None
+    return source if isinstance(source, str) else None
+
+
+def _parse_bundled_cli_version(source: object) -> str | None:
+    """Extract one strict ``__cli_version__`` literal from package source."""
+
+    if not isinstance(source, str):
+        return None
+    try:
+        tree = ast.parse(source, mode="exec")
+    except (SyntaxError, ValueError, TypeError):
+        return None
+
+    value: str | None = None
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        if not any(
+            isinstance(target, ast.Name) and target.id == "__cli_version__"
+            for target in targets
+        ):
+            continue
+        if value is not None or not isinstance(node.value, ast.Constant):
+            return None
+        candidate = node.value.value
+        if _version_tuple(candidate) is None:
+            return None
+        value = candidate
+    return value
+
+
+def _sdk_metadata() -> dict[str, Any]:
+    """Read bounded SDK/bundled-CLI metadata without importing the SDK."""
+
+    base: dict[str, Any] = {
         "distribution": SDK_DISTRIBUTION,
+        # This field documents the immutable frozen-v2 cell.  It is not the
+        # successor's minimum; callers should use the explicit range below.
         "required_version": SDK_VERSION,
-        "installed_version": installed,
-        "compatible": installed == SDK_VERSION,
+        "minimum_version": SDK_MIN_VERSION,
+        "maximum_version_exclusive": SDK_MAX_VERSION,
+        "installed_version": None,
+        "bundled_cli_version": None,
+        "compatible": False,
+        "metadata_status": "missing",
     }
+    try:
+        distribution = metadata.distribution(SDK_DISTRIBUTION)
+    except metadata.PackageNotFoundError:
+        return base
+    except Exception:
+        base["metadata_status"] = "unavailable"
+        return base
+
+    try:
+        sdk_version = getattr(distribution, "version", None)
+    except Exception:
+        base["metadata_status"] = "unavailable"
+        return base
+    sdk_parsed = _version_tuple(sdk_version)
+    if sdk_parsed is None:
+        base["metadata_status"] = "malformed"
+        return base
+    base["installed_version"] = sdk_version
+
+    cli_version = _parse_bundled_cli_version(
+        _read_bundled_cli_source(distribution)
+    )
+    base["bundled_cli_version"] = cli_version
+    if cli_version is None:
+        base["metadata_status"] = "malformed"
+        return base
+
+    cli_parsed = _version_tuple(cli_version)
+    assert cli_parsed is not None
+    minimum_sdk = _range_version_tuple(SDK_MIN_VERSION)
+    maximum_sdk = _range_version_tuple(SDK_MAX_VERSION)
+    assert minimum_sdk is not None and maximum_sdk is not None
+    if not (minimum_sdk <= sdk_parsed < maximum_sdk):
+        base["metadata_status"] = "unsupported"
+        return base
+
+    base["compatible"] = True
+    base["metadata_status"] = "compatible"
+    return base
+
+
+def check_model_compatibility(
+    model: object,
+    *,
+    sdk_metadata: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return a bounded, model-specific SDK/CLI compatibility decision.
+
+    Fable 5 keeps the historical behavior and does not require a successor
+    catalog. Direct Fable 5.1 is admitted only when the installed
+    distribution version and its bundled CLI declaration meet the recorded
+    floors. The check is metadata-only and never imports the SDK.
+    """
+
+    result: dict[str, Any] = {
+        "model": model if isinstance(model, str) else "unknown",
+        "compatible": True,
+        "status": "not_required",
+        "reason": None,
+        "required_sdk": FABLE_51_MIN_SDK_VERSION,
+        "required_bundled_cli": FABLE_51_MIN_CLI_VERSION,
+    }
+    if model != FABLE_51_MODEL_ID:
+        return result
+
+    result["status"] = "incompatible"
+    result["compatible"] = False
+    report = sdk_metadata if sdk_metadata is not None else _sdk_metadata()
+    if not isinstance(report, Mapping):
+        result["compatible"] = False
+        result["reason"] = "metadata_unavailable"
+        return result
+    metadata_status = report.get("metadata_status")
+    if metadata_status is not None and metadata_status != "compatible":
+        result["reason"] = "metadata_unavailable"
+        return result
+
+    sdk_version = report.get("installed_version")
+    cli_version = report.get("bundled_cli_version")
+    sdk_parsed = _version_tuple(sdk_version)
+    cli_parsed = _version_tuple(cli_version)
+    minimum_sdk = _version_tuple(FABLE_51_MIN_SDK_VERSION)
+    maximum_sdk = _range_version_tuple(SDK_MAX_VERSION)
+    minimum_cli = _version_tuple(FABLE_51_MIN_CLI_VERSION)
+    if sdk_parsed is None:
+        result["reason"] = "sdk_metadata_missing_or_malformed"
+        return result
+    assert minimum_sdk is not None and maximum_sdk is not None
+    if not (minimum_sdk <= sdk_parsed < maximum_sdk):
+        result["reason"] = "sdk_version_unsupported"
+        return result
+    if cli_parsed is None:
+        result["reason"] = "bundled_cli_metadata_missing_or_malformed"
+        return result
+    if cli_parsed < minimum_cli:
+        result["reason"] = "bundled_cli_version_unsupported"
+        return result
+
+    result["compatible"] = True
+    result["status"] = "compatible"
+    result["reason"] = None
+    return result
 
 
 def doctor(host_manifest: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -120,7 +318,7 @@ def doctor(host_manifest: Mapping[str, Any] | None = None) -> dict[str, Any]:
             "plugin_version": PLUGIN_VERSION,
             "error": "public Hermes AgentRuntime v1 API is unavailable",
             "error_type": type(exc).__name__,
-            "sdk": _sdk_metadata(),
+            "sdk": _doctor_sdk_metadata(),
         }
 
     if host_manifest is None:
@@ -134,7 +332,7 @@ def doctor(host_manifest: Mapping[str, Any] | None = None) -> dict[str, Any]:
                 "plugin_version": descriptor.plugin_version,
                 "error": "public Hermes AgentRuntime v1 manifest could not be read",
                 "error_type": type(exc).__name__,
-                "sdk": _sdk_metadata(),
+                "sdk": _doctor_sdk_metadata(),
             }
 
     if not isinstance(host_manifest, Mapping):
@@ -144,7 +342,7 @@ def doctor(host_manifest: Mapping[str, Any] | None = None) -> dict[str, Any]:
             "runtime_id": descriptor.runtime_id,
             "plugin_version": descriptor.plugin_version,
             "error": "host manifest must be a mapping",
-            "sdk": _sdk_metadata(),
+            "sdk": _doctor_sdk_metadata(),
         }
 
     raw_host_version = host_manifest.get("runtime_api_version")
@@ -186,8 +384,21 @@ def doctor(host_manifest: Mapping[str, Any] | None = None) -> dict[str, Any]:
             "api_modes": sorted(descriptor.api_modes),
             "model_prefixes": list(descriptor.model_prefixes),
         },
-        "sdk": _sdk_metadata(),
+        "sdk": _doctor_sdk_metadata(),
     }
+
+
+def _doctor_sdk_metadata() -> dict[str, Any]:
+    """Add the successor decision to the credential-free SDK report."""
+
+    report = _sdk_metadata()
+    # Copy the mapping so a future metadata implementation cannot be mutated
+    # by report decoration. All values come from strict versions or constants.
+    result = dict(report)
+    result["fable_5_1"] = check_model_compatibility(
+        FABLE_51_MODEL_ID, sdk_metadata=report
+    )
+    return result
 
 
 def doctor_json(host_manifest: Mapping[str, Any] | None = None) -> str:
@@ -203,15 +414,21 @@ check_compatibility = doctor
 
 __all__ = [
     "API_MODES",
+    "FABLE_51_MIN_CLI_VERSION",
+    "FABLE_51_MIN_SDK_VERSION",
+    "FABLE_51_MODEL_ID",
     "MODEL_PREFIXES",
     "PLUGIN_VERSION",
     "PROVIDER_IDS",
     "REQUIRED_HOST_CAPABILITIES",
     "RUNTIME_ID",
     "SDK_DISTRIBUTION",
+    "SDK_MAX_VERSION",
+    "SDK_MIN_VERSION",
     "SDK_VERSION",
     "build_runtime_descriptor",
     "check_compatibility",
+    "check_model_compatibility",
     "doctor",
     "doctor_json",
     "runtime_descriptor",

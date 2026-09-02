@@ -9,7 +9,7 @@ The current candidate registers a provider-neutral AgentRuntime v1 descriptor
 through Hermes' existing plugin entry point. Registration is lazy: it performs
 no SDK import, credential lookup, subprocess start, or model query. After the
 host accepts a compatible selection, the runtime performs a fail-closed local
-subscription preflight, constructs the pinned Claude Agent SDK session through
+subscription preflight, constructs the Claude Agent SDK session through
 public APIs, bridges tools back through host-owned execution, and emits generic
 state and subscription-included usage receipts. Deterministic and packaging
 tests cover that composition; the first isolated live turn remains a separate
@@ -98,8 +98,12 @@ immutable `33fe73a` reference checkout and a test-capable exact-host interpreter
 via `HERMES_PARITY_HOST_PYTHON` when that checkout does not own a `.venv`.
 These are execution inputs, not values written into result packets.
 
-That command is the immutable Fable 5 evidence contract. Anthropic's newer
-direct model id `claude-fable-5-1` is descriptor-compatible, but it requires a
+That command is the immutable Fable 5 evidence contract. The package admits
+`claude-agent-sdk>=0.2.144,<0.2.152`, but the frozen Fable 5 cells remain exact
+SDK `0.2.144`. Anthropic's newer direct model id `claude-fable-5-1` is gated
+before auth and query by SDK `>=0.2.151` plus bundled Claude Code `>=2.1.257`;
+the first successor identity is exact SDK `0.2.151` with bundled CLI `2.1.258`.
+Missing or malformed distribution/bundle metadata fails closed. It requires a
 separately versioned installed-Hermes subscription proof before it can replace
 the fallback or parity input. Do not substitute the distinct OpenRouter/Nous
 catalog slug `anthropic/claude-fable-5.1` into this subscription-only lane.

@@ -12,6 +12,7 @@ runtime_api = pytest.importorskip("agent.runtime_api")
 
 from agent.runtime_dispatch import build_runtime_turn_request  # noqa: E402
 import hermes_claude_agent_sdk as plugin  # noqa: E402
+import hermes_claude_agent_sdk.compatibility as compatibility_module  # noqa: E402
 import hermes_claude_agent_sdk.runtime as runtime_module  # noqa: E402
 
 
@@ -102,29 +103,175 @@ def test_factory_and_preflight_reject_incompatible_selection_before_sdk_import(
     assert "claude_agent_sdk" not in sys.modules
 
 
-def test_fable_5_1_direct_model_preflight_is_sdk_lazy(monkeypatch):
+def test_fable_5_1_stale_sdk_is_rejected_before_auth_or_sdk(monkeypatch):
     monkeypatch.delitem(sys.modules, "claude_agent_sdk", raising=False)
     imports = []
+    auth_calls = []
 
     def forbidden_import(name, *args, **kwargs):
         imports.append(name)
-        raise AssertionError("compatible preflight must not import the SDK")
+        raise AssertionError("stale Fable 5.1 preflight must not import the SDK")
 
     class AuthResult:
         allowed = True
         category = "subscription_oauth"
 
+    monkeypatch.setattr(
+        compatibility_module,
+        "_sdk_metadata",
+        lambda: {
+            "distribution": "claude-agent-sdk",
+            "installed_version": "0.2.144",
+            "bundled_cli_version": "2.1.239",
+            "metadata_status": "compatible",
+        },
+    )
     monkeypatch.setattr(runtime_module.importlib, "import_module", forbidden_import)
-    runtime = runtime_module.ClaudeAgentSDKRuntime(auth_probe=lambda: AuthResult())
+    runtime = runtime_module.ClaudeAgentSDKRuntime(
+        auth_probe=lambda: (auth_calls.append(True), AuthResult())[1]
+    )
     request = _request()
     request = replace(
         request,
         selection=replace(request.selection, model="claude-fable-5-1"),
     )
 
-    assert runtime.preflight(request) is None
+    failure = runtime.preflight(request)
+    assert failure is not None
+    assert failure.code == "claude_runtime_sdk_compatibility_unsupported"
+    assert auth_calls == []
     assert imports == []
     assert "claude_agent_sdk" not in sys.modules
+
+    async def collect():
+        return [event async for event in runtime.run_turn(request, _Host())]
+
+    events = asyncio.run(collect())
+    assert [event.kind.value for event in events] == ["failed"]
+    assert events[0].failure.code == "claude_runtime_sdk_compatibility_unsupported"
+    assert auth_calls == []
+    assert imports == []
+    assert "claude_agent_sdk" not in sys.modules
+
+
+def test_fable_5_1_exact_successor_is_accepted_without_sdk_import(monkeypatch):
+    monkeypatch.delitem(sys.modules, "claude_agent_sdk", raising=False)
+    imports = []
+    auth_calls = []
+
+    def forbidden_import(name, *args, **kwargs):
+        imports.append(name)
+        raise AssertionError("preflight must not import the SDK")
+
+    class AuthResult:
+        allowed = True
+        category = "subscription_oauth"
+
+    monkeypatch.setattr(
+        compatibility_module,
+        "_sdk_metadata",
+        lambda: {
+            "distribution": "claude-agent-sdk",
+            "installed_version": "0.2.151",
+            "bundled_cli_version": "2.1.258",
+            "metadata_status": "compatible",
+        },
+    )
+    monkeypatch.setattr(runtime_module.importlib, "import_module", forbidden_import)
+    runtime = runtime_module.ClaudeAgentSDKRuntime(
+        auth_probe=lambda: (auth_calls.append(True), AuthResult())[1]
+    )
+    request = _request()
+    request = replace(
+        request, selection=replace(request.selection, model="claude-fable-5-1")
+    )
+
+    assert runtime.preflight(request) is None
+    assert auth_calls == [True]
+    assert imports == []
+    assert "claude_agent_sdk" not in sys.modules
+
+
+def test_fable_5_stays_eligible_on_frozen_sdk(monkeypatch):
+    monkeypatch.setattr(
+        compatibility_module,
+        "_sdk_metadata",
+        lambda: {
+            "distribution": "claude-agent-sdk",
+            "installed_version": "0.2.144",
+            "bundled_cli_version": "2.1.239",
+            "metadata_status": "compatible",
+        },
+    )
+    runtime = runtime_module.ClaudeAgentSDKRuntime(
+        auth_probe=lambda: type(
+            "AuthResult", (), {"allowed": True, "category": "subscription_oauth"}
+        )()
+    )
+
+    assert runtime.preflight(_request()) is None
+
+
+@pytest.mark.parametrize(
+    ("installed_version", "bundled_cli_version"),
+    (
+        (None, "2.1.258"),
+        ("malformed", "2.1.258"),
+        ("0.2.151", None),
+        ("0.2.151", "malformed"),
+        ("0.2.151", "2.1.256"),
+        ("0.2.152", "2.1.258"),
+    ),
+)
+def test_fable_5_1_rejects_missing_or_malformed_metadata_before_auth(
+    monkeypatch, installed_version, bundled_cli_version
+):
+    auth_calls = []
+    monkeypatch.setattr(
+        compatibility_module,
+        "_sdk_metadata",
+        lambda: {
+            "distribution": "claude-agent-sdk",
+            "installed_version": installed_version,
+            "bundled_cli_version": bundled_cli_version,
+            "metadata_status": "compatible",
+        },
+    )
+    runtime = runtime_module.ClaudeAgentSDKRuntime(
+        auth_probe=lambda: auth_calls.append(True)
+    )
+
+    request = _request()
+    request = replace(
+        request, selection=replace(request.selection, model="claude-fable-5-1")
+    )
+    failure = runtime.preflight(request)
+
+    assert failure is not None
+    assert failure.code == "claude_runtime_sdk_compatibility_unsupported"
+    assert auth_calls == []
+
+
+def test_doctor_exposes_bounded_sdk_cli_metadata_without_paths_or_secrets(monkeypatch):
+    monkeypatch.setattr(
+        compatibility_module,
+        "_sdk_metadata",
+        lambda: {
+            "distribution": "claude-agent-sdk",
+            "installed_version": "0.2.151",
+            "bundled_cli_version": "2.1.258",
+            "metadata_status": "compatible",
+        },
+    )
+
+    report = plugin.doctor()
+
+    assert report["sdk"]["installed_version"] == "0.2.151"
+    assert report["sdk"]["bundled_cli_version"] == "2.1.258"
+    assert report["sdk"]["fable_5_1"]["compatible"] is True
+    rendered = plugin.doctor_json()
+    assert "/Users/" not in rendered
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in rendered
 
 
 @pytest.mark.parametrize(
