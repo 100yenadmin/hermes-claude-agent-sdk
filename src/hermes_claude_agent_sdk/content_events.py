@@ -381,27 +381,35 @@ class ClaudeSdkEventProjector:
 
         usage_models = self._usage_models
         canonical = next(iter(self._canonical_models), None)
-        if len(usage_models) > 1:
-            # Multiple model_usage keys do not identify one effective model.
-            # Even a shared canonicalModel cannot prove which effective route
-            # produced the turn, so erase both identities fail closed.
-            return None, None, "ambiguous"
-
-        usage_model = next(iter(usage_models), None)
         reported_models = self._reported_models
-        if usage_model is not None:
-            allowed_reported = {usage_model}
-            if canonical is not None:
-                allowed_reported.add(canonical)
-            if not reported_models.issubset(allowed_reported):
+        if len(usage_models) > 1:
+            # Aggregate model_usage may contain auxiliary models. It cannot
+            # identify the primary route by itself, but one independently
+            # reported AssistantMessage.model can do so when that identity is
+            # also present as a usage key or as the one shared canonical model.
+            # Missing, conflicting, malformed, or unrelated evidence remains
+            # fail-closed.
+            if len(reported_models) != 1:
                 return None, None, "ambiguous"
-            effective = usage_model
-        elif len(reported_models) == 1:
-            effective = next(iter(reported_models))
-        elif len(reported_models) > 1:
-            return None, None, "ambiguous"
+            reported = next(iter(reported_models))
+            if reported not in usage_models and reported != canonical:
+                return None, None, "ambiguous"
+            effective = reported
         else:
-            effective = None
+            usage_model = next(iter(usage_models), None)
+            if usage_model is not None:
+                allowed_reported = {usage_model}
+                if canonical is not None:
+                    allowed_reported.add(canonical)
+                if not reported_models.issubset(allowed_reported):
+                    return None, None, "ambiguous"
+                effective = usage_model
+            elif len(reported_models) == 1:
+                effective = next(iter(reported_models))
+            elif len(reported_models) > 1:
+                return None, None, "ambiguous"
+            else:
+                effective = None
 
         if effective is None:
             return None, canonical, "unknown"

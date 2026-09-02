@@ -521,6 +521,56 @@ def test_multiple_usage_keys_with_same_canonical_model_fail_closed() -> None:
     assert result.events[-1].result["canonical_model"] == "unknown"
 
 
+def test_public_sdk_multi_usage_uses_unique_reported_effective_model() -> None:
+    from claude_agent_sdk.types import (
+        AssistantMessage as SDKAssistantMessage,
+        ResultMessage as SDKResultMessage,
+        TextBlock as SDKTextBlock,
+    )
+
+    projector = ClaudeSdkEventProjector(model="claude-fable-5-1")
+    projector.project(
+        SDKAssistantMessage(
+            content=[SDKTextBlock("bounded fixture")],
+            model="claude-fable-5-1",
+        )
+    )
+    result = projector.project(
+        SDKResultMessage(
+            subtype="success",
+            duration_ms=1,
+            duration_api_ms=1,
+            is_error=False,
+            num_turns=1,
+            session_id="synthetic-sdk-session",
+            usage={"input_tokens": 2, "output_tokens": 1},
+            result="done",
+            model_usage={
+                "claude-fable-5": {
+                    "canonicalModel": "claude-fable-5-1",
+                    "inputTokens": 1,
+                    "outputTokens": 0,
+                },
+                "claude-fable-5-1": {
+                    "canonicalModel": "claude-fable-5-1",
+                    "inputTokens": 1,
+                    "outputTokens": 1,
+                },
+            },
+        )
+    )
+
+    assert result.effective_model == "claude-fable-5-1"
+    assert result.canonical_model == "claude-fable-5-1"
+    assert result.model_resolution == "exact"
+    receipt = result.events[1].receipt
+    assert receipt.model == "claude-fable-5-1"
+    assert receipt.selected_model == "claude-fable-5-1"
+    assert receipt.effective_model == "claude-fable-5-1"
+    assert receipt.canonical_model == "claude-fable-5-1"
+    assert receipt.model_resolution == "exact"
+
+
 def test_model_usage_iteration_is_bounded_and_overflow_fails_closed() -> None:
     model_usage = UnboundedModelUsage()
     result = ClaudeSdkEventProjector(model="claude-fable-5-1").project(
