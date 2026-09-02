@@ -540,6 +540,11 @@ def probe_claude_auth(
         or os.path.basename(cli_path) not in {"claude", "claude.exe"}
     ):
         return _result(AuthCategory.CLI_MISSING)
+    try:
+        if not os.path.isfile(cli_path) or not os.access(cli_path, os.X_OK):
+            return _result(AuthCategory.CLI_MISSING)
+    except OSError:
+        return _result(AuthCategory.CLI_MISSING)
     argv = [cli_path, *_CLAUDE_AUTH_ARGS]
     if runner is None:
         try:

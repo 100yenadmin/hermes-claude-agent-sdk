@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import subprocess
 from types import SimpleNamespace
 from typing import Any
@@ -129,7 +130,16 @@ class FakeRunner:
         return self.result
 
 
-def test_probe_uses_bounded_no_shell_argv_and_minimal_noncredential_environment() -> None:
+def _executable_cli(tmp_path: Path) -> str:
+    path = tmp_path / "claude"
+    path.write_bytes(b"#!/bin/sh\n")
+    path.chmod(0o755)
+    return str(path)
+
+
+def test_probe_uses_bounded_no_shell_argv_and_minimal_noncredential_environment(
+    tmp_path: Path,
+) -> None:
     runner = FakeRunner(
         SimpleNamespace(
             returncode=0,
@@ -138,9 +148,10 @@ def test_probe_uses_bounded_no_shell_argv_and_minimal_noncredential_environment(
         )
     )
 
+    cli_path = _executable_cli(tmp_path)
     result = probe_claude_auth(
         runner=runner,
-        cli_resolver=lambda: "/opt/sdk/site-packages/claude_agent_sdk/_bundled/claude",
+        cli_resolver=lambda: cli_path,
         timeout_seconds=2,
         max_output_bytes=1024,
         environment={
@@ -154,7 +165,7 @@ def test_probe_uses_bounded_no_shell_argv_and_minimal_noncredential_environment(
     assert result.allowed is True
     assert result.category is AuthCategory.SUBSCRIPTION_OAUTH
     assert runner.argv == [
-        "/opt/sdk/site-packages/claude_agent_sdk/_bundled/claude",
+        cli_path,
         "auth",
         "status",
         "--json",
@@ -185,10 +196,11 @@ def test_probe_uses_bounded_no_shell_argv_and_minimal_noncredential_environment(
 def test_probe_sanitizes_runner_failures(
     error: BaseException,
     category: AuthCategory,
+    tmp_path: Path,
 ) -> None:
     result = probe_claude_auth(
         runner=FakeRunner(error=error),
-        cli_resolver=lambda: "/opt/sdk/site-packages/claude_agent_sdk/_bundled/claude",
+        cli_resolver=lambda: _executable_cli(tmp_path),
     )
 
     assert result.allowed is False
@@ -198,7 +210,9 @@ def test_probe_sanitizes_runner_failures(
     assert "exception" not in rendered
 
 
-def test_probe_classifies_timeout_expired_without_leaking_exception() -> None:
+def test_probe_classifies_timeout_expired_without_leaking_exception(
+    tmp_path: Path,
+) -> None:
     result = probe_claude_auth(
         runner=FakeRunner(
             error=subprocess.TimeoutExpired(
@@ -208,7 +222,7 @@ def test_probe_classifies_timeout_expired_without_leaking_exception() -> None:
                 stderr=b"redacted-stderr",
             )
         ),
-        cli_resolver=lambda: "/opt/sdk/site-packages/claude_agent_sdk/_bundled/claude",
+        cli_resolver=lambda: _executable_cli(tmp_path),
     )
 
     assert result.allowed is False
@@ -218,6 +232,7 @@ def test_probe_classifies_timeout_expired_without_leaking_exception() -> None:
 
 def test_default_probe_kills_child_when_final_wait_raises_timeout_expired(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     class Stream:
         def fileno(self) -> int:
@@ -249,7 +264,7 @@ def test_default_probe_kills_child_when_final_wait_raises_timeout_expired(
 
     result = probe_claude_auth(
         environment={"PATH": "/synthetic"},
-        cli_resolver=lambda: "/opt/sdk/site-packages/claude_agent_sdk/_bundled/claude",
+        cli_resolver=lambda: _executable_cli(tmp_path),
     )
 
     assert result.category is AuthCategory.TIMEOUT
@@ -268,10 +283,11 @@ def test_default_probe_kills_child_when_final_wait_raises_timeout_expired(
 def test_probe_rejects_nonzero_oversized_and_nontext_output(
     completed: object,
     category: AuthCategory,
+    tmp_path: Path,
 ) -> None:
     result = probe_claude_auth(
         runner=FakeRunner(completed),
-        cli_resolver=lambda: "/opt/sdk/site-packages/claude_agent_sdk/_bundled/claude",
+        cli_resolver=lambda: _executable_cli(tmp_path),
         max_output_bytes=64,
     )
 
@@ -282,6 +298,7 @@ def test_probe_rejects_nonzero_oversized_and_nontext_output(
 
 def test_default_probe_binds_exact_bundled_cli_before_ambient_path(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     runner = FakeRunner(
         SimpleNamespace(
@@ -290,7 +307,7 @@ def test_default_probe_binds_exact_bundled_cli_before_ambient_path(
             stderr=b"",
         )
     )
-    exact_path = "/venv/lib/python3.12/site-packages/claude_agent_sdk/_bundled/claude"
+    exact_path = _executable_cli(tmp_path)
     monkeypatch.setattr(auth_module, "resolve_bundled_cli", lambda: exact_path)
 
     result = probe_claude_auth(
@@ -326,4 +343,32 @@ def test_probe_rejects_missing_or_nonabsolute_bundled_cli_before_runner(
 
     assert result.allowed is False
     assert result.category is AuthCategory.CLI_MISSING
+    assert runner.argv is None
+
+
+def test_probe_rejects_nonexistent_or_nonexecutable_cli_before_runner(
+    tmp_path: Path,
+) -> None:
+    runner = FakeRunner(
+        SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps(VALID_STATUS).encode("utf-8"),
+            stderr=b"",
+        )
+    )
+    cli_path = tmp_path / "claude"
+
+    missing = probe_claude_auth(
+        runner=runner,
+        cli_resolver=lambda: str(cli_path),
+    )
+    cli_path.write_bytes(b"not executable")
+    cli_path.chmod(0o644)
+    nonexecutable = probe_claude_auth(
+        runner=runner,
+        cli_resolver=lambda: str(cli_path),
+    )
+
+    assert missing.category is AuthCategory.CLI_MISSING
+    assert nonexecutable.category is AuthCategory.CLI_MISSING
     assert runner.argv is None
