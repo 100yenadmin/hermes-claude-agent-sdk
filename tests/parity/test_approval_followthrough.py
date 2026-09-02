@@ -44,7 +44,11 @@ def test_public_host_approval_followthrough() -> None:
     )
     assert report["host_execute_tool_calls"] == 3
     assert report["approval_requests"] == 3
-    assert report["runtime_tool_requests"] == 3
+    # The MCP handler is the SDK result path and already crosses the host
+    # executor once.  Surfacing RuntimeToolRequestEvent would ask the host to
+    # execute that same mutation again, so this runtime intentionally emits no
+    # executable request events.
+    assert report["runtime_tool_requests"] == 0
     assert report["runtime_usage_events"] == 1
     assert report["runtime_terminal_events"] == 1
     assert report["usage_receipts"] == (

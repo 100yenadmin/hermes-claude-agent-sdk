@@ -215,6 +215,7 @@ class ClaudeAgentSDKRuntime:
             RuntimeFailurePhase,
             RuntimeStateEnvelope,
             RuntimeStateEvent,
+            RuntimeToolRequestEvent,
             RuntimeUsageEvent,
         )
         from .content_events import ClaudeSdkEventProjector, ProjectionResult
@@ -466,6 +467,17 @@ class ClaudeAgentSDKRuntime:
                         }
                 for event in projection.events:
                     if isinstance(event, RuntimeCompletedEvent):
+                        continue
+                    if isinstance(event, RuntimeToolRequestEvent):
+                        # SDK MCP handlers already execute the host-owned tool
+                        # and return its bounded result to the SDK.  The v1
+                        # host dispatcher also treats a surfaced
+                        # RuntimeToolRequestEvent as an execution request;
+                        # forwarding this projection would therefore repeat
+                        # the same side effect without a public result channel
+                        # back into the SDK.  Keep tool requests internal to
+                        # this MCP-backed runtime so the bridge is the one
+                        # execution/result path.
                         continue
                     if isinstance(event, RuntimeUsageEvent):
                         receipt = event.receipt

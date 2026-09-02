@@ -7,7 +7,11 @@ import base64
 from dataclasses import dataclass
 from types import ModuleType, SimpleNamespace
 
-from agent.runtime_api import RuntimeCompactionPhase, RuntimeStateEnvelope
+from agent.runtime_api import (
+    RuntimeCompactionPhase,
+    RuntimeStateEnvelope,
+    RuntimeToolRequestEvent,
+)
 from agent.runtime_dispatch import _collect_runtime_turn, build_runtime_turn_request
 
 from hermes_claude_agent_sdk.compatibility import RUNTIME_ID, build_runtime_descriptor
@@ -1327,6 +1331,9 @@ def test_compaction_retry_keeps_mutation_exactly_once() -> None:
         ]
         assert result.terminal.kind.value == "completed"
         assert host.calls == [("pwd", {"path": "."})]
+        assert not any(
+            isinstance(event, RuntimeToolRequestEvent) for event in result.events
+        )
         assert clients[0].queries == ["hello runtime"]
 
     asyncio.run(scenario())
