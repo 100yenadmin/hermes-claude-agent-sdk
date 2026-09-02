@@ -2,7 +2,7 @@
 
 | Plugin | Hermes host | SDK | Status |
 | --- | --- | --- | --- |
-| `0.1.0rc1` candidate | AgentRuntime v1 at `ffd0a985bdc7b0afccee843de45aaf627a74b0c1` (includes upstream main `f98f5e74e00e54c36088fa2e78171e2a408ba7c9`) | `claude-agent-sdk==0.2.144` | Local contract-tested |
+| `0.1.0rc1` candidate | AgentRuntime v1 at `4f3b4bfcd9c17ced85df25e25c3890755fdbf26c` (includes upstream main `180291162ff4df0d42b5dc4fecd08005cf7cebf9`) | `claude-agent-sdk==0.2.144` | Local contract-tested; live Fable 5.1 successor pending |
 
 Registration must reject an unsupported runtime API or missing host capability
 through the host's `register_agent_runtime()` before retaining or constructing

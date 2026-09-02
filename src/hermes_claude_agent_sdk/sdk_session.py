@@ -67,6 +67,7 @@ class SessionTurnResult:
     state_update: SessionStateUpdate = field(default_factory=SessionStateUpdate)
     billing_decision: BillingDecision | None = None
     error_code: str | None = None
+    retryable: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +97,49 @@ _IMMEDIATE_BILLING_BLOCKS = {
 _MAX_BACKGROUND_BYTES = 16_384
 _BACKGROUND_DEDUPLICATION_WINDOW = 64
 _BACKGROUND_CALLBACK_TIMEOUT_SECONDS = 5.0
+
+_TERMINAL_FAILURE_CODES = {
+    "api_error": "sdk_terminal_api_error",
+    "max_turns": "sdk_terminal_max_turns",
+}
+_SUBTYPE_FAILURE_CODES = {
+    "error_during_execution": "sdk_result_error_during_execution",
+    "error_max_turns": "sdk_result_error_max_turns",
+}
+
+
+def _classify_result_failure(message: Any) -> tuple[str, bool]:
+    """Return a bounded code from SDK fields documented as safe to log."""
+
+    status = getattr(message, "api_error_status", None)
+    if type(status) is int and 400 <= status <= 599:
+        if status in {401, 403}:
+            return f"sdk_api_auth_{status}", False
+        if status == 402:
+            return "sdk_api_billing_402", False
+        if status == 408:
+            return "sdk_api_timeout_408", True
+        if status == 429:
+            return "sdk_api_rate_limit_429", True
+        if status in {503, 529}:
+            return f"sdk_api_overloaded_{status}", True
+        if status >= 500:
+            return f"sdk_api_server_error_{status}", True
+        return f"sdk_api_error_{status}", False
+
+    terminal_reason = getattr(message, "terminal_reason", None)
+    if type(terminal_reason) is str:
+        code = _TERMINAL_FAILURE_CODES.get(terminal_reason)
+        if code is not None:
+            return code, False
+
+    subtype = getattr(message, "subtype", None)
+    if type(subtype) is str:
+        code = _SUBTYPE_FAILURE_CODES.get(subtype)
+        if code is not None:
+            return code, False
+
+    return "sdk_result_failed", False
 
 
 def _bounded_background_text(value: Any) -> str:
@@ -530,12 +574,14 @@ class SDKSession:
                             billing_decision=decision,
                         )
                     if getattr(message, "is_error", False) is True:
+                        error_code, retryable = _classify_result_failure(message)
                         return SessionTurnResult(
                             SessionOutcome.FAILED,
                             final_text=final_text,
                             state_update=state,
                             billing_decision=decision,
-                            error_code="sdk_result_failed",
+                            error_code=error_code,
+                            retryable=retryable,
                         )
                     turn_completed = True
                     return SessionTurnResult(

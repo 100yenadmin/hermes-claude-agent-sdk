@@ -488,7 +488,12 @@ class ClaudeSdkEventProjector:
 
     def _project_result(self, message: Any) -> ProjectionResult:
         self._observe_model_evidence(message)
-        final = _safe_text(_safe_attr(message, "result")) or None
+        is_error = _safe_attr(message, "is_error")
+        failed = isinstance(is_error, bool) and is_error
+        # The SDK documents ``ResultMessage.result`` as human-readable result
+        # prose.  On failed results that field can contain provider error text,
+        # so only successful results may become public content or final text.
+        final = None if failed else _safe_text(_safe_attr(message, "result")) or None
         effective, canonical, resolution = self._model_provenance()
         model = effective
         receipt_model = canonical or effective or _UNKNOWN_MODEL
@@ -544,8 +549,7 @@ class ClaudeSdkEventProjector:
         completion["effective_model"] = effective or _UNKNOWN_MODEL
         completion["canonical_model"] = canonical or _UNKNOWN_MODEL
         completion["model_resolution"] = resolution
-        is_error = _safe_attr(message, "is_error")
-        if isinstance(is_error, bool) and is_error:
+        if failed:
             completion["is_error"] = True
         subtype = _safe_text(_safe_attr(message, "subtype"), limit=64)
         if subtype:

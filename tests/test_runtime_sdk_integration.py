@@ -53,6 +53,7 @@ class ResultMessage:
     duration_api_ms: int = 1
     model: str | None = None
     model_usage: object | None = None
+    api_error_status: int | None = None
 
 
 _END = object()
@@ -129,9 +130,14 @@ class _Client:
             )
         await self._messages.put(
             ResultMessage(
-                result="hello",
+                result=(
+                    "private provider failure prose"
+                    if self.mode == "api_error_429"
+                    else "hello"
+                ),
                 usage={"input_tokens": 2, "output_tokens": 3},
-                is_error=self.mode == "compaction_failure",
+                is_error=self.mode in {"compaction_failure", "api_error_429"},
+                api_error_status=429 if self.mode == "api_error_429" else None,
                 model="claude-fable-5" if self.mode == "model_canonical" else None,
                 model_usage=(
                     {
@@ -603,6 +609,27 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
         assert fields["mcp_servers"]["hermes-tools"]["tools"] == []
         assert clients[0].queries == ["hello runtime"]
         assert clients[0].disconnected == 1
+
+    asyncio.run(scenario())
+
+
+def test_runtime_preserves_safe_sdk_failure_code_and_retryability() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("api_error_429", clients)
+        events = await _collect(runtime, _request(), _Host())
+        await runtime.close()
+
+        failure = events[-1].failure
+        assert events[-1].kind.value == "failed"
+        assert failure.code == "sdk_api_rate_limit_429"
+        assert failure.retryable is True
+        assert failure.replay_safe is False
+        assert "private" not in failure.message
+        assert all(
+            "private provider failure prose" not in getattr(event, "text", "")
+            for event in events
+        )
 
     asyncio.run(scenario())
 

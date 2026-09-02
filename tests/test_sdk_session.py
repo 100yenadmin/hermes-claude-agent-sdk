@@ -46,6 +46,7 @@ class ResultMessage:
     usage: dict[str, int] | None = None
     total_cost_usd: float | None = None
     terminal_reason: str | None = "completed"
+    api_error_status: int | None = None
 
 
 class _Options:
@@ -559,6 +560,8 @@ def test_interrupted_turn_consumes_its_own_result() -> None:
                         ResultMessage(
                             result="interrupted tail",
                             terminal_reason="aborted_streaming",
+                            is_error=True,
+                            api_error_status=429,
                         ),
                     ],
                     [
@@ -750,6 +753,84 @@ def test_terminal_error_turn_keeps_the_compatible_sdk_session_warm() -> None:
             "recover on the same session",
         ]
         assert clients[0].disconnected == 1
+
+    asyncio.run(scenario())
+
+
+def test_terminal_error_uses_only_safe_structured_sdk_discriminators() -> None:
+    async def scenario() -> None:
+        cases = (
+            ({"api_error_status": 401}, "sdk_api_auth_401", False),
+            ({"api_error_status": 402}, "sdk_api_billing_402", False),
+            ({"api_error_status": 408}, "sdk_api_timeout_408", True),
+            ({"api_error_status": 429}, "sdk_api_rate_limit_429", True),
+            ({"api_error_status": 503}, "sdk_api_overloaded_503", True),
+            ({"api_error_status": 529}, "sdk_api_overloaded_529", True),
+            ({"api_error_status": 500}, "sdk_api_server_error_500", True),
+            ({"api_error_status": 404}, "sdk_api_error_404", False),
+            (
+                {
+                    "api_error_status": 429,
+                    "terminal_reason": "max_turns",
+                    "subtype": "error_during_execution",
+                },
+                "sdk_api_rate_limit_429",
+                True,
+            ),
+            (
+                {"api_error_status": True, "terminal_reason": "api_error"},
+                "sdk_terminal_api_error",
+                False,
+            ),
+            (
+                {"api_error_status": "429", "terminal_reason": "max_turns"},
+                "sdk_terminal_max_turns",
+                False,
+            ),
+            (
+                {"terminal_reason": "unknown", "subtype": "error_max_turns"},
+                "sdk_result_error_max_turns",
+                False,
+            ),
+            (
+                {
+                    "terminal_reason": "unknown",
+                    "subtype": "error_during_execution",
+                },
+                "sdk_result_error_during_execution",
+                False,
+            ),
+            (
+                {"terminal_reason": "untrusted reason", "subtype": "untrusted/type"},
+                "sdk_result_failed",
+                False,
+            ),
+        )
+        clients: list[_FakeClient] = []
+        scripts = [
+            [
+                SystemMessage("init", {"apiKeySource": "none"}),
+                ResultMessage(result="private failure text", is_error=True, **fields),
+            ]
+            for fields, _code, _retryable in cases
+        ]
+        session = SDKSession(_configuration(), sdk_module=_sdk(clients, scripts))
+
+        results = [
+            await session.run_turn(f"case-{index}")
+            for index in range(len(cases))
+        ]
+        await session.close()
+
+        assert [
+            (result.error_code, result.retryable) for result in results
+        ] == [(code, retryable) for _fields, code, retryable in cases]
+        assert all(result.outcome is SessionOutcome.FAILED for result in results)
+        assert all(result.final_text is None for result in results)
+        assert all(
+            "private failure text" not in (result.error_code or "")
+            for result in results
+        )
 
     asyncio.run(scenario())
 

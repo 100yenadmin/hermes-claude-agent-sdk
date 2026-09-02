@@ -24,10 +24,23 @@ _MAX_SYSTEM_APPEND = 32_000
 _MCP_SERVER_NAME = "hermes-tools"
 
 
-def _failure(code: str, message: str, phase: Any, *, replay_safe: bool) -> Any:
+def _failure(
+    code: str,
+    message: str,
+    phase: Any,
+    *,
+    replay_safe: bool,
+    retryable: bool = False,
+) -> Any:
     from agent.runtime_api import RuntimeFailure
 
-    return RuntimeFailure(code=code, message=message, phase=phase, replay_safe=replay_safe)
+    return RuntimeFailure(
+        code=code,
+        message=message,
+        phase=phase,
+        replay_safe=replay_safe,
+        retryable=retryable,
+    )
 
 
 def _resume_id(request: Any) -> tuple[str | None, bool]:
@@ -522,6 +535,7 @@ class ClaudeAgentSDKRuntime:
                     "Claude runtime turn failed",
                     phase,
                     replay_safe=False,
+                    retryable=result.retryable,
                 )
             )
             await session.release_background_results()

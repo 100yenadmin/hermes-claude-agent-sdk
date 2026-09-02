@@ -351,20 +351,25 @@ def test_result_maps_authoritative_text_usage_and_completion() -> None:
 
 def test_result_without_usage_still_completes_and_error_is_bounded() -> None:
     result = ClaudeSdkEventProjector().project(
-        ResultMessage(result="done", usage=None, is_error=True)
+        ResultMessage(result="private provider failure prose", usage=None, is_error=True)
     )
 
-    assert result.events[0] == RuntimeContentEvent(text="done")
-    assert result.events[-1] == RuntimeCompletedEvent(
-        result={
-            "text": "done",
-            "model": "claude-test",
-            "selected_model": "unknown",
-            "effective_model": "claude-test",
-            "canonical_model": "unknown",
-            "model_resolution": "reported",
-            "is_error": True,
-        }
+    assert result.final_text is None
+    assert result.events == (
+        RuntimeCompletedEvent(
+            result={
+                "model": "claude-test",
+                "selected_model": "unknown",
+                "effective_model": "claude-test",
+                "canonical_model": "unknown",
+                "model_resolution": "reported",
+                "is_error": True,
+            }
+        ),
+    )
+    assert all(
+        "private provider failure prose" not in repr(event)
+        for event in result.events
     )
     assert all("ResultMessage" not in repr(event) for event in result.events)
 
