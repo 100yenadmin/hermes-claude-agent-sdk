@@ -50,6 +50,17 @@ ACTIVE_SOURCE_IDS = (
     "instruction-followthrough-repo-contract",
 )
 
+
+_FANOUT_DELEGATION_PROMPT = (
+    "Read handoff.txt, retrying the first denied read once. Then use the native "
+    "Agent tool exactly two times. For the first Agent, ask only this fixed harmless "
+    "task: count the letters in ORCHARD and end CHILD_ONE_DONE. For the second Agent, "
+    "ask only this fixed harmless task: sort BIRCH, ASPEN, CEDAR alphabetically and "
+    "end CHILD_TWO_DONE. Do not add, substitute, or broaden either child topic. Wait "
+    "for both Agent results. Do not synthesize them yet; end this delegation turn "
+    "with FANOUT_READY."
+)
+
 _FOCUSED_NODES: dict[str, tuple[str, ...]] = {
     "model-switch-tool-continuity": (
         "tests/test_runtime_sdk_integration.py::test_model_switch_requires_a_new_runtime_and_preserves_tool_schema",
@@ -933,12 +944,7 @@ async def _run_live_case(
                     "in that order."
                 )
             else:
-                prompt = (
-                    "Read handoff.txt, retrying the first denied read once. Then use the native "
-                    "Agent tool exactly two times with independent synthetic research prompts. "
-                    "Wait for both Agent results. Do not synthesize them yet; end this delegation "
-                    "turn with FANOUT_READY."
-                )
+                prompt = _FANOUT_DELEGATION_PROMPT
             case_turns: list[LiveTurn] = []
             try:
                 delegation_turn = await _run_turn(

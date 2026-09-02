@@ -8,6 +8,7 @@ import pytest
 from hermes_claude_agent_sdk.parity import active_suite as active_suite_module
 from hermes_claude_agent_sdk.parity.active_suite import (
     ACTIVE_SOURCE_IDS,
+    _FANOUT_DELEGATION_PROMPT,
     LiveTurn,
     _normalize_event_tool_name,
     _inventory_matches,
@@ -35,6 +36,16 @@ def test_active_execution_inventory_is_exactly_eleven_plus_thin_approval() -> No
         "active-approval-turn-tool-followthrough",
         *active_execution_ids(),
     } <= set(EXECUTORS)
+
+
+def test_fanout_delegation_uses_two_fixed_harmless_child_tasks() -> None:
+    prompt = _FANOUT_DELEGATION_PROMPT
+
+    assert "exactly two times" in prompt
+    assert "count the letters in ORCHARD" in prompt
+    assert "sort BIRCH, ASPEN, CEDAR alphabetically" in prompt
+    assert "Do not add, substitute, or broaden either child topic" in prompt
+    assert "research" not in prompt.casefold()
 
 
 def test_active_normalized_events_preserve_catalog_order_for_every_path(catalog) -> None:
