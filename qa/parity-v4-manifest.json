@@ -2,13 +2,13 @@
   "schema_version": 4,
   "manifest_version": "4.0.0",
   "contract_path": "parity-contract-v4.yaml",
-  "contract_sha256": "0ec4072d57cbeb2600ec97a29edcee0bf881e2bc56a37ab099c04e1e434f304f",
+  "contract_sha256": "53864834496403388f3475291475fea70acfa3105609ad49f5edf75ad1c67d94",
   "boundary_ledger_path": "agent-sdk-boundary-ledger-v4.yaml",
   "boundary_ledger_sha256": "fa993d510876f4620e4bd0f71bd6f156dddce26466a5d833607a9e1c1d3b8cad",
   "predecessor_map_path": "parity-v4-predecessor-map.yaml",
   "predecessor_map_sha256": "a82ce96126f835ca01b903de24493706573986739f6ac7a920fdbe7909b6883d",
   "result_schema_path": "result-packet-v4.schema.json",
-  "result_schema_sha256": "89612d83def4b37c93af6f3f310d47645f402fd077febe8d0a53e730faf16e1c",
+  "result_schema_sha256": "02f6141b977180256ea761ec322406137026b40c1caad63ac1c4e3c57123f6ee",
   "predecessor": {
     "plugin_source_commit": "228cd52f21ed28b4e314a1d0b2c0225229b859fe",
     "contract_sha256": "e601f41313deb68b77a01402fe3b79c5da90afc7c46e40f87a6bac1850b69d8a",
@@ -27,9 +27,10 @@
     "agent_sdk_boundary": {"rows": 23, "mandatory_paths": 23},
     "clawprobench_native": {"rows": 36, "mandatory_paths": 108},
     "total_rows": 124,
-    "mandatory_paths": 220
+    "mandatory_paths": 220,
+    "required_trial_packets": 390
   },
-  "source_rows_sha256": "e44223f62261f68ed61b3af39fe30b9c9e61a4be7ba5e4843441d6ce3bdf6e67",
+  "source_rows_sha256": "974393ba285ea35d01f7cfdebf64ce8ed12d4cc93810d145df853d7b64571a03",
   "runtime_soak": {"turns": 100, "mandatory_paths": 3},
   "ownership_preflights": [
     "zero_native_absence",
@@ -47,6 +48,6 @@
     "wheel_sha256": null,
     "profile_sha256": null
   },
-  "manifest_sha256": "915e2e4184e4ee168040c43ed4f2f4ef9dc1f801f2729867a1e460e8d79fb112",
+  "manifest_sha256": "eacdd44460aacdae692384be1cdfb0a22ad4f0eb95cd13e71560d45d0e0db86c",
   "proof_boundary": "Deterministic artifact and packet-grading identity only; no provider-live, installed-runtime, release, fleet, or customer proof."
 }

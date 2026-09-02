@@ -17,6 +17,7 @@ from .hashing import sha256_value
 from .v4_contract import (
     OWNERSHIP_PREFLIGHTS,
     V3_HASHES,
+    V3_RESULT_CATALOG_HASH,
     V4_CLI_VERSION,
     V4_MODEL,
     V4_RUNNER_ID,
@@ -25,6 +26,7 @@ from .v4_contract import (
     V4_SDK_VERSION,
     V4_VERSION,
     V4ContractViolation,
+    required_trial_indexes,
     validate_v4_contract,
 )
 
@@ -55,8 +57,8 @@ def _mapping(value: Any, field: str) -> dict[str, Any]:
     return dict(value)
 
 
-def _digest(value: Any, field: str, length: int = 64) -> str:
-    if not isinstance(value, str) or len(value) != length or set(value) - (HEX64 if length == 64 else HEX40):
+def _digest(value: Any, field: str, length: int = 64, *, nonzero: bool = False) -> str:
+    if not isinstance(value, str) or len(value) != length or set(value) - (HEX64 if length == 64 else HEX40) or nonzero and value == "0" * length:
         raise V4ResultViolation(f"{field} is not a lowercase digest")
     return value
 
@@ -150,7 +152,7 @@ def _row_for_packet(packet: Mapping[str, Any], contract: Mapping[str, Any]) -> M
     raise V4ResultViolation("packet source row is not in the v4 contract")
 
 
-def build_result_packet(contract: Mapping[str, Any], row: Mapping[str, Any], *, path: str, classification: str, candidate: Mapping[str, Any], billing_classification: str, preflight_results: Mapping[str, str], proof_hashes: Mapping[str, str], events: Sequence[Mapping[str, Any]], trial_index: int, turn_count: int = 0, reason_code: str | None = None) -> dict[str, Any]:
+def build_result_packet(contract: Mapping[str, Any], row: Mapping[str, Any], *, path: str, classification: str, candidate: Mapping[str, Any], billing_classification: str, preflight_results: Mapping[str, str], proof_hashes: Mapping[str, str], events: Sequence[Mapping[str, Any]], predecessor_catalog_sha256: str, predecessor_packet_sha256: str, trial_index: int, turn_count: int = 0, reason_code: str | None = None) -> dict[str, Any]:
     """Build one sanitized packet; callers still need no provider or SDK."""
 
     validate_v4_contract(contract)
@@ -160,14 +162,17 @@ def build_result_packet(contract: Mapping[str, Any], row: Mapping[str, Any], *, 
         _id(reason_code, "reason_code")
     if type(trial_index) is not int or trial_index < 1:
         raise V4ResultViolation("trial_index must be a positive integer")
+    if predecessor_catalog_sha256 != V3_RESULT_CATALOG_HASH:
+        raise V4ResultViolation("predecessor catalog identity is not the immutable v3 catalog")
+    _digest(predecessor_packet_sha256, "predecessor.packet_sha256", nonzero=True)
     if type(turn_count) is not int or not 0 <= turn_count <= 180:
         raise V4ResultViolation("turn_count must be in [0, 180]")
     normalized_candidate = _candidate(candidate)
     source = _row_for_packet({"source_pack": row.get("source_pack"), "source_item_id": row.get("source_item_id")}, contract)
     if path not in source["mandatory_paths"]:
         raise V4ResultViolation("packet path is not mandatory for its source row")
-    if source.get("source_pack") == "runtime_active" and turn_count != 100:
-        raise V4ResultViolation("runtime soak packets must bind exactly 100 turns")
+    if billing_classification == "none" and _requires_live_proof(source):
+        raise V4ResultViolation("provider-live predecessor evidence cannot use billing none")
     preflights = dict(preflight_results)
     if set(preflights) != set(OWNERSHIP_PREFLIGHTS) or any(value != "PASS" for value in preflights.values()):
         raise V4ResultViolation("all Hermes ownership preflights must pass")
@@ -184,6 +189,8 @@ def build_result_packet(contract: Mapping[str, Any], row: Mapping[str, Any], *, 
             "contract_sha256": V3_HASHES["contract_sha256"],
             "ledger_sha256": V3_HASHES["boundary_ledger_sha256"],
             "result_schema_sha256": V3_HASHES["result_schema_sha256"],
+            "catalog_sha256": predecessor_catalog_sha256,
+            "packet_sha256": predecessor_packet_sha256,
             "execution_id": source["predecessor_execution_id"],
             "path": path,
         },
@@ -223,13 +230,16 @@ def validate_result_packet(packet: Mapping[str, Any], *, contract: Mapping[str, 
         if raw["schema_version"] != 4 or raw["contract_version"] != V4_VERSION or raw["contract_sha256"] != sha256_value(contract["contract"]):
             raise V4ResultViolation("packet contract identity is wrong")
         predecessor = _mapping(raw["predecessor"], "predecessor")
-        if set(predecessor) != {"contract_sha256", "ledger_sha256", "result_schema_sha256", "execution_id", "path"} or predecessor["contract_sha256"] != V3_HASHES["contract_sha256"] or predecessor["ledger_sha256"] != V3_HASHES["boundary_ledger_sha256"] or predecessor["result_schema_sha256"] != V3_HASHES["result_schema_sha256"]:
+        if set(predecessor) != {"contract_sha256", "ledger_sha256", "result_schema_sha256", "catalog_sha256", "packet_sha256", "execution_id", "path"} or predecessor["contract_sha256"] != V3_HASHES["contract_sha256"] or predecessor["ledger_sha256"] != V3_HASHES["boundary_ledger_sha256"] or predecessor["result_schema_sha256"] != V3_HASHES["result_schema_sha256"] or predecessor["catalog_sha256"] != V3_RESULT_CATALOG_HASH:
             raise V4ResultViolation("packet predecessor hashes are wrong")
+        _digest(predecessor["packet_sha256"], "predecessor.packet_sha256", nonzero=True)
         row = _row_for_packet(raw, contract)
         if raw["execution_id"] != row["predecessor_execution_id"] or raw["successor_id"] != row["successor_id"] or predecessor["execution_id"] != raw["execution_id"] or predecessor["path"] != raw["path"]:
             raise V4ResultViolation("packet predecessor/path identity is wrong")
         if raw["path"] not in row["mandatory_paths"]:
             raise V4ResultViolation("packet path is not mandatory")
+        if raw["billing_classification"] == "none" and _requires_live_proof(row):
+            raise V4ResultViolation("provider-live predecessor evidence cannot use billing none")
         classification = raw["classification"]
         if classification not in CLASSIFICATIONS or classification in {"NOT_RUN", "PARTIAL"}:
             raise V4ResultViolation("packet classification is unsupported")
@@ -252,8 +262,6 @@ def validate_result_packet(packet: Mapping[str, Any], *, contract: Mapping[str, 
         turn_count = raw["turn_count"]
         if type(turn_count) is not int or not 0 <= turn_count <= 180:
             raise V4ResultViolation("turn_count is outside the bounded budget")
-        if row.get("source_pack") == "runtime_active" and turn_count != 100:
-            raise V4ResultViolation("runtime packet must bind exactly 100 turns")
         if classification in {"COMPLETE", "EXPECTED_NEGATIVE"} and any(value is None for value in proofs.values()):
             raise V4ResultViolation("passing packet must carry all proof hashes")
         if "reason_code" in raw:
@@ -272,60 +280,111 @@ def validate_result_packet(packet: Mapping[str, Any], *, contract: Mapping[str, 
         raise V4ResultViolation("packet validation failed") from exc
 
 
+def _is_pass(packet: Mapping[str, Any]) -> bool:
+    required = "EXPECTED_NEGATIVE" if packet["path"] == "denial" else "COMPLETE"
+    return packet["classification"] == required
+
+
+def _requires_live_proof(row: Mapping[str, Any]) -> bool:
+    return row["provider_live_required"]
+
+
+def _trace_matches(packet: Mapping[str, Any], row: Mapping[str, Any]) -> bool:
+    events = packet["events"]
+    kinds = tuple(event["kind"] for event in events)
+    expected = tuple(row["expected_trace"])
+    if packet["path"] == "denial":
+        return bool(kinds and kinds[-1] == "terminal" and events[-1].get("terminal_outcome") == "denied" and (not expected or expected[0] != "start" or kinds[0] == "start"))
+    return bool(kinds == expected and kinds and kinds[-1] == "terminal" and events[-1].get("terminal_outcome") == "completed")
+
+
+def _pass_power_3(packets: Sequence[Mapping[str, Any]], row: Mapping[str, Any]) -> bool:
+    ordered = sorted(packets, key=lambda item: item["trial_index"])
+    for start in range(len(ordered) - 2):
+        window = ordered[start : start + 3]
+        if [item["trial_index"] for item in window] != list(range(window[0]["trial_index"], window[0]["trial_index"] + 3)):
+            continue
+        if len({item["candidate_hash"] for item in window}) == 1 and all(_is_pass(item) and _trace_matches(item, row) for item in window):
+            return True
+    return False
+
+
+def _grade_rows(contract: Mapping[str, Any], lane: str) -> dict[tuple[str, str, str], Mapping[str, Any]]:
+    rows = contract["source_rows"] if lane == "rc" else [contract["runtime_soak"]]
+    return {(row["source_pack"], row["source_item_id"], path): row for row in rows for path in row["mandatory_paths"]}
+
+
 def grade_result_packets(packets: Sequence[Mapping[str, Any]], *, contract: Mapping[str, Any], lane: str = "rc") -> dict[str, Any]:
-    """Grade a packet set without treating missing evidence as a pass."""
+    """Grade exact predecessor trial sets without treating missing evidence as a pass."""
 
     validate_v4_contract(contract)
-    if not isinstance(packets, Sequence) or isinstance(packets, (str, bytes, bytearray)):
-        raise V4ResultViolation("packets must be a sequence")
+    if not isinstance(packets, Sequence) or isinstance(packets, (str, bytes, bytearray)) or lane not in {"rc", "runtime"}:
+        raise V4ResultViolation("packets or grade lane is malformed")
     valid = [validate_result_packet(packet, contract=contract) for packet in packets]
-    if lane not in {"rc", "runtime"}:
-        raise V4ResultViolation("grade lane must be rc or runtime")
-    rows = list(contract["source_rows"] if lane == "rc" else ())
-    expected = {(row["source_pack"], row["source_item_id"], path) for row in rows for path in row["mandatory_paths"]}
-    if lane == "runtime":
-        expected = {(contract["runtime_soak"]["source_pack"], contract["runtime_soak"]["source_item_id"], path) for path in contract["runtime_soak"]["mandatory_paths"]}
-    seen: set[tuple[str, str, str]] = set()
+    rows = _grade_rows(contract, lane)
+    grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    packet_keys: set[tuple[str, str, str, int, str]] = set()
     identities: set[str] = set()
     for packet in valid:
-        key = (packet["source_pack"], packet["source_item_id"], packet["path"])
-        if key in seen:
-            raise V4ResultViolation("duplicate source/path packet")
-        if key not in expected:
+        base = (packet["source_pack"], packet["source_item_id"], packet["path"])
+        row = rows.get(base)
+        if row is None:
             raise V4ResultViolation("packet names an unknown or non-mandatory path")
-        seen.add(key)
+        if packet["trial_index"] not in required_trial_indexes(row):
+            raise V4ResultViolation("packet trial index is outside the frozen repeat policy")
+        key = (*base, packet["trial_index"], packet["candidate_hash"])
+        if key in packet_keys:
+            raise V4ResultViolation("duplicate source/path/trial packet")
+        packet_keys.add(key)
+        grouped.setdefault(base, []).append(packet)
         identities.add(packet["candidate_hash"])
     if len(identities) > 1:
         raise V4ResultViolation("one grade cannot combine candidate identities")
+    if lane == "runtime" and len(valid) == len(rows) and all(_is_pass(packet) and _trace_matches(packet, rows[(packet["source_pack"], packet["source_item_id"], packet["path"])]) for packet in valid) and sum(packet["turn_count"] for packet in valid) != contract["runtime_soak"]["turns"]:
+        raise V4ResultViolation("runtime pass evidence must total exactly 100 parent turns")
     details = []
-    complete = pending = failed = 0
-    for key in sorted(expected):
-        packet = next((item for item in valid if (item["source_pack"], item["source_item_id"], item["path"]) == key), None)
-        if packet is None or packet["classification"] in {"PENDING", "ENVIRONMENT_BLOCKED"}:
-            status = "PENDING"
-            pending += 1
+    complete = pending = partial = not_run = failed = pass_at_3_paths = pass_power_3_paths = 0
+    expected_trial_packets = 0
+    source_rows = contract["source_rows"] if lane == "rc" else [contract["runtime_soak"]]
+    for row in source_rows:
+        expected_trial_packets += len(row["mandatory_paths"]) * len(required_trial_indexes(row))
+    for key in sorted(rows):
+        row = rows[key]
+        observed = sorted(grouped.get(key, ()), key=lambda item: item["trial_index"])
+        required = required_trial_indexes(row)
+        first_three = observed[:3]
+        pass_at_3 = any(_is_pass(item) and _trace_matches(item, row) for item in first_three)
+        pass_power_3 = _pass_power_3(observed, row)
+        had_failure = any(item["classification"] not in {"PENDING", "ENVIRONMENT_BLOCKED"} and (not _is_pass(item) or not _trace_matches(item, row)) for item in observed)
+        unstable = len({(item["classification"], _trace_matches(item, row)) for item in observed}) > 1
+        required_consecutive = int(row["repeat_policy"]["consecutive_passes"])
+        if set(row["repeat_policy"]["triggers"]) & {"consequential", "unstable"} or had_failure or unstable:
+            required_consecutive = max(required_consecutive, 3)
+        exact_trials = {item["trial_index"] for item in observed} == set(required)
+        if not observed:
+            status, reason = "NOT_RUN", "no result packet exists for this required path"
+        elif had_failure and not (required_consecutive == 3 and pass_power_3):
+            status, reason = "VERIFIED_FAILURE", "failure or trace mismatch lacks strict 3/3 evidence"
+        elif not exact_trials:
+            status, reason = "PARTIAL", "result packets do not cover the complete frozen trial set"
+        elif required_consecutive >= 3 and pass_power_3:
+            status, reason = "COMPLETE", "three consecutive passes share one unchanged candidate identity"
+        elif required_consecutive == 1 and any(_is_pass(item) and _trace_matches(item, row) for item in observed):
+            status, reason = "COMPLETE", "required path has deterministic passing evidence"
+        elif any(item["classification"] in {"PENDING", "ENVIRONMENT_BLOCKED"} for item in observed):
+            status, reason = "PENDING", "execution is pending or environment-blocked"
         else:
-            required_class = "EXPECTED_NEGATIVE" if key[2] == "denial" else "COMPLETE"
-            status = "COMPLETE" if packet["classification"] == required_class else "VERIFIED_FAILURE"
-            if status == "COMPLETE":
-                complete += 1
-            else:
-                failed += 1
-        details.append({"source_pack": key[0], "source_item_id": key[1], "path": key[2], "status": status})
-    report_status = "VERIFIED_FAILURE" if failed else "PENDING" if pending else "COMPLETE"
-    return {
-        "schema_version": 4,
-        "status": report_status,
-        "exit_code": 1 if failed else 75 if pending else 0,
-        "required_paths": len(expected),
-        "complete_paths": complete,
-        "pending_paths": pending,
-        "failed_paths": failed,
-        "candidate_hash": next(iter(identities), None),
-        "disposition_totals": dict(Counter(row["disposition"] for row in rows)),
-        "path_results": details,
-        "proof_boundary": "Deterministic v4 packet grading only; this report does not prove provider-live execution, installation, release, runtime, fleet, or customer readiness.",
-    }
+            status, reason = "PENDING", f"repeat requirement not met: need {required_consecutive} consecutive pass(es)"
+        complete += status == "COMPLETE"
+        pending += status == "PENDING"
+        partial += status == "PARTIAL"
+        not_run += status == "NOT_RUN"
+        failed += status == "VERIFIED_FAILURE"
+        pass_at_3_paths += pass_at_3
+        pass_power_3_paths += pass_power_3
+        details.append({"source_pack": key[0], "source_item_id": key[1], "path": key[2], "status": status, "trial_indexes": [item["trial_index"] for item in observed], "required_trial_indexes": list(required), "pass@3": pass_at_3, "pass^3": pass_power_3, "reason": reason})
+    report_status = "VERIFIED_FAILURE" if failed else "PARTIAL" if partial else "PENDING" if pending or not_run else "COMPLETE"
+    return {"schema_version": 4, "status": report_status, "exit_code": 1 if failed else 75 if partial or pending or not_run else 0, "required_paths": len(rows), "required_trial_packets": expected_trial_packets, "observed_packets": len(valid), "complete_paths": complete, "pending_paths": pending, "partial_paths": partial, "not_run_paths": not_run, "failed_paths": failed, "pass_at_3_paths": pass_at_3_paths, "pass_power_3_paths": pass_power_3_paths, "candidate_hash": next(iter(identities), None), "disposition_totals": dict(Counter(row["disposition"] for row in source_rows if "disposition" in row)), "path_results": details, "proof_boundary": "Deterministic v4 packet grading only; this report does not prove provider-live execution, installation, release, runtime, fleet, or customer readiness."}
 
 
 __all__ = ["V4ResultViolation", "build_result_packet", "grade_result_packets", "validate_result_packet"]

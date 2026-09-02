@@ -26,6 +26,7 @@ contract:
     agent_sdk_boundary: 23
     clawprobench_native: 36
   mandatory_path_count: 220
+  required_trial_packets: 390
   turn_budget: 180
   ownership_preflights:
     - zero_native_absence

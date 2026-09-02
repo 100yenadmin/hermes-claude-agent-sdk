@@ -5,7 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from hermes_claude_agent_sdk.parity.v4_contract import load_v4_contract
+from hermes_claude_agent_sdk.parity.hashing import sha256_value
+from hermes_claude_agent_sdk.parity.v4_contract import (
+    V3_RESULT_CATALOG_HASH,
+    load_v4_contract,
+)
 from hermes_claude_agent_sdk.parity.v4_runner import (
     V4ResultViolation,
     build_result_packet,
@@ -27,34 +31,39 @@ def _candidate() -> dict[str, str]:
     }
 
 
-def _packet(contract, row, path="positive", classification="COMPLETE"):
+def _packet(contract, row, path="positive", classification="COMPLETE", trial_index=1, turn_count=0, billing_classification=None):
+    events = [{"sequence": index, "kind": kind} for index, kind in enumerate(row["expected_trace"], 1)]
+    events[-1]["terminal_outcome"] = "denied" if classification == "EXPECTED_NEGATIVE" else "completed"
     return build_result_packet(
         contract,
         row,
         path=path,
         classification=classification,
         candidate=_candidate(),
-        billing_classification="none",
+        billing_classification=billing_classification or ("subscription_included" if row["provider_live_required"] else "none"),
         preflight_results={
             name: "PASS"
             for name in contract["contract"]["ownership_preflights"]
         },
         proof_hashes={name: H for name in ("primary", "secondary", "transcript", "stream")},
-        events=[{"sequence": 1, "kind": "terminal", "terminal_outcome": "completed"}],
-        trial_index=1,
+        events=events,
+        predecessor_catalog_sha256=V3_RESULT_CATALOG_HASH,
+        predecessor_packet_sha256=H,
+        trial_index=trial_index,
+        turn_count=turn_count,
     )
 
 
 def test_packet_identity_and_grade_are_deterministic() -> None:
     contract = load_v4_contract(ROOT / "qa/parity-contract-v4.yaml")
-    row = contract["source_rows"][0]
+    row = next(row for row in contract["source_rows"] if row["source_item_id"] == "PARENT-01")
     packet = _packet(contract, row)
     assert validate_result_packet(packet, contract=contract) == packet
     assert packet["trial_index"] == 1
     report = grade_result_packets([packet], contract=contract)
     assert report["required_paths"] == 220
     assert report["complete_paths"] == 1
-    assert report["pending_paths"] == 219
+    assert report["not_run_paths"] == 219
     assert report["status"] == "PENDING"
 
 
@@ -86,29 +95,40 @@ def test_runner_rejects_duplicate_paths_and_wrong_runtime_turn_budget() -> None:
 
     runtime = contract["runtime_soak"]
     with pytest.raises(V4ResultViolation):
-        build_result_packet(
-            contract,
-            runtime,
-            path="positive",
-            classification="COMPLETE",
-            candidate=_candidate(),
-            billing_classification="none",
-            preflight_results={
-                name: "PASS"
-                for name in contract["contract"]["ownership_preflights"]
-            },
-            proof_hashes={
-                name: H
-                for name in ("primary", "secondary", "transcript", "stream")
-            },
-            events=[{
-                "sequence": 1,
-                "kind": "terminal",
-                "terminal_outcome": "completed",
-            }],
-            trial_index=1,
-            turn_count=99,
-        )
+        grade_result_packets([_packet(contract, runtime, path=path, classification=classification, turn_count=33) for path, classification in (("positive", "COMPLETE"), ("denial", "EXPECTED_NEGATIVE"), ("recovery", "COMPLETE"))], contract=contract, lane="runtime")
+
+
+def test_runner_requires_the_exact_consequential_trial_set() -> None:
+    contract = load_v4_contract(ROOT / "qa/parity-contract-v4.yaml")
+    row = next(row for row in contract["source_rows"] if row["source_item_id"] == "AUTH-01")
+    partial = grade_result_packets([_packet(contract, row)], contract=contract)
+    assert partial["status"] == "PARTIAL"
+    assert partial["partial_paths"] == 1
+    assert partial["not_run_paths"] == 219
+    assert next(item for item in partial["path_results"] if item["source_item_id"] == "AUTH-01")["status"] == "PARTIAL"
+    report = grade_result_packets([_packet(contract, row, trial_index=index) for index in (1, 2, 3)], contract=contract)
+    assert report["complete_paths"] == 1
+
+
+@pytest.mark.parametrize("item_id,trial_index", [("AUTH-01", 4), ("PARENT-01", 2)])
+def test_runner_rejects_extra_trial_indexes(item_id, trial_index) -> None:
+    contract = load_v4_contract(ROOT / "qa/parity-contract-v4.yaml")
+    row = next(row for row in contract["source_rows"] if row["source_item_id"] == item_id)
+    with pytest.raises(V4ResultViolation):
+        grade_result_packets([_packet(contract, row, trial_index=trial_index)], contract=contract)
+
+
+def test_runtime_uses_one_hundred_parent_turns_across_three_path_packets() -> None:
+    contract = load_v4_contract(ROOT / "qa/parity-contract-v4.yaml")
+    row = contract["runtime_soak"]
+    packets = [
+        _packet(contract, row, path="positive", turn_count=34),
+        _packet(contract, row, path="denial", classification="EXPECTED_NEGATIVE", turn_count=33),
+        _packet(contract, row, path="recovery", turn_count=33),
+    ]
+    report = grade_result_packets(packets, contract=contract, lane="runtime")
+    assert report["required_trial_packets"] == 3
+    assert report["complete_paths"] == 3
 
 
 @pytest.mark.parametrize("value", [None, 0, True, "1"])
@@ -121,3 +141,34 @@ def test_runner_rejects_malformed_trial_index(value) -> None:
         packet["trial_index"] = value
     with pytest.raises(V4ResultViolation):
         validate_result_packet(packet, contract=contract)
+
+
+@pytest.mark.parametrize("field", ["catalog_sha256", "packet_sha256"])
+def test_runner_rejects_predecessor_identity_drift(field) -> None:
+    contract = load_v4_contract(ROOT / "qa/parity-contract-v4.yaml")
+    packet = _packet(contract, contract["source_rows"][0])
+    packet["predecessor"][field] = "0" * 64
+    with pytest.raises(V4ResultViolation):
+        validate_result_packet(packet, contract=contract)
+
+
+def test_runner_rejects_none_billing_for_live_proof_but_accepts_deterministic() -> None:
+    contract = load_v4_contract(ROOT / "qa/parity-contract-v4.yaml")
+    live = next(row for row in contract["source_rows"] if row["source_item_id"] == "approval-turn-tool-followthrough")
+    packet = _packet(contract, live)
+    packet["billing_classification"] = "none"
+    unsigned = dict(packet)
+    unsigned.pop("packet_sha256")
+    packet["packet_sha256"] = sha256_value(unsigned)
+    with pytest.raises(V4ResultViolation):
+        grade_result_packets([packet], contract=contract)
+    deterministic = next(row for row in contract["source_rows"] if not row["provider_live_required"] and not set(row["repeat_policy"]["triggers"]) & {"consequential", "unstable"})
+    assert grade_result_packets([_packet(contract, deterministic)], contract=contract)["complete_paths"] == 1
+
+
+def test_runner_marks_wrong_terminal_classification_as_failure() -> None:
+    contract = load_v4_contract(ROOT / "qa/parity-contract-v4.yaml")
+    row = next(row for row in contract["source_rows"] if "denial" in row["mandatory_paths"])
+    report = grade_result_packets([_packet(contract, row, path="denial", classification="COMPLETE")], contract=contract)
+    assert report["status"] == "VERIFIED_FAILURE"
+    assert report["failed_paths"] == 1

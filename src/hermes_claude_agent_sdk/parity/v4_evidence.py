@@ -1,4 +1,4 @@
-"""Bind one completed existing-runner trial to the closed v4 packet schema."""
+"""Bind one existing-runner trial to the closed v4 packet schema."""
 
 from __future__ import annotations
 
@@ -9,18 +9,21 @@ from .hashing import sha256_value
 from .results import ResultPacket
 from .v4_contract import (
     OWNERSHIP_PREFLIGHTS,
+    V3_RESULT_CATALOG_HASH,
+    V3_RESULT_CONTRACT_HASH,
     V4_CLI_VERSION,
     V4_MODEL,
     V4_RUNNER_ID,
     V4_RUNNER_VERSION,
     V4_SDK_DISTRIBUTION,
     V4_SDK_VERSION,
+    required_trial_indexes,
     validate_v4_contract,
 )
 from .v4_runner import CLASSIFICATIONS, build_result_packet
 
-V3_CONTRACT_HASH = "aaddc44c53b5648202e34c5682a5c0ee599fa52b896c0530d0945cac95eb3244"
-V3_CATALOG_HASH = "768c2d8f99077f8557a192d1053fc80401e83dee80d77475d12119df75b63abb"
+V3_CONTRACT_HASH = V3_RESULT_CONTRACT_HASH
+V3_CATALOG_HASH = V3_RESULT_CATALOG_HASH
 _HEX = frozenset("0123456789abcdef")
 _CANDIDATE_FIELDS = frozenset({"plugin_sha", "host_sha", "wheel_sha256", "profile_sha256", "sdk_distribution", "sdk_version", "cli_version", "model", "runner_id", "runner_version"})
 _RECEIPT_FIELDS = frozenset({"schema_version", "candidate", "candidate_hash", "trial_candidate_hash", "trial_index", "preflight_results", "proof_hashes"})
@@ -129,9 +132,11 @@ def bind_v4_evidence(contract: Mapping[str, Any], trial: ResultPacket | Mapping[
         row = _source_row(contract, observed)
         if observed.path not in row["mandatory_paths"]:
             raise V4EvidenceViolation("trial path is not mandatory for its v4 row")
+        if observed.trial_index not in required_trial_indexes(row):
+            raise V4EvidenceViolation("trial repetition is outside the frozen v3 policy")
         candidate, statuses, proofs = _receipt(ownership_receipt, observed)
         events = [dict(event) for event in observed.normalized_events]
-        packet = build_result_packet(contract, row, path=observed.path, classification=observed.classification.value, candidate=candidate, billing_classification=observed.billing_classification, preflight_results=statuses, proof_hashes=proofs, events=events, trial_index=observed.trial_index, turn_count=observed.turn_count, reason_code=observed.reason_code)
+        packet = build_result_packet(contract, row, path=observed.path, classification=observed.classification.value, candidate=candidate, billing_classification=observed.billing_classification, preflight_results=statuses, proof_hashes=proofs, events=events, predecessor_catalog_sha256=observed.catalog_hash, predecessor_packet_sha256=observed.packet_hash, trial_index=observed.trial_index, turn_count=observed.turn_count, reason_code=observed.reason_code)
         if (packet["classification"], packet["path"], packet["trial_index"], packet["turn_count"], packet["events"]) != (observed.classification.value, observed.path, observed.trial_index, observed.turn_count, events):
             raise V4EvidenceViolation("adapter changed observed trial evidence")
         if packet["candidate_hash"] != ownership_receipt["candidate_hash"]:

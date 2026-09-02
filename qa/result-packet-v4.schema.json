@@ -16,11 +16,13 @@
     "contract_sha256": {"$ref": "#/$defs/sha256"},
     "predecessor": {
       "type": "object", "additionalProperties": false,
-      "required": ["contract_sha256", "ledger_sha256", "result_schema_sha256", "execution_id", "path"],
+      "required": ["contract_sha256", "ledger_sha256", "result_schema_sha256", "catalog_sha256", "packet_sha256", "execution_id", "path"],
       "properties": {
         "contract_sha256": {"$ref": "#/$defs/sha256"},
         "ledger_sha256": {"$ref": "#/$defs/sha256"},
         "result_schema_sha256": {"$ref": "#/$defs/sha256"},
+        "catalog_sha256": {"$ref": "#/$defs/sha256"},
+        "packet_sha256": {"$ref": "#/$defs/sha256"},
         "execution_id": {"$ref": "#/$defs/id"},
         "path": {"enum": ["positive", "denial", "recovery"]}
       }

@@ -20,7 +20,7 @@ def _trial(contract, classification=ExecutionClassification.COMPLETE):
     row = contract["source_rows"][0]
     passing = classification is ExecutionClassification.COMPLETE
     events = normalized_path_events(("start", "terminal"), path="positive", evidence_hash=H) if passing else () if classification is ExecutionClassification.PENDING else ({"sequence": 1, "kind": "terminal", "terminal_outcome": "failed"},)
-    return ResultPacket.build(capability_id=row["predecessor_capability_id"], source_pack=row["source_pack"], lane="rc", path="positive", execution_id=row["predecessor_execution_id"], classification=classification, contract_hash=V3_CONTRACT_HASH, catalog_hash=V3_CATALOG_HASH, plugin_sha="a" * 40, host_sha="b" * 40, sdk_version="0.2.151", profile_id="isolated", profile_hash="c" * 64, runner_version="4.0.0", inventory_hash="3" * 64, billing_classification="none", trial_index=2, normalized_events=events, primary_proof_hash="4" * 64 if passing else None, secondary_proof_hash="5" * 64 if passing else None, reason_code=None if passing else "failed_trial")
+    return ResultPacket.build(capability_id=row["predecessor_capability_id"], source_pack=row["source_pack"], lane="rc", path="positive", execution_id=row["predecessor_execution_id"], classification=classification, contract_hash=V3_CONTRACT_HASH, catalog_hash=V3_CATALOG_HASH, plugin_sha="a" * 40, host_sha="b" * 40, sdk_version="0.2.151", profile_id="isolated", profile_hash="c" * 64, runner_version="4.0.0", inventory_hash="3" * 64, billing_classification="subscription_included", trial_index=2, normalized_events=events, primary_proof_hash="4" * 64 if passing else None, secondary_proof_hash="5" * 64 if passing else None, reason_code=None if passing else "failed_trial")
 
 
 def _receipt(trial):
@@ -45,6 +45,8 @@ def test_binds_without_rewriting_observations() -> None:
     packet = bind_v4_evidence(contract, trial, _receipt(trial))
     assert (packet["classification"], packet["path"], packet["turn_count"]) == (trial.classification.value, trial.path, trial.turn_count)
     assert packet["trial_index"] == trial.trial_index
+    assert packet["predecessor"]["catalog_sha256"] == trial.catalog_hash
+    assert packet["predecessor"]["packet_sha256"] == trial.packet_hash
     assert packet["events"] == [dict(event) for event in trial.normalized_events]
     assert packet["proof_hashes"]["stream"] == "8" * 64
 

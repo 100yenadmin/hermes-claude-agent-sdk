@@ -38,6 +38,11 @@ def test_v4_artifacts_are_valid_and_preserve_the_frozen_budget() -> None:
     }
     assert validated["total_rows"] == 124
     assert validated["mandatory_paths"] == 220
+    assert validated["required_trial_packets"] == 390
+    assert sum("consequential" in row["repeat_policy"]["triggers"] for row in contract["source_rows"]) == 55
+    assert all(row["expected_trace"] and row["repeat_policy"] for row in contract["source_rows"])
+    assert all(row["primary_proof"] and row["secondary_proof"] for row in contract["source_rows"])
+    assert sum(row["provider_live_required"] for row in contract["source_rows"]) == 70
     assert validated["disposition_totals"] == {
         "carry": 8,
         "replace": 102,

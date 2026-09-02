@@ -30,6 +30,11 @@ V4_RUNNER_ID = "hermes-parity-v4"
 V4_RUNNER_VERSION = V4_VERSION
 V4_TURN_BUDGET = 180
 V4_RUNTIME_TURNS = 100
+REQUIRED_TRIAL_PACKETS = 390
+CONSEQUENTIAL_ROW_COUNT = 55
+V3_RESULT_CONTRACT_HASH = "aaddc44c53b5648202e34c5682a5c0ee599fa52b896c0530d0945cac95eb3244"
+V3_RESULT_CATALOG_HASH = "768c2d8f99077f8557a192d1053fc80401e83dee80d77475d12119df75b63abb"
+PROVIDER_LIVE_SOURCE_IDS = frozenset(("approval-turn-tool-followthrough", "source-docs-discovery-report", "image-understanding-attachment", "subagent-handoff", "subagent-fanout-synthesis", "memory-recall", "thread-memory-isolation", "config-restart-capability-flip"))
 PACK_COUNTS = {
     "v2_non_soak": (53, 53),
     "openclaw_active": (12, 36),
@@ -154,6 +159,21 @@ def _ownership(source_pack: str, source_item_id: str) -> tuple[str, tuple[str, .
     return "hermes_parent", ("zero_native", "explicit_parent", "canonical_transcript", "streaming")
 
 
+def required_trial_indexes(row: Mapping[str, Any]) -> tuple[int, ...]:
+    policy = _mapping(row.get("repeat_policy"), "source row repeat_policy")
+    target = policy.get("consecutive_passes")
+    if type(target) is not int or target < 1:
+        raise V4ContractViolation("source row repeat policy is malformed")
+    if set(policy.get("triggers", ())) & {"consequential", "unstable"}:
+        target = max(target, 3)
+    return tuple(range(1, target + 1))
+
+
+def _provider_live_required(source_pack: str, source_item_id: str, predecessor: Mapping[str, Any]) -> bool:
+    proofs = tuple(predecessor["primary_proof"]) + tuple(predecessor["secondary_proof"])
+    return source_pack in {"clawprobench_native", "runtime_active"} or source_item_id in PROVIDER_LIVE_SOURCE_IDS or "live" in proofs
+
+
 def _expand_row(raw: Any, v3: Mapping[tuple[str, str], Mapping[str, Any]], index: int) -> dict[str, Any]:
     if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes, bytearray)) or len(raw) != 4:
         raise V4ContractViolation(f"source_rows[{index}] must be [pack, item, disposition, path-code]")
@@ -182,6 +202,11 @@ def _expand_row(raw: Any, v3: Mapping[tuple[str, str], Mapping[str, Any]], index
         "ownership_mode": mode,
         "native_surface": False,
         "proof_atoms": list(atoms),
+        "expected_trace": copy.deepcopy(predecessor["expected_trace"]),
+        "repeat_policy": copy.deepcopy(predecessor["repeat_policy"]),
+        "primary_proof": copy.deepcopy(predecessor["primary_proof"]),
+        "secondary_proof": copy.deepcopy(predecessor["secondary_proof"]),
+        "provider_live_required": _provider_live_required(source_pack, source_item_id, predecessor),
     }
 
 
@@ -191,7 +216,7 @@ def _normalize_contract(document: Mapping[str, Any], path: Path) -> dict[str, An
     if document["schema_version"] != V4_SCHEMA_VERSION:
         raise V4ContractViolation("v4 contract schema_version must equal 4")
     contract = _mapping(document["contract"], "contract")
-    required = {"name", "version", "runner_version", "predecessor", "target", "candidate_inputs", "required_coverage", "mandatory_path_count", "turn_budget", "ownership_preflights"}
+    required = {"name", "version", "runner_version", "predecessor", "target", "candidate_inputs", "required_coverage", "mandatory_path_count", "required_trial_packets", "turn_budget", "ownership_preflights"}
     if set(contract) != required:
         raise V4ContractViolation("v4 contract metadata fields are not closed")
     if contract["name"] != "Hermes-owned Claude Subscription Runtime Parity" or contract["version"] != V4_VERSION or contract["runner_version"] != V4_RUNNER_VERSION:
@@ -214,7 +239,7 @@ def _normalize_contract(document: Mapping[str, Any], path: Path) -> dict[str, An
     coverage = _mapping(contract["required_coverage"], "contract.required_coverage")
     if coverage != {pack: values[0] for pack, values in PACK_COUNTS.items()}:
         raise V4ContractViolation("v4 required coverage is not the frozen 124-row set")
-    if contract["mandatory_path_count"] != 220 or contract["turn_budget"] != V4_TURN_BUDGET:
+    if contract["mandatory_path_count"] != 220 or contract["required_trial_packets"] != REQUIRED_TRIAL_PACKETS or contract["turn_budget"] != V4_TURN_BUDGET:
         raise V4ContractViolation("v4 turn or mandatory-path budget changed")
     preflights = contract["ownership_preflights"]
     if preflights != list(OWNERSHIP_PREFLIGHTS):
@@ -224,7 +249,16 @@ def _normalize_contract(document: Mapping[str, Any], path: Path) -> dict[str, An
         raise V4ContractViolation("source_rows must be a list")
     v3 = _v3_rows(path)
     rows = [_expand_row(item, v3, index) for index, item in enumerate(raw_rows)]
-    return {"schema_version": V4_SCHEMA_VERSION, "contract": copy.deepcopy(contract), "source_rows": rows, "runtime_soak": copy.deepcopy(document["runtime_soak"]), "_path": str(path)}
+    runtime = copy.deepcopy(document["runtime_soak"])
+    runtime_predecessor = v3.get(("runtime_active", "soak-100-turn"))
+    if runtime_predecessor is None:
+        raise V4ContractViolation("immutable v3 runtime predecessor is missing")
+    runtime["expected_trace"] = copy.deepcopy(runtime_predecessor["expected_trace"])
+    runtime["repeat_policy"] = copy.deepcopy(runtime_predecessor["repeat_policy"])
+    runtime["primary_proof"] = copy.deepcopy(runtime_predecessor["primary_proof"])
+    runtime["secondary_proof"] = copy.deepcopy(runtime_predecessor["secondary_proof"])
+    runtime["provider_live_required"] = _provider_live_required("runtime_active", "soak-100-turn", runtime_predecessor)
+    return {"schema_version": V4_SCHEMA_VERSION, "contract": copy.deepcopy(contract), "source_rows": rows, "runtime_soak": runtime, "_path": str(path)}
 
 
 def load_v4_contract(path: str | Path) -> dict[str, Any]:
@@ -236,18 +270,25 @@ def load_v4_contract(path: str | Path) -> dict[str, Any]:
     return normalized
 
 
-def _validate_runtime(document: Mapping[str, Any]) -> None:
+def _validate_runtime(document: Mapping[str, Any], v3: Mapping[tuple[str, str], Mapping[str, Any]]) -> None:
     runtime = _mapping(document.get("runtime_soak"), "runtime_soak")
-    if set(runtime) != {"source_item_id", "source_pack", "predecessor_execution_id", "successor_id", "mandatory_paths", "turns"}:
+    if set(runtime) != {"source_item_id", "source_pack", "predecessor_execution_id", "successor_id", "mandatory_paths", "turns", "expected_trace", "repeat_policy", "primary_proof", "secondary_proof", "provider_live_required"}:
         raise V4ContractViolation("runtime soak fields are not closed")
-    if runtime != {
+    predecessor = v3.get(("runtime_active", "soak-100-turn"))
+    expected = {
         "source_item_id": "soak-100-turn",
         "source_pack": "runtime_active",
         "predecessor_execution_id": "runtime-active-100-turn",
         "successor_id": "hermes-v4/runtime_active/soak-100-turn",
         "mandatory_paths": ["positive", "denial", "recovery"],
         "turns": 100,
-    }:
+        "expected_trace": predecessor["expected_trace"] if predecessor else None,
+        "repeat_policy": predecessor["repeat_policy"] if predecessor else None,
+        "primary_proof": predecessor["primary_proof"] if predecessor else None,
+        "secondary_proof": predecessor["secondary_proof"] if predecessor else None,
+        "provider_live_required": _provider_live_required("runtime_active", "soak-100-turn", predecessor) if predecessor else None,
+    }
+    if runtime != expected:
         raise V4ContractViolation("runtime soak must remain the separate 100-turn, 3-path campaign")
 
 
@@ -268,7 +309,7 @@ def validate_v4_contract(value: Mapping[str, Any], *, ledger: Mapping[str, Any] 
     v3 = _v3_rows(Path(document.get("_path", __file__)))
     for index, row in enumerate(rows):
         item = _mapping(row, f"source_rows[{index}]")
-        required_fields = {"source_pack", "source_item_id", "predecessor_capability_id", "predecessor_execution_id", "predecessor_source_ref", "disposition", "successor_id", "mandatory_paths", "ownership_mode", "native_surface", "proof_atoms"}
+        required_fields = {"source_pack", "source_item_id", "predecessor_capability_id", "predecessor_execution_id", "predecessor_source_ref", "disposition", "successor_id", "mandatory_paths", "ownership_mode", "native_surface", "proof_atoms", "expected_trace", "repeat_policy", "primary_proof", "secondary_proof", "provider_live_required"}
         if set(item) != required_fields:
             raise V4ContractViolation(f"source_rows[{index}] fields are not closed")
         key = (item["source_pack"], item["source_item_id"])
@@ -278,6 +319,12 @@ def validate_v4_contract(value: Mapping[str, Any], *, ledger: Mapping[str, Any] 
         predecessor = v3[key]
         if item["predecessor_execution_id"] != predecessor["execution_id"] or item["predecessor_capability_id"] != predecessor["capability_id"] or item["predecessor_source_ref"] != predecessor["source_ref"]:
             raise V4ContractViolation("source row predecessor link does not match immutable v3")
+        if item["expected_trace"] != predecessor["expected_trace"] or item["repeat_policy"] != predecessor["repeat_policy"]:
+            raise V4ContractViolation("source row trace or repeat policy does not match immutable v3")
+        if item["primary_proof"] != predecessor["primary_proof"] or item["secondary_proof"] != predecessor["secondary_proof"]:
+            raise V4ContractViolation("source row proof requirements do not match immutable v3")
+        if item["provider_live_required"] is not _provider_live_required(*key, predecessor):
+            raise V4ContractViolation("source row execution mode does not match the frozen v3 map")
         successor = f"hermes-v4/{key[0]}/{key[1]}"
         if item["successor_id"] != successor or successor in successors:
             raise V4ContractViolation("source row successor identity is missing or duplicated")
@@ -302,12 +349,16 @@ def validate_v4_contract(value: Mapping[str, Any], *, ledger: Mapping[str, Any] 
     expected_dispositions = {"carry": 8, "replace": 102, "retire-with-successor": 3, "split": 11}
     if dict(dispositions) != expected_dispositions:
         raise V4ContractViolation("v4 disposition totals drifted")
-    _validate_runtime(document)
+    _validate_runtime(document, v3)
     if ledger is not None:
         _validate_ledger(ledger, document)
     if predecessor_map is not None:
         _validate_predecessor_map(predecessor_map, rows)
-    return {"counts": per_pack, "total_rows": len(rows), "mandatory_paths": sum(len(row["mandatory_paths"]) for row in rows), "disposition_totals": dict(dispositions), "predecessor_rows": len(seen)}
+    required_trial_packets = sum(len(row["mandatory_paths"]) * len(required_trial_indexes(row)) for row in rows)
+    consequential_rows = sum("consequential" in row["repeat_policy"]["triggers"] for row in rows)
+    if required_trial_packets != REQUIRED_TRIAL_PACKETS or consequential_rows != CONSEQUENTIAL_ROW_COUNT:
+        raise V4ContractViolation("v4 repeat accounting does not preserve immutable v3 semantics")
+    return {"counts": per_pack, "total_rows": len(rows), "mandatory_paths": sum(len(row["mandatory_paths"]) for row in rows), "required_trial_packets": required_trial_packets, "disposition_totals": dict(dispositions), "predecessor_rows": len(seen)}
 
 
 def _validate_ledger(value: Mapping[str, Any], contract: Mapping[str, Any]) -> None:
@@ -406,7 +457,7 @@ def load_v4_manifest(path: str | Path) -> dict[str, Any]:
     predecessor = _mapping(document["predecessor"], "manifest.predecessor")
     if predecessor != {"plugin_source_commit": V3_SOURCE_COMMIT, "contract_sha256": V3_HASHES["contract_sha256"], "boundary_ledger_sha256": V3_HASHES["boundary_ledger_sha256"], "result_schema_sha256": V3_HASHES["result_schema_sha256"]}:
         raise V4ContractViolation("v4 manifest predecessor mismatch")
-    if document["target"] != {"sdk_distribution": V4_SDK_DISTRIBUTION, "sdk_version": V4_SDK_VERSION, "cli_version": V4_CLI_VERSION, "model": V4_MODEL} or document["counts"] != {"v2_non_soak": {"rows": 53, "mandatory_paths": 53}, "openclaw_active": {"rows": 12, "mandatory_paths": 36}, "agent_sdk_boundary": {"rows": 23, "mandatory_paths": 23}, "clawprobench_native": {"rows": 36, "mandatory_paths": 108}, "total_rows": 124, "mandatory_paths": 220} or document["runtime_soak"] != {"turns": 100, "mandatory_paths": 3} or document["ownership_preflights"] != list(OWNERSHIP_PREFLIGHTS):
+    if document["target"] != {"sdk_distribution": V4_SDK_DISTRIBUTION, "sdk_version": V4_SDK_VERSION, "cli_version": V4_CLI_VERSION, "model": V4_MODEL} or document["counts"] != {"v2_non_soak": {"rows": 53, "mandatory_paths": 53}, "openclaw_active": {"rows": 12, "mandatory_paths": 36}, "agent_sdk_boundary": {"rows": 23, "mandatory_paths": 23}, "clawprobench_native": {"rows": 36, "mandatory_paths": 108}, "total_rows": 124, "mandatory_paths": 220, "required_trial_packets": REQUIRED_TRIAL_PACKETS} or document["runtime_soak"] != {"turns": 100, "mandatory_paths": 3} or document["ownership_preflights"] != list(OWNERSHIP_PREFLIGHTS):
         raise V4ContractViolation("v4 manifest accounting or target identity drifted")
     candidate = _mapping(document["candidate_freeze_inputs"], "manifest.candidate_freeze_inputs")
     if set(candidate) != {"plugin_sha", "host_sha", "wheel_sha256", "profile_sha256"} or any(value is not None for value in candidate.values()):
@@ -422,7 +473,7 @@ def load_v4_manifest(path: str | Path) -> dict[str, Any]:
 
 
 def source_rows_sha256(rows: Sequence[Mapping[str, Any]]) -> str:
-    return sha256_value([{key: row[key] for key in ("source_pack", "source_item_id", "predecessor_execution_id", "disposition", "successor_id", "mandatory_paths")} for row in rows])
+    return sha256_value([{key: row[key] for key in ("source_pack", "source_item_id", "predecessor_execution_id", "disposition", "successor_id", "mandatory_paths", "expected_trace", "repeat_policy", "primary_proof", "secondary_proof", "provider_live_required")} for row in rows])
 
 
 __all__ = [
@@ -430,6 +481,9 @@ __all__ = [
     "OWNERSHIP_PREFLIGHTS",
     "PACK_COUNTS",
     "PATH_NAMES",
+    "REQUIRED_TRIAL_PACKETS",
+    "V3_RESULT_CATALOG_HASH",
+    "V3_RESULT_CONTRACT_HASH",
     "V4_CLI_VERSION",
     "V4_MODEL",
     "V4_RUNNER_ID",
@@ -444,6 +498,7 @@ __all__ = [
     "load_v4_manifest",
     "load_v4_predecessor_map",
     "mandatory_path_count",
+    "required_trial_indexes",
     "source_rows_sha256",
     "validate_v4_contract",
 ]
