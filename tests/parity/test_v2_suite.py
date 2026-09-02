@@ -4,15 +4,17 @@ import asyncio
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from hermes_claude_agent_sdk.parity import v2_suite
+from hermes_claude_agent_sdk.parity.results import ExecutionClassification
+from hermes_claude_agent_sdk.parity.runner import ExecutionContext
 from hermes_claude_agent_sdk.parity.v2_suite import (
     _V2_NODES,
     _executable_path,
-    v2_mapped_suite,
     v2_execution_ids,
+    v2_mapped_suite,
 )
-from hermes_claude_agent_sdk.parity.results import ExecutionClassification
-from hermes_claude_agent_sdk.parity.runner import ExecutionContext
 
 
 def _context(catalog, capability_id: str) -> ExecutionContext:
@@ -44,6 +46,54 @@ def test_every_v2_non_soak_row_has_one_exact_mapping(catalog) -> None:
     assert set(_V2_NODES) == source_ids
     assert len(v2_execution_ids()) == 53
     assert len(set(v2_execution_ids())) == 53
+
+
+@pytest.mark.parametrize(
+    ("capability_id", "expected_nodes"),
+    [
+        (
+            "v2:parent-03",
+            (
+                "tests/test_runtime_sdk_integration.py::test_compatible_successive_turns_reuse_one_client_reader_and_resume_state",
+            ),
+        ),
+        (
+            "v2:orch-01",
+            (
+                "tests/test_zero_native_configuration.py::test_pinned_public_sdk_serializes_explicit_empty_tools_and_exact_prompt",
+            ),
+        ),
+        (
+            "v2:orch-02",
+            (
+                "tests/test_sdk_session.py::test_post_terminal_sdk_output_is_a_protocol_failure_without_background_delivery",
+            ),
+        ),
+        (
+            "v2:ops-08",
+            (
+                "tests/test_zero_native_configuration.py::test_option_fields_disable_native_tools_and_use_hermes_mcp_allowlist",
+            ),
+        ),
+        (
+            "v2:eff-02",
+            (
+                "tests/test_runtime_sdk_integration.py::test_compatible_successive_turns_reuse_one_client_reader_and_resume_state",
+            ),
+        ),
+    ],
+)
+def test_zero_native_successor_mappings_use_current_plugin_tests(
+    capability_id: str,
+    expected_nodes: tuple[str, ...],
+) -> None:
+    mapped_nodes = tuple(node.node_id for node in _V2_NODES[capability_id])
+
+    assert mapped_nodes == expected_nodes
+    assert all(
+        Path(node.split("::", 1)[0]).is_file()
+        for node in mapped_nodes
+    )
 
 
 def test_v2_mapping_never_names_forbidden_live_surfaces() -> None:

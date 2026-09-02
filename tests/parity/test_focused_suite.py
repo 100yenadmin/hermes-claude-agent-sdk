@@ -50,6 +50,35 @@ def test_every_boundary_catalog_row_has_an_exact_executor_mapping(catalog) -> No
     assert len(expected) == 23
 
 
+def test_zero_native_boundary_successors_use_current_plugin_and_host_tests() -> None:
+    assert focused_suite._BOUNDARY_NODES[
+        "boundary:compatible-warm-query-process-reuse"
+    ] == (
+        "tests/test_runtime_sdk_integration.py::test_compatible_successive_turns_reuse_one_client_reader_and_resume_state",
+    )
+    assert focused_suite._BOUNDARY_NODES[
+        "boundary:background-provisional-result-settlement"
+    ] == (
+        "tests/test_sdk_session.py::test_post_terminal_sdk_output_is_a_protocol_failure_without_background_delivery",
+        "tests/test_runtime_sdk_integration.py::test_runtime_rejects_post_terminal_sdk_output_without_background_delivery",
+    )
+    assert focused_suite._BOUNDARY_NODES[
+        "boundary:restricted-native-tools-and-mcp-grants"
+    ] == (
+        "tests/test_sdk_session.py::test_native_shapes_fail_before_projection",
+        "tests/test_runtime_sdk_integration.py::test_native_agent_event_fails_closed_before_host_tool_execution",
+        "tests/test_tool_bridge.py::test_unknown_duplicate_and_excluded_names_fail_before_host_call",
+    )
+    assert all(
+        Path(node.split("::", 1)[0]).is_file()
+        for capability_id in (
+            "boundary:background-provisional-result-settlement",
+            "boundary:restricted-native-tools-and-mcp-grants",
+        )
+        for node in focused_suite._BOUNDARY_NODES[capability_id]
+    )
+
+
 def test_focused_suite_does_not_fabricate_unexecuted_path_outcomes(
     catalog,
     monkeypatch,

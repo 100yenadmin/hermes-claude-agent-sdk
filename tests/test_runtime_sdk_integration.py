@@ -82,6 +82,7 @@ class _Client:
         self.connected = 0
         self.disconnected = 0
         self.interrupted = 0
+        self.receive_calls = 0
         self.queries: list[object] = []
         self._messages: asyncio.Queue[object] = asyncio.Queue()
         self._closed = False
@@ -221,6 +222,7 @@ class _Client:
             raise
 
     async def receive_messages(self):
+        self.receive_calls += 1
         while not self._closed:
             message = await self._messages.get()
             if message is _END:
@@ -659,6 +661,43 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
         assert clients[0].disconnected == 1
 
     asyncio.run(scenario())
+
+
+def test_compatible_successive_turns_reuse_one_client_reader_and_resume_state() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("success", clients)
+        host = _Host()
+
+        first_events = await _collect(
+            runtime, _request(correlation_id="turn-a"), host
+        )
+        state = next(
+            event.state
+            for event in first_events
+            if event.kind.value == "session_state"
+        )
+        second_events = await _collect(
+            runtime,
+            _request(state=state, correlation_id="turn-b"),
+            host,
+        )
+        await runtime.close()
+        return first_events, second_events, clients, state
+
+    first_events, second_events, clients, state = asyncio.run(scenario())
+
+    assert dict(state.state) == {"external_session_id": "synthetic-next-session"}
+    assert first_events[-1].kind.value == "completed"
+    assert second_events[-1].kind.value == "completed"
+    assert first_events[-1].result["text"] == "hello"
+    assert second_events[-1].result["text"] == "hello"
+    assert len(clients) == 1
+    assert clients[0].connected == 1
+    assert clients[0].disconnected == 1
+    assert clients[0].receive_calls == 1
+    assert len(clients[0].queries) <= 2
+    assert clients[0].queries == ["hello runtime", "hello runtime"]
 
 
 def test_runtime_preserves_safe_sdk_failure_code_and_retryability() -> None:

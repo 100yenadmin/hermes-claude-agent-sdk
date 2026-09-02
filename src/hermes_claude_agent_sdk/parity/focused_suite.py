@@ -37,7 +37,7 @@ _BOUNDARY_NODES: dict[str, tuple[str, ...]] = {
         "tests/parity/test_boundary_adaptations.py::test_cache_receipts_and_resume_survive_while_unknown_fork_controls_fail_closed",
     ),
     "boundary:compatible-warm-query-process-reuse": (
-        "tests/test_runtime_sdk_integration.py::test_runtime_reuses_one_client_reader_and_uses_host_only_for_idle_completion",
+        "tests/test_runtime_sdk_integration.py::test_compatible_successive_turns_reuse_one_client_reader_and_resume_state",
     ),
     "boundary:terminal-error-warm-query-reuse": (
         "tests/test_sdk_session.py::test_terminal_error_turn_keeps_the_compatible_sdk_session_warm",
@@ -60,10 +60,12 @@ _BOUNDARY_NODES: dict[str, tuple[str, ...]] = {
         "tests/parity/test_boundary_adaptations.py::test_cancelled_or_late_tool_request_is_fenced_then_next_turn_rebinds",
     ),
     "boundary:background-provisional-result-settlement": (
-        "tests/test_runtime_sdk_integration.py::test_queued_idle_burst_is_released_only_after_parent_terminal_is_observed",
+        "tests/test_sdk_session.py::test_post_terminal_sdk_output_is_a_protocol_failure_without_background_delivery",
+        "tests/test_runtime_sdk_integration.py::test_runtime_rejects_post_terminal_sdk_output_without_background_delivery",
     ),
     "boundary:restricted-native-tools-and-mcp-grants": (
-        "tests/test_native_agent_configuration.py::test_option_fields_expose_native_agent_and_hermes_mcp_allowlist",
+        "tests/test_sdk_session.py::test_native_shapes_fail_before_projection",
+        "tests/test_runtime_sdk_integration.py::test_native_agent_event_fails_closed_before_host_tool_execution",
         "tests/test_tool_bridge.py::test_unknown_duplicate_and_excluded_names_fail_before_host_call",
     ),
     "boundary:variadic-directories-tools-managed-mcp-isolation": (

@@ -27,7 +27,6 @@ from .results import ExecutionClassification
 from .runner import ExecutionBundle, ExecutionContext, ExecutionOutcome
 from .trace import normalized_path_events
 
-
 V2_SHA = "33fe73a9dbc2888b176a1fc83dcce7755bbd0142"
 RepoName = Literal["plugin", "host", "v2"]
 
@@ -72,7 +71,7 @@ _V2_NODES: dict[str, tuple[EvidenceNode, ...]] = {
     "v2:auth-11": _nodes(V, "tests/tools/test_delegate.py::TestFallbackModelInheritance::test_pinned_provider_disables_parent_fallback_chain"),
     "v2:parent-01": _nodes(P, "tests/test_runtime_sdk_integration.py::test_text_projection_usage_state_terminal_and_public_options"),
     "v2:parent-02": _nodes(P, "tests/test_runtime_sdk_integration.py::test_native_image_turn_uses_the_public_sdk_streaming_input"),
-    "v2:parent-03": _nodes(P, "tests/test_runtime_sdk_integration.py::test_runtime_reuses_one_client_reader_and_uses_host_only_for_idle_completion"),
+    "v2:parent-03": _nodes(P, "tests/test_runtime_sdk_integration.py::test_compatible_successive_turns_reuse_one_client_reader_and_resume_state"),
     "v2:parent-04": _nodes(P, "tests/test_runtime_sdk_integration.py::test_host_tool_bridge_and_resume_use_only_public_fields"),
     "v2:parent-05": _nodes(P, "tests/test_runtime_sdk_integration.py::test_native_compaction_is_projected_through_the_host_dispatcher"),
     "v2:parent-06": _nodes(P, "tests/test_runtime_sdk_integration.py::test_cancellation_interrupts_and_closes_once_with_one_terminal"),
@@ -90,8 +89,8 @@ _V2_NODES: dict[str, tuple[EvidenceNode, ...]] = {
     ),
     "v2:tool-05": _nodes(P, "tests/test_host_delegate_integration.py::test_delegate_schema_bridge_reaches_real_host_facade_and_parent_dispatch"),
     "v2:tool-06": _nodes(V, "tests/agent/test_hermes_hybrid_mcp.py::TestHybridServerBuild::test_deterministic_sort_order_pin"),
-    "v2:orch-01": _nodes(P, "tests/test_native_agent_configuration.py::test_pinned_public_sdk_serializes_agent_without_default_or_empty_tools"),
-    "v2:orch-02": _nodes(P, "tests/test_sdk_session.py::test_idle_result_bursts_are_ordered_deduplicated_and_do_not_expose_session_ids"),
+    "v2:orch-01": _nodes(P, "tests/test_zero_native_configuration.py::test_pinned_public_sdk_serializes_explicit_empty_tools_and_exact_prompt"),
+    "v2:orch-02": _nodes(P, "tests/test_sdk_session.py::test_post_terminal_sdk_output_is_a_protocol_failure_without_background_delivery"),
     "v2:orch-03": _nodes(V, "tests/tools/test_delegate_routes.py::test_valid_codex_route_receipt_and_precedence"),
     "v2:orch-04": _nodes(V, "tests/tools/test_delegate_routes.py::test_valid_codex_route_receipt_and_precedence"),
     "v2:orch-05": _nodes(V, "tests/tools/test_delegate_routes.py::test_mixed_routes_have_safe_per_task_receipts"),
@@ -112,10 +111,10 @@ _V2_NODES: dict[str, tuple[EvidenceNode, ...]] = {
     "v2:ops-05": _nodes(H, "tests/agent/test_runtime_dispatch.py::test_host_persists_runtime_state_and_idempotent_usage_for_selected_runtime"),
     "v2:ops-06": _nodes(V, "tests/hermes_cli/test_profiles.py::TestGetProfileDir::test_default_returns_hermes_home"),
     "v2:ops-07": _nodes(V, "tests/hermes_cli/test_profiles.py::TestProfileIsolation::test_separate_config_paths"),
-    "v2:ops-08": _nodes(P, "tests/test_native_agent_configuration.py::test_option_fields_expose_native_agent_and_hermes_mcp_allowlist"),
+    "v2:ops-08": _nodes(P, "tests/test_zero_native_configuration.py::test_option_fields_disable_native_tools_and_use_hermes_mcp_allowlist"),
     "v2:ops-09": _nodes(V, "tests/test_install_commit_pin_rollback.py::test_force_commit_still_rolls_back"),
     "v2:eff-01": _nodes(P, "tests/test_runtime_sdk_integration.py::test_text_projection_usage_state_terminal_and_public_options"),
-    "v2:eff-02": _nodes(P, "tests/test_runtime_sdk_integration.py::test_runtime_reuses_one_client_reader_and_uses_host_only_for_idle_completion"),
+    "v2:eff-02": _nodes(P, "tests/test_runtime_sdk_integration.py::test_compatible_successive_turns_reuse_one_client_reader_and_resume_state"),
     "v2:eff-03": _nodes(P, "tests/test_billing.py::test_extract_system_and_rate_limit_evidence_is_bounded_and_serializable"),
 }
 
