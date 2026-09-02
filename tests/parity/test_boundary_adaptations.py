@@ -100,21 +100,28 @@ def test_cache_receipts_and_resume_survive_while_unknown_fork_controls_fail_clos
 
 def test_variadic_sdk_surfaces_are_denied_without_weakening_tool_or_mcp_isolation() -> None:
     mcp_servers = {"hermes-tools": {"type": "sdk"}}
+    with pytest.raises(ValueError, match="setting_sources must be empty"):
+        SDKSessionConfiguration.create(
+            cwd="/synthetic/parity-v4",
+            parent_env={},
+            setting_sources=("project", "local"),
+            mcp_servers=mcp_servers,
+            allowed_tools=("mcp__hermes-tools__parity_read_only",),
+        )
     configuration = SDKSessionConfiguration.create(
-        cwd="/synthetic/parity-v3",
+        cwd="/synthetic/parity-v4",
         parent_env={},
-        setting_sources=("project", "local"),
         mcp_servers=mcp_servers,
         allowed_tools=("mcp__hermes-tools__parity_read_only",),
     )
     mcp_servers["unadmitted"] = {"type": "stdio"}
     options = configuration.option_fields()
 
-    assert options["setting_sources"] == ["project", "local"]
+    assert options["setting_sources"] == []
     assert options["mcp_servers"] == {"hermes-tools": {"type": "sdk"}}
     assert options["strict_mcp_config"] is True
     assert options["allowed_tools"] == ["mcp__hermes-tools__parity_read_only"]
-    assert options["tools"] == ["Agent"]
+    assert options["tools"] == []
     with pytest.raises(TypeError):
         SDKSessionConfiguration.create(
             cwd="/synthetic/parity-v3",
@@ -125,7 +132,10 @@ def test_variadic_sdk_surfaces_are_denied_without_weakening_tool_or_mcp_isolatio
         SDKSessionConfiguration.create(
             cwd="/synthetic/parity-v3",
             parent_env={},
-            allowed_tools=("same", "same"),
+            allowed_tools=(
+                "mcp__hermes-tools__parity_read_only",
+                "mcp__hermes-tools__parity_read_only",
+            ),
         )
 
 

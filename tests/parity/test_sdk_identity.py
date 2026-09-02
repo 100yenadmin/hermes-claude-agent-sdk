@@ -10,7 +10,7 @@ from hermes_claude_agent_sdk.parity.sdk_identity import (
 )
 
 
-@pytest.mark.parametrize("sdk_version", ["0.2.144", "0.2.151"])
+@pytest.mark.parametrize("sdk_version", ["0.2.151"])
 def test_candidate_sdk_identity_accepts_exact_supported_installed_version(
     monkeypatch: pytest.MonkeyPatch,
     sdk_version: str,
@@ -45,6 +45,7 @@ def test_candidate_sdk_identity_rejects_caller_and_install_mismatch(
         ("malformed", "0.2.151", "sdk_version_malformed"),
         ("0.2.151", "malformed", "sdk_version_malformed"),
         ("0.2.143", "0.2.143", "sdk_version_unsupported"),
+        ("0.2.144", "0.2.144", "sdk_version_unsupported"),
         ("0.2.152", "0.2.152", "sdk_version_unsupported"),
     ],
 )
