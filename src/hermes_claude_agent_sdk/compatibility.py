@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import ast
 import json
+import os
+import platform
 import re
 from importlib import metadata
+from pathlib import Path
 from typing import Any, Mapping, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - imports are documentation-only at runtime
@@ -30,6 +33,8 @@ FABLE_51_MODEL_ID = "claude-fable-5-1"
 FABLE_51_MIN_SDK_VERSION = "0.2.151"
 FABLE_51_MIN_CLI_VERSION = "2.1.257"
 _CLI_VERSION_RESOURCE = "claude_agent_sdk/_cli_version.py"
+_CLI_BUNDLE_RESOURCE = "claude_agent_sdk/_bundled/claude"
+_CLI_BUNDLE_RESOURCE_WINDOWS = "claude_agent_sdk/_bundled/claude.exe"
 _VERSION_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 
 # The extracted runtime will need the complete v1 host facade.  Declaring the
@@ -91,6 +96,73 @@ def build_runtime_descriptor() -> "RuntimeDescriptor":
 # A short alias is convenient for plugin authors and keeps the public surface
 # discoverable without exposing a mutable module-level descriptor instance.
 runtime_descriptor = build_runtime_descriptor
+
+
+def _bundled_cli_resource() -> str:
+    """Return the exact bundled CLI resource name used by the SDK transport."""
+
+    if platform.system() == "Windows":
+        return _CLI_BUNDLE_RESOURCE_WINDOWS
+    return _CLI_BUNDLE_RESOURCE
+
+
+def _resolve_bundled_cli_from_distribution(
+    distribution: Any,
+    *,
+    resource: str,
+) -> str | None:
+    """Resolve one safe absolute executable from distribution file metadata."""
+
+    try:
+        files = distribution.files
+        candidates = [
+            item
+            for item in (files or ())
+            if str(item).replace("\\", "/") == resource
+        ]
+    except Exception:
+        return None
+    if len(candidates) != 1:
+        return None
+
+    try:
+        located = distribution.locate_file(candidates[0])
+        raw_path = os.fspath(located)
+    except Exception:
+        return None
+    if not isinstance(raw_path, str) or not raw_path or "\x00" in raw_path:
+        return None
+
+    try:
+        path = Path(raw_path)
+        if not path.is_absolute():
+            return None
+        if path.name != resource.rsplit("/", 1)[-1]:
+            return None
+        if not path.is_file() or not os.access(path, os.X_OK):
+            return None
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+    return str(path)
+
+
+def resolve_bundled_cli(*, distribution: Any | None = None) -> str | None:
+    """Return the SDK transport's bundled Claude CLI absolute path.
+
+    The resolver reads only ``importlib.metadata`` file records and never
+    imports ``claude_agent_sdk``. Missing, duplicate, malformed, non-file,
+    and non-executable resources all fail closed with ``None``.
+    """
+
+    if distribution is None:
+        try:
+            distribution = metadata.distribution(SDK_DISTRIBUTION)
+        except Exception:
+            return None
+    return _resolve_bundled_cli_from_distribution(
+        distribution,
+        resource=_bundled_cli_resource(),
+    )
 
 
 def _version_tuple(value: object) -> tuple[int, int, int] | None:
@@ -437,5 +509,6 @@ __all__ = [
     "check_model_compatibility",
     "doctor",
     "doctor_json",
+    "resolve_bundled_cli",
     "runtime_descriptor",
 ]

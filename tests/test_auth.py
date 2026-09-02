@@ -140,6 +140,7 @@ def test_probe_uses_bounded_no_shell_argv_and_minimal_noncredential_environment(
 
     result = probe_claude_auth(
         runner=runner,
+        cli_resolver=lambda: "/opt/sdk/site-packages/claude_agent_sdk/_bundled/claude",
         timeout_seconds=2,
         max_output_bytes=1024,
         environment={
@@ -152,7 +153,12 @@ def test_probe_uses_bounded_no_shell_argv_and_minimal_noncredential_environment(
 
     assert result.allowed is True
     assert result.category is AuthCategory.SUBSCRIPTION_OAUTH
-    assert runner.argv == ["claude", "auth", "status", "--json"]
+    assert runner.argv == [
+        "/opt/sdk/site-packages/claude_agent_sdk/_bundled/claude",
+        "auth",
+        "status",
+        "--json",
+    ]
     assert runner.kwargs is not None
     assert runner.kwargs["shell"] is False
     assert runner.kwargs["check"] is False
@@ -180,7 +186,10 @@ def test_probe_sanitizes_runner_failures(
     error: BaseException,
     category: AuthCategory,
 ) -> None:
-    result = probe_claude_auth(runner=FakeRunner(error=error))
+    result = probe_claude_auth(
+        runner=FakeRunner(error=error),
+        cli_resolver=lambda: "/opt/sdk/site-packages/claude_agent_sdk/_bundled/claude",
+    )
 
     assert result.allowed is False
     assert result.category is category
@@ -198,7 +207,8 @@ def test_probe_classifies_timeout_expired_without_leaking_exception() -> None:
                 output=b"redacted-status",
                 stderr=b"redacted-stderr",
             )
-        )
+        ),
+        cli_resolver=lambda: "/opt/sdk/site-packages/claude_agent_sdk/_bundled/claude",
     )
 
     assert result.allowed is False
@@ -237,7 +247,10 @@ def test_default_probe_kills_child_when_final_wait_raises_timeout_expired(
     monkeypatch.setattr(auth_module.select, "select", lambda *a, **k: ([process.stdout], [], []))
     monkeypatch.setattr(auth_module.os, "read", lambda *a, **k: b"")
 
-    result = probe_claude_auth(environment={"PATH": "/synthetic"})
+    result = probe_claude_auth(
+        environment={"PATH": "/synthetic"},
+        cli_resolver=lambda: "/opt/sdk/site-packages/claude_agent_sdk/_bundled/claude",
+    )
 
     assert result.category is AuthCategory.TIMEOUT
     assert process.killed == 1
@@ -256,8 +269,61 @@ def test_probe_rejects_nonzero_oversized_and_nontext_output(
     completed: object,
     category: AuthCategory,
 ) -> None:
-    result = probe_claude_auth(runner=FakeRunner(completed), max_output_bytes=64)
+    result = probe_claude_auth(
+        runner=FakeRunner(completed),
+        cli_resolver=lambda: "/opt/sdk/site-packages/claude_agent_sdk/_bundled/claude",
+        max_output_bytes=64,
+    )
 
     assert result.allowed is False
     assert result.category is category
     assert "redacted" not in repr(result)
+
+
+def test_default_probe_binds_exact_bundled_cli_before_ambient_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = FakeRunner(
+        SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps(VALID_STATUS).encode("utf-8"),
+            stderr=b"",
+        )
+    )
+    exact_path = "/venv/lib/python3.12/site-packages/claude_agent_sdk/_bundled/claude"
+    monkeypatch.setattr(auth_module, "resolve_bundled_cli", lambda: exact_path)
+
+    result = probe_claude_auth(
+        runner=runner,
+        environment={"PATH": "/tmp/ambient-untrusted"},
+    )
+
+    assert result.allowed is True
+    assert runner.argv == [exact_path, "auth", "status", "--json"]
+    assert runner.kwargs is not None
+    assert runner.kwargs["env"]["PATH"] == "/tmp/ambient-untrusted"
+
+
+@pytest.mark.parametrize(
+    "resolver_result",
+    [None, "", "claude", "/tmp/does-not-exist"],
+)
+def test_probe_rejects_missing_or_nonabsolute_bundled_cli_before_runner(
+    resolver_result: object,
+) -> None:
+    runner = FakeRunner(
+        SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps(VALID_STATUS).encode("utf-8"),
+            stderr=b"",
+        )
+    )
+
+    result = probe_claude_auth(
+        runner=runner,
+        cli_resolver=lambda: resolver_result,
+    )
+
+    assert result.allowed is False
+    assert result.category is AuthCategory.CLI_MISSING
+    assert runner.argv is None

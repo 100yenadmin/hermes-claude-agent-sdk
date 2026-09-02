@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from .compatibility import resolve_bundled_cli
+
 
 class AuthCategory(str, Enum):
     """Sanitized outcome categories returned by the auth preflight."""
@@ -93,7 +95,7 @@ _MAX_TIMEOUT_SECONDS = 30.0
 _MIN_TIMEOUT_SECONDS = 0.05
 _MAX_ENUM_TEXT_LENGTH = 128
 _MAX_MAPPING_KEYS = 128
-_CLAUDE_AUTH_ARGV = ("claude", "auth", "status", "--json")
+_CLAUDE_AUTH_ARGS = ("auth", "status", "--json")
 _STATUS_FIELDS = frozenset(
     {"loggedIn", "authMethod", "apiProvider", "subscriptionType"}
 )
@@ -509,24 +511,40 @@ def _run_bounded_cli(
 def probe_claude_auth(
     *,
     runner: Callable[..., Any] | None = None,
+    cli_resolver: Callable[[], str | None] | None = None,
     timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
     max_output_bytes: int = _DEFAULT_MAX_STATUS_BYTES,
     environment: Mapping[str, object] | None = None,
 ) -> AuthPreflightResult:
     """Run the Claude CLI auth status command and return a typed result.
 
-    ``runner`` is an injected ``subprocess.run``-compatible callable for
-    deterministic tests.  The default invocation uses an argv list, no shell,
-    captured output, a bounded timeout, and an explicit environment.  Neither
-    stdout nor stderr is returned, logged, or included in exceptions.
+    ``runner`` and ``cli_resolver`` are injected seams for deterministic
+    tests. The default invocation uses the SDK distribution's absolute
+    bundled CLI path, an argv list, no shell, captured output, a bounded
+    timeout, and an explicit environment. Neither stdout nor stderr is
+    returned, logged, or included in exceptions.
     """
 
     timeout = _bounded_timeout(timeout_seconds)
     output_limit = _bounded_output_limit(max_output_bytes)
+    resolver = resolve_bundled_cli if cli_resolver is None else cli_resolver
+    try:
+        cli_path = resolver()
+    except Exception:
+        return _result(AuthCategory.CLI_MISSING)
+    if (
+        not isinstance(cli_path, str)
+        or not cli_path
+        or not os.path.isabs(cli_path)
+        or "\x00" in cli_path
+        or os.path.basename(cli_path) not in {"claude", "claude.exe"}
+    ):
+        return _result(AuthCategory.CLI_MISSING)
+    argv = [cli_path, *_CLAUDE_AUTH_ARGS]
     if runner is None:
         try:
             completed = _run_bounded_cli(
-                list(_CLAUDE_AUTH_ARGV),
+                argv,
                 timeout=timeout,
                 max_output_bytes=output_limit,
                 env=_probe_environment(environment),
@@ -545,7 +563,7 @@ def probe_claude_auth(
         command_runner = runner
         try:
             completed = command_runner(
-                list(_CLAUDE_AUTH_ARGV),
+                argv,
                 shell=False,
                 check=False,
                 capture_output=True,
