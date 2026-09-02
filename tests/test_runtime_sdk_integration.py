@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import time
 from dataclasses import dataclass
 from types import ModuleType, SimpleNamespace
 
@@ -482,16 +481,16 @@ class _ArmableContentCancellationHost(_Host):
         return False
 
 
-class _WallClockCancellationHost(_Host):
-    def __init__(self, *, cancel_after_seconds: float) -> None:
+class _ProjectionCountCancellationHost(_Host):
+    def __init__(self, *, cancel_after_projections: int) -> None:
         super().__init__()
-        self._cancel_at = time.monotonic() + cancel_after_seconds
+        self._cancel_after_projections = cancel_after_projections
         self.cancelled_projection_count: int | None = None
         self.projection_count = 0
 
     def cancellation_requested(self) -> bool:
         self.cancel_checks += 1
-        cancelled = time.monotonic() >= self._cancel_at
+        cancelled = self.projection_count >= self._cancel_after_projections
         if cancelled and self.cancelled_projection_count is None:
             self.cancelled_projection_count = self.projection_count
         return cancelled
@@ -1022,7 +1021,7 @@ def test_cancellation_is_polled_during_sustained_projection_stream() -> None:
     async def scenario():
         clients: list[_Client] = []
         runtime = _runtime("sustained_stream", clients)
-        host = _WallClockCancellationHost(cancel_after_seconds=0.02)
+        host = _ProjectionCountCancellationHost(cancel_after_projections=2)
         events = []
         try:
             async def collect() -> None:
