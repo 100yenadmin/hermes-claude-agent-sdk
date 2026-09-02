@@ -60,6 +60,12 @@ def test_malformed_bundled_cli_metadata_is_not_accepted(monkeypatch):
             '__cli_version__ = "2.1.258"\n'
             'if True:\n    __cli_version__ = "2.1.239"\n'
         ),
+        (
+            '"""doc"""\n'
+            '__cli_version__ = "2.1.258"\n'
+            '"unexpected trailing statement"\n'
+        ),
+        '"first"\n"second"\n__cli_version__ = "2.1.258"\n',
     ),
 )
 def test_bundled_cli_mutation_or_reassignment_fails_closed(

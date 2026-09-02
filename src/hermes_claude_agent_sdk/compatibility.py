@@ -156,33 +156,32 @@ def _parse_bundled_cli_version(source: object) -> str | None:
     except (SyntaxError, ValueError, TypeError):
         return None
 
-    value: str | None = None
-    for node in tree.body:
-        # The published SDK resource is a module docstring followed by one
-        # plain literal assignment.  Accept only that inert shape so a later
-        # mutation, deletion, conditional reassignment, or executable helper
-        # cannot disagree with the metadata decision made before import.
-        if (
-            isinstance(node, ast.Expr)
-            and isinstance(node.value, ast.Constant)
-            and isinstance(node.value.value, str)
-        ):
-            continue
+    # The published resource has exactly one of two inert shapes: a literal
+    # assignment by itself, or a leading module docstring followed by that
+    # assignment.  Any additional or reordered statement fails closed.
+    body = list(tree.body)
+    if len(body) == 2:
+        docstring = body.pop(0)
         if not (
-            isinstance(node, ast.Assign)
-            and len(node.targets) == 1
-            and isinstance(node.targets[0], ast.Name)
-            and node.targets[0].id == "__cli_version__"
-            and isinstance(node.value, ast.Constant)
+            isinstance(docstring, ast.Expr)
+            and isinstance(docstring.value, ast.Constant)
+            and isinstance(docstring.value.value, str)
         ):
             return None
-        if value is not None:
-            return None
-        candidate = node.value.value
-        if _version_tuple(candidate) is None:
-            return None
-        value = candidate
-    return value
+    if len(body) != 1:
+        return None
+
+    assignment = body[0]
+    if not (
+        isinstance(assignment, ast.Assign)
+        and len(assignment.targets) == 1
+        and isinstance(assignment.targets[0], ast.Name)
+        and assignment.targets[0].id == "__cli_version__"
+        and isinstance(assignment.value, ast.Constant)
+    ):
+        return None
+    candidate = assignment.value.value
+    return candidate if _version_tuple(candidate) is not None else None
 
 
 def _sdk_metadata() -> dict[str, Any]:
