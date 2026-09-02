@@ -73,14 +73,14 @@ AGENTS_INVENTORY = [
     {
         "id": "main",
         "workspace": "/sandbox/workspace",
-        "model": "claude-fable-5",
+        "model": "claude-fable-5-1",
         "bindings": 0,
         "isDefault": True,
     },
     {
         "id": "bench-helper",
         "workspace": "/sandbox/helper",
-        "model": "claude-fable-5",
+        "model": "claude-fable-5-1",
         "bindings": 0,
         "isDefault": False,
     },
@@ -94,13 +94,13 @@ SESSIONS_INVENTORY = {
             "key": "agent:main:main",
             "inputTokens": 255_678,
             "contextTokens": 200_000,
-            "model": "claude-fable-5",
+            "model": "claude-fable-5-1",
         },
         {
             "key": "agent:main:sidecar",
             "inputTokens": 12_000,
             "contextTokens": 200_000,
-            "model": "claude-fable-5",
+            "model": "claude-fable-5-1",
         },
     ],
 }
@@ -247,7 +247,7 @@ def native_environment_snapshot(surfaces: Sequence[str]) -> dict[str, Any]:
         "agents": {
             "status": "ready",
             "count": len(AGENTS_INVENTORY),
-            "default_model": "claude-fable-5",
+            "default_model": "claude-fable-5-1",
         },
         "sessions": {
             "status": "ready",

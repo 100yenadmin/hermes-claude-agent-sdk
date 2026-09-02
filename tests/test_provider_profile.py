@@ -33,7 +33,7 @@ def test_provider_profile_declares_only_the_supported_subscription_route() -> No
     assert profile.models_url == ""
     assert profile.supports_health_check is False
     assert profile.env_vars == ("CLAUDE_CODE_OAUTH_TOKEN",)
-    assert profile.fallback_models == ("claude-fable-5",)
+    assert profile.fallback_models == ("claude-fable-5-1",)
 
     anthropic = providers.get_provider_profile("anthropic")
     if anthropic is not None:

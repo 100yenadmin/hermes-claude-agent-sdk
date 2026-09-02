@@ -9,8 +9,11 @@ from pathlib import Path
 import pytest
 
 from hermes_claude_agent_sdk.parity.native_sandbox import (
-    NativeSandboxHost,
+    AGENTS_INVENTORY,
+    SESSIONS_INVENTORY,
     SKILLS_INVENTORY,
+    NativeSandboxHost,
+    native_environment_snapshot,
     simulate_openclaw_argv,
     tool_schemas,
     write_cli_shim,
@@ -80,6 +83,15 @@ def test_simulated_cli_and_temp_shim_share_the_same_skills_truth() -> None:
         )
     assert completed.returncode == 0
     assert json.loads(completed.stdout) == SKILLS_INVENTORY
+
+
+def test_sandbox_model_inventories_use_revision_4_direct_model() -> None:
+    assert {item["model"] for item in AGENTS_INVENTORY} == {"claude-fable-5-1"}
+    assert {
+        item["model"] for item in SESSIONS_INVENTORY["sessions"]
+    } == {"claude-fable-5-1"}
+    snapshot = native_environment_snapshot(("agents",))
+    assert snapshot["agents"]["default_model"] == "claude-fable-5-1"
 
 
 def test_sandbox_exec_never_accepts_shell_syntax(tmp_path: Path) -> None:

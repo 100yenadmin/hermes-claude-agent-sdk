@@ -460,8 +460,8 @@ async def _execute_live(
 
     from hermes_claude_agent_sdk.runtime import ClaudeAgentSDKRuntime
 
-    model = os.environ.get("HERMES_PARITY_MODEL", "claude-fable-5")
-    if model != "claude-fable-5":
+    model = os.environ.get("HERMES_PARITY_MODEL", "claude-fable-5-1")
+    if model != "claude-fable-5-1":
         raise ValueError("native live model is outside the authorized Fable route")
     host = NativeSandboxHost(workspace, protected)
     schemas = tool_schemas(scenario.tools)

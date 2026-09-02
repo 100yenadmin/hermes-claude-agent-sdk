@@ -28,7 +28,7 @@ from typing import Any, AsyncIterator, Callable, Iterator, Mapping
 SYNTHETIC_SESSION_ID = "synthetic-approval-session"
 SYNTHETIC_TASK_ID = "synthetic-approval-task"
 SYNTHETIC_CORRELATION_ID = "synthetic-approval-correlation"
-SYNTHETIC_MODEL = "claude-fable-5"
+SYNTHETIC_MODEL = "claude-fable-5-1"
 SYNTHETIC_INPUT_TOKENS = 2
 SYNTHETIC_OUTPUT_TOKENS = 3
 EXPECTED_APPROVALS = ("approved", "denied", "approved")

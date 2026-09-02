@@ -12,7 +12,7 @@ from typing import Any
 
 PROFILE_ALIASES = ("claude-sdk", "claude-code-sdk", "claude_agent_sdk")
 PROFILE_ENV_VARS = ("CLAUDE_CODE_OAUTH_TOKEN",)
-PROFILE_FALLBACK_MODELS = ("claude-fable-5",)
+PROFILE_FALLBACK_MODELS = ("claude-fable-5-1",)
 
 # This is populated only when the public ``providers`` package is available.
 # Keeping the value optional makes direct imports of this module safe in a
