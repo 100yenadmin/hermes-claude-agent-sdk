@@ -105,7 +105,15 @@ class _Client:
             handler = server["tools"][0]["handler"]
             await handler({"path": "."})
             await self._messages.put(
-                AssistantMessage([ToolUseBlock("tool-1", "pwd", {"path": "."})])
+                AssistantMessage(
+                    [
+                        ToolUseBlock(
+                            "tool-1",
+                            "mcp__hermes-tools__pwd",
+                            {"path": "."},
+                        )
+                    ]
+                )
             )
         if self.mode == "native_agent_once" and len(self.queries) == 1:
             await self._messages.put(
@@ -641,9 +649,12 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
         }
         fields = clients[0].options.fields
         assert fields["permission_mode"] == "bypassPermissions"
-        assert fields["system_prompt"]["append"].startswith("stable system prompt")
-        assert fields["tools"] == ["Agent"]
+        assert fields["system_prompt"] == "stable system prompt"
+        assert fields["tools"] == []
+        assert fields["setting_sources"] == []
+        assert fields["strict_mcp_config"] is True
         assert fields["mcp_servers"]["hermes-tools"]["tools"] == []
+        assert fields["allowed_tools"] == []
         assert clients[0].queries == ["hello runtime"]
         assert clients[0].disconnected == 1
 
@@ -1039,30 +1050,23 @@ def test_host_tool_bridge_and_resume_use_only_public_fields() -> None:
     asyncio.run(scenario())
 
 
-def test_native_agent_observation_is_non_executable_and_resets_between_turns() -> None:
+def test_native_agent_event_fails_closed_before_host_tool_execution() -> None:
     async def scenario():
         clients: list[_Client] = []
         runtime = _runtime("native_agent_once", clients)
         host = _Host()
 
         first = await _collect(runtime, _request(), host)
-        first_observations = runtime.last_turn_tool_observations
-        second = await _collect(runtime, _request(), host)
-        second_observations = runtime.last_turn_tool_observations
         await runtime.close()
-        return first, second, first_observations, second_observations, host
+        return first, host
 
-    first, second, first_observations, second_observations, host = asyncio.run(
-        scenario()
-    )
+    first, host = asyncio.run(scenario())
 
-    assert first_observations == ("Agent",)
-    assert second_observations == ()
+    assert first[-1].kind.value == "failed"
+    assert first[-1].failure.code == "claude_runtime_native_tool_unsupported"
+    assert first[-1].failure.phase.value == "before_visible_output"
     assert host.calls == []
     assert not any(isinstance(event, RuntimeToolRequestEvent) for event in first)
-    assert not any(isinstance(event, RuntimeToolRequestEvent) for event in second)
-    assert first[-1].kind.value == "completed"
-    assert second[-1].kind.value == "completed"
 
 
 def test_tool_observation_names_are_bounded_and_identifier_shaped() -> None:
@@ -1330,7 +1334,7 @@ def test_in_loop_cancellation_probe_failure_drains_projection_then_fails_closed(
     assert client.disconnected == 1
 
 
-def test_runtime_reuses_one_client_reader_and_uses_host_only_for_idle_completion() -> None:
+def test_runtime_rejects_post_terminal_sdk_output_without_background_delivery() -> None:
     async def scenario():
         clients: list[_Client] = []
         runtime = _runtime("success", clients)
@@ -1353,12 +1357,11 @@ def test_runtime_reuses_one_client_reader_and_uses_host_only_for_idle_completion
         assert len(clients) == 1
         assert client.connected == 1
         assert client.disconnected == 1
-        assert client.queries == ["hello runtime", "hello runtime"]
+        assert client.queries == ["hello runtime"]
         assert sum(event.kind.value == "completed" for event in first) == 1
-        assert sum(event.kind.value == "completed" for event in second) == 1
-        assert len(host.background) == 1
-        assert host.background[0].content == "background one"
-        assert set(host.background[0].__dataclass_fields__) == {"content", "outcome"}
+        assert [event.kind.value for event in second] == ["failed"]
+        assert second[0].failure.code == "sdk_post_terminal_output"
+        assert host.background == []
 
     asyncio.run(scenario())
 
@@ -1484,8 +1487,7 @@ def test_queued_idle_burst_is_released_only_after_parent_terminal_is_observed() 
             host.observed_events.append(event.kind.value)
         await runtime.close()
 
-        assert host.observed_events[-1] == "completed"
-        assert [item.content for item in host.background] == ["background queued"]
-        assert host.background_after_terminal == [True]
+        assert host.observed_events[-1] == "failed"
+        assert host.background == []
 
     asyncio.run(scenario())

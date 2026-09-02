@@ -81,7 +81,7 @@ def test_exact_host_is_zero_json_with_api_capabilities_and_sdk_metadata() -> Non
     assert report["capabilities"]["missing"] == []
     assert report["capabilities"]["compatible"] is True
     assert report["sdk"]["distribution"] == "claude-agent-sdk"
-    assert report["sdk"]["required_version"] == "0.2.144"
+    assert report["sdk"]["required_version"] == "0.2.151"
     assert "claude_agent_sdk" not in report
     assert "/Users/" not in result.stdout
     assert "Traceback" not in result.stdout

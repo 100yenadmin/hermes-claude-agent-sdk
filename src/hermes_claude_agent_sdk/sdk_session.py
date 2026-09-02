@@ -8,10 +8,8 @@ claims so two callers can never consume the same stream concurrently.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import importlib
 import inspect
-from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable
@@ -29,7 +27,11 @@ from .compaction import (
     NativeCompactionLifecycle,
     SessionCompactionEvent,
 )
-from .content_events import ClaudeSdkEventProjector, ProjectionResult
+from .content_events import (
+    ClaudeSdkEventProjector,
+    ProjectionResult,
+    zero_native_violation,
+)
 from .turn_input import SDKTurnInput
 
 
@@ -40,19 +42,6 @@ class SessionOutcome(str, Enum):
     TIMED_OUT = "timed_out"
     FAILED = "failed"
     CLOSED = "closed"
-
-
-class BackgroundSessionOutcome(str, Enum):
-    COMPLETED = "completed"
-    FAILED = "failed"
-
-
-@dataclass(frozen=True, slots=True)
-class BackgroundSessionResult:
-    """Bounded provider-local value awaiting host-owned delivery."""
-
-    content: str
-    outcome: BackgroundSessionOutcome = BackgroundSessionOutcome.COMPLETED
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,13 +65,21 @@ class _StreamEnded:
 
 
 @dataclass(frozen=True, slots=True)
-class _PendingBackgroundResult:
-    result: BackgroundSessionResult
-    requires_foreground_trust: bool
+class _CompactionWatchdogExpired:
+    pass
 
 
 @dataclass(frozen=True, slots=True)
-class _CompactionWatchdogExpired:
+class _PostTerminalOutput:
+    """Marker for SDK output observed after a turn's terminal result."""
+
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class _NativeToolViolation:
+    """Marker for SDK-native tool output rejected before projection."""
+
     pass
 
 
@@ -94,9 +91,6 @@ _IMMEDIATE_BILLING_BLOCKS = {
     BillingBlockReason.OVERAGE,
     BillingBlockReason.CONFLICTING_EVIDENCE,
 }
-_MAX_BACKGROUND_BYTES = 16_384
-_BACKGROUND_DEDUPLICATION_WINDOW = 64
-_BACKGROUND_CALLBACK_TIMEOUT_SECONDS = 5.0
 
 _TERMINAL_FAILURE_CODES = {
     "api_error": "sdk_terminal_api_error",
@@ -140,14 +134,6 @@ def _classify_result_failure(message: Any) -> tuple[str, bool]:
             return code, False
 
     return "sdk_result_failed", False
-
-
-def _bounded_background_text(value: Any) -> str:
-    if not isinstance(value, str):
-        return ""
-    normalized = value.replace("\r\n", "\n").replace("\r", "\n").strip()
-    encoded = normalized.encode("utf-8")[:_MAX_BACKGROUND_BYTES]
-    return encoded.decode("utf-8", errors="ignore").strip()
 
 
 async def _call(callback: Callable[[Any], Any] | None, value: Any) -> None:
@@ -203,7 +189,6 @@ class SDKSession:
         projector: ClaudeSdkEventProjector | None = None,
         on_projection: Callable[[ProjectionResult], Any] | None = None,
         on_billing_decision: Callable[[BillingDecision], Any] | None = None,
-        on_background_result: Callable[[BackgroundSessionResult], Any] | None = None,
         compaction_watchdog_seconds: float = DEFAULT_COMPACTION_WATCHDOG_SECONDS,
     ) -> None:
         self._configuration = configuration
@@ -214,28 +199,21 @@ class SDKSession:
         )
         self._on_projection = on_projection
         self._on_billing_decision = on_billing_decision
-        self._on_background_result = on_background_result
         self._compaction = NativeCompactionLifecycle(
             watchdog_seconds=compaction_watchdog_seconds
         )
         self._client: Any | None = None
         self._reader_task: asyncio.Task[None] | None = None
         self._active_inbox: asyncio.Queue[Any] | None = None
+        self._turn_terminal_seen = False
+        self._post_terminal_output = False
+        self._post_terminal_native_violation = False
+        self._stream_tool_indexes: dict[int, str] = {}
         self._turn_lock = asyncio.Lock()
         self._start_lock = asyncio.Lock()
         self._close_lock = asyncio.Lock()
         self._closed = False
         self._cancel_requested = False
-        self._background_projector = ClaudeSdkEventProjector(model=configuration.model)
-        self._background_text = ""
-        self._background_evidence: SDKBillingEvidence | None = None
-        self._background_blocked = False
-        self._foreground_billing_allowed = False
-        self._background_fingerprints: deque[bytes] = deque()
-        self._background_fingerprint_set: set[bytes] = set()
-        self._background_delivery_lock = asyncio.Lock()
-        self._background_delivery_enabled = False
-        self._pending_background_results: deque[_PendingBackgroundResult] = deque()
 
     @property
     def can_restart_after_cancel(self) -> bool:
@@ -278,16 +256,33 @@ class SDKSession:
         failed = False
         try:
             async for message in self._client.receive_messages():
+                if zero_native_violation(
+                    message,
+                    allowed_tool_names=self._configuration.allowed_tools,
+                    stream_tool_indexes=self._stream_tool_indexes,
+                ):
+                    inbox = self._active_inbox
+                    if inbox is not None:
+                        inbox.put_nowait(_NativeToolViolation())
+                    else:
+                        self._post_terminal_native_violation = True
+                    continue
                 inbox = self._active_inbox
                 if inbox is not None:
-                    inbox.put_nowait(message)
-                    if type(message).__name__ == "ResultMessage":
-                        # The reader owns the turn boundary.  Later messages
-                        # are idle completions, never the next turn's answer.
-                        if self._active_inbox is inbox:
-                            self._active_inbox = None
+                    if self._turn_terminal_seen:
+                        # A ResultMessage is the sole supported terminal
+                        # boundary. Any later SDK output belongs to neither
+                        # this turn nor a plugin-owned background loop.
+                        inbox.put_nowait(_PostTerminalOutput())
+                    else:
+                        inbox.put_nowait(message)
+                        if type(message).__name__ == "ResultMessage":
+                            self._turn_terminal_seen = True
                     continue
-                await self._handle_background_message(message)
+                # Once the turn inbox is retired, any SDK output is an
+                # unsolicited post-terminal protocol violation. Keep only a
+                # boolean receipt; never project, deliver, or retain content.
+                self._post_terminal_output = True
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -296,108 +291,6 @@ class SDKSession:
             inbox = self._active_inbox
             if inbox is not None:
                 inbox.put_nowait(_StreamEnded(failed=failed))
-
-    async def _handle_background_message(self, message: Any) -> None:
-        """Classify one idle SDK burst without exposing provider identifiers."""
-
-        if self._closed:
-            return
-        billing_update = extract_sdk_billing_evidence(message)
-        if billing_update is not None:
-            self._background_evidence = _merge_evidence(
-                self._background_evidence, billing_update
-            )
-            decision = classify_sdk_billing(self._background_evidence)
-            if decision.block_reason in _IMMEDIATE_BILLING_BLOCKS:
-                self._background_blocked = True
-
-        projection = self._background_projector.project(message)
-        if type(message).__name__ != "ResultMessage":
-            if projection.final_text:
-                combined = "\n".join(
-                    part for part in (self._background_text, projection.final_text) if part
-                )
-                self._background_text = _bounded_background_text(combined)
-            return
-
-        text = _bounded_background_text(projection.final_text or self._background_text)
-        evidence = self._background_evidence
-        blocked = self._background_blocked
-        self._background_text = ""
-        self._background_evidence = None
-        self._background_blocked = False
-        if not text or blocked:
-            return
-        if evidence is not None and not classify_sdk_billing(evidence).allowed:
-            return
-
-        outcome = (
-            BackgroundSessionOutcome.FAILED
-            if getattr(message, "is_error", False) is True
-            else BackgroundSessionOutcome.COMPLETED
-        )
-        fingerprint = hashlib.sha256(
-            outcome.value.encode("ascii") + b"\0" + text.encode("utf-8")
-        ).digest()
-        if fingerprint in self._background_fingerprint_set:
-            return
-        if len(self._background_fingerprints) >= _BACKGROUND_DEDUPLICATION_WINDOW:
-            expired = self._background_fingerprints.popleft()
-            self._background_fingerprint_set.discard(expired)
-        self._background_fingerprints.append(fingerprint)
-        self._background_fingerprint_set.add(fingerprint)
-        pending = _PendingBackgroundResult(
-            result=BackgroundSessionResult(content=text, outcome=outcome),
-            requires_foreground_trust=evidence is None,
-        )
-        deliver_now: BackgroundSessionResult | None = None
-        async with self._background_delivery_lock:
-            if self._closed:
-                return
-            if not self._background_delivery_enabled:
-                if len(self._pending_background_results) < _BACKGROUND_DEDUPLICATION_WINDOW:
-                    self._pending_background_results.append(pending)
-                return
-            if pending.requires_foreground_trust and not self._foreground_billing_allowed:
-                return
-            deliver_now = pending.result
-        if deliver_now is not None:
-            await self._deliver_background_result(deliver_now)
-
-    async def _deliver_background_result(self, result: BackgroundSessionResult) -> None:
-        try:
-            await asyncio.wait_for(
-                _call(self._on_background_result, result),
-                _BACKGROUND_CALLBACK_TIMEOUT_SECONDS,
-            )
-        except Exception:
-            # The host owns rejection, retry, and requeue.  A sealed binding
-            # must not retire the SDK reader or trigger plugin-local retry.
-            return
-
-    async def release_background_results(self) -> None:
-        """Open delivery only after the host has observed the turn terminal."""
-
-        deliverable: list[BackgroundSessionResult] = []
-        async with self._background_delivery_lock:
-            if self._closed:
-                self._pending_background_results.clear()
-                return
-            self._background_delivery_enabled = True
-            while self._pending_background_results:
-                pending = self._pending_background_results.popleft()
-                if (
-                    pending.requires_foreground_trust
-                    and not self._foreground_billing_allowed
-                ):
-                    continue
-                deliverable.append(pending.result)
-        for result in deliverable:
-            await self._deliver_background_result(result)
-
-    async def _pause_background_delivery(self) -> None:
-        async with self._background_delivery_lock:
-            self._background_delivery_enabled = False
 
     async def run_turn(
         self,
@@ -418,6 +311,24 @@ class SDKSession:
         async with self._turn_lock:
             if self._closed:
                 return SessionTurnResult(SessionOutcome.CLOSED, error_code="session_closed")
+            if self._post_terminal_native_violation:
+                self._post_terminal_native_violation = False
+                self._post_terminal_output = False
+                await self._interrupt_then_close()
+                return SessionTurnResult(
+                    SessionOutcome.FAILED,
+                    error_code="sdk_native_tool_unsupported",
+                )
+            if self._post_terminal_output:
+                # A prior terminal result was followed by unsolicited SDK
+                # output while no turn was active. Retire the client and
+                # report the protocol violation before a new query.
+                self._post_terminal_output = False
+                await self._interrupt_then_close()
+                return SessionTurnResult(
+                    SessionOutcome.FAILED,
+                    error_code="sdk_post_terminal_output",
+                )
             try:
                 await self.start()
             except Exception:
@@ -427,9 +338,10 @@ class SDKSession:
             if self._cancel_requested:
                 return SessionTurnResult(SessionOutcome.CANCELLED)
 
-            await self._pause_background_delivery()
             inbox: asyncio.Queue[Any] = asyncio.Queue()
             self._active_inbox = inbox
+            self._turn_terminal_seen = False
+            self._stream_tool_indexes.clear()
             self._compaction.bind(
                 on_event=on_compaction_event,
                 on_watchdog=lambda: inbox.put_nowait(_COMPACTION_WATCHDOG_EXPIRED),
@@ -489,6 +401,22 @@ class SDKSession:
                         )
                     if message is _CANCELLED or self._cancel_requested:
                         return SessionTurnResult(SessionOutcome.CANCELLED)
+                    if isinstance(message, _NativeToolViolation):
+                        await self._interrupt_then_close()
+                        return SessionTurnResult(
+                            SessionOutcome.FAILED,
+                            final_text=final_text,
+                            state_update=state,
+                            error_code="sdk_native_tool_unsupported",
+                        )
+                    if isinstance(message, _PostTerminalOutput):
+                        await self._interrupt_then_close()
+                        return SessionTurnResult(
+                            SessionOutcome.FAILED,
+                            final_text=final_text,
+                            state_update=state,
+                            error_code="sdk_post_terminal_output",
+                        )
                     if message is _COMPACTION_WATCHDOG_EXPIRED:
                         await self._interrupt_then_close()
                         return SessionTurnResult(
@@ -558,13 +486,48 @@ class SDKSession:
                             billing_decision=decision,
                             error_code="sdk_billing_blocked",
                         )
-                    self._foreground_billing_allowed = True
                     # Result projection contains RuntimeCompletedEvent, so it
                     # is released only after the billing decision is allowed.
                     projection = turn_projector.project(message)
                     await _call(turn_projection_callback, projection)
                     if projection.final_text is not None:
                         final_text = projection.final_text
+                    # Give the sole reader one scheduling point to classify
+                    # already-emitted post-terminal output.  A marker already
+                    # queued behind this ResultMessage is a protocol failure,
+                    # never an idle/background result.
+                    await asyncio.sleep(0)
+                    trailing_post_terminal = False
+                    trailing_native_violation = False
+                    while True:
+                        try:
+                            trailing = inbox.get_nowait()
+                        except asyncio.QueueEmpty:
+                            break
+                        if isinstance(trailing, _PostTerminalOutput):
+                            trailing_post_terminal = True
+                            break
+                        if isinstance(trailing, _NativeToolViolation):
+                            trailing_native_violation = True
+                            break
+                        if isinstance(trailing, _StreamEnded):
+                            continue
+                    if trailing_native_violation:
+                        await self._interrupt_then_close()
+                        return SessionTurnResult(
+                            SessionOutcome.FAILED,
+                            final_text=final_text,
+                            state_update=state,
+                            error_code="sdk_native_tool_unsupported",
+                        )
+                    if trailing_post_terminal:
+                        await self._interrupt_then_close()
+                        return SessionTurnResult(
+                            SessionOutcome.FAILED,
+                            final_text=final_text,
+                            state_update=state,
+                            error_code="sdk_post_terminal_output",
+                        )
                     terminal_reason = getattr(message, "terminal_reason", None)
                     if terminal_reason in {"aborted_streaming", "aborted_tools"}:
                         return SessionTurnResult(
@@ -610,6 +573,8 @@ class SDKSession:
             finally:
                 if self._active_inbox is inbox:
                     self._active_inbox = None
+                self._turn_terminal_seen = False
+                self._stream_tool_indexes.clear()
                 await self._compaction.end_turn(completed=turn_completed)
 
     async def cancel(self) -> SessionOutcome:
@@ -637,9 +602,6 @@ class SDKSession:
                 return
             self._closed = True
             await self._compaction.end_turn(completed=False)
-            async with self._background_delivery_lock:
-                self._background_delivery_enabled = False
-                self._pending_background_results.clear()
             inbox = self._active_inbox
             if inbox is not None:
                 inbox.put_nowait(_CANCELLED)
@@ -662,8 +624,6 @@ class SDKSession:
 
 
 __all__ = [
-    "BackgroundSessionOutcome",
-    "BackgroundSessionResult",
     "SDKSession",
     "SessionOutcome",
     "SessionStateUpdate",

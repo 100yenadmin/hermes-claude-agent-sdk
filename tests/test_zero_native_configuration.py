@@ -1,4 +1,4 @@
-"""Offline proof for the native Agent tool configuration boundary."""
+"""Offline proof for the zero-native SDK configuration boundary."""
 
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ def _configuration() -> SDKSessionConfiguration:
     return SDKSessionConfiguration.create(
         cwd="/synthetic/workspace",
         model="claude-fable-synthetic",
+        prompt_snapshot="Hermes-owned prompt snapshot",
         mcp_servers={
             "hermes-tools": {
                 "type": "sdk",
@@ -38,7 +39,7 @@ def _configuration() -> SDKSessionConfiguration:
     )
 
 
-def test_option_fields_expose_native_agent_and_hermes_mcp_allowlist() -> None:
+def test_option_fields_disable_native_tools_and_use_hermes_mcp_allowlist() -> None:
     from claude_agent_sdk import ClaudeAgentOptions, __version__ as sdk_version
     from hermes_claude_agent_sdk.compatibility import _sdk_metadata
 
@@ -59,7 +60,8 @@ def test_option_fields_expose_native_agent_and_hermes_mcp_allowlist() -> None:
         "strict_mcp_config",
         "allowed_tools",
     }
-    assert fields["tools"] == ["Agent"]
+    assert fields["system_prompt"] == "Hermes-owned prompt snapshot"
+    assert fields["tools"] == []
     assert fields["allowed_tools"] == ["mcp__hermes-tools__pwd"]
     assert all(
         name.startswith("mcp__hermes-tools__")
@@ -68,17 +70,17 @@ def test_option_fields_expose_native_agent_and_hermes_mcp_allowlist() -> None:
     assert fields["strict_mcp_config"] is True
     assert fields["setting_sources"] == []
 
-    # The mapping is accepted by the installed public SDK within the package's
-    # bounded compatibility range without a provider call. The frozen-v2
-    # runner separately constrains this named test to exact SDK 0.2.144.
+    # The mapping is accepted by the exact installed public SDK without a
+    # provider call or transport process.
     options = ClaudeAgentOptions(**fields)
-    assert options.tools == ["Agent"]
+    assert options.system_prompt == "Hermes-owned prompt snapshot"
+    assert options.tools == []
     assert options.allowed_tools == ["mcp__hermes-tools__pwd"]
     assert options.strict_mcp_config is True
     assert options.setting_sources == []
 
 
-def test_pinned_public_sdk_serializes_agent_without_default_or_empty_tools(
+def test_pinned_public_sdk_serializes_explicit_empty_tools_and_exact_prompt(
     tmp_path: Path,
 ) -> None:
     from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
@@ -97,7 +99,7 @@ with capture.open(\"a\", encoding=\"utf-8\") as stream:
     stream.write(json.dumps(sys.argv[1:]) + \"\\n\")
 
 if \"--version\" in sys.argv:
-    print(\"2.0.0\", flush=True)
+    print(\"2.1.258\", flush=True)
     raise SystemExit(0)
 
 for line in sys.stdin:
@@ -139,10 +141,16 @@ for line in sys.stdin:
     command = next(argv for argv in commands if "--output-format" in argv)
     assert command[command.index("--tools") : command.index("--tools") + 2] == [
         "--tools",
-        "Agent",
+        "",
     ]
     assert "default" not in command
-    assert "" not in command
+    assert "Agent" not in command
+    prompt_index = command.index("--system-prompt")
+    assert command[prompt_index : prompt_index + 2] == [
+        "--system-prompt",
+        "Hermes-owned prompt snapshot",
+    ]
+    assert "--append-system-prompt" not in command
     allowed_tools_index = command.index("--allowedTools")
     assert command[allowed_tools_index : allowed_tools_index + 2] == [
         "--allowedTools",

@@ -18,11 +18,9 @@ from .compatibility import (
     is_supported_model_id,
 )
 from .configuration import SDKSessionConfiguration
-from .prompt_context import build_sdk_prompt_context
 from .tool_bridge import HostToolBridge
 from .turn_input import TurnInputValidationError, build_sdk_turn_input
 
-_MAX_SYSTEM_APPEND = 32_000
 _MCP_SERVER_NAME = "hermes-tools"
 _MAX_TURN_TOOL_OBSERVATIONS = 64
 _MAX_TOOL_OBSERVATION_NAME_CHARS = 128
@@ -126,28 +124,6 @@ class ClaudeAgentSDKRuntime:
 
         return self._last_turn_tool_observations
 
-    async def _emit_background_result(self, result: Any) -> None:
-        """Delegate exact-parent routing and delivery exclusively to the host."""
-
-        if self._closed or self._host is None:
-            return
-        from agent.runtime_api import RuntimeBackgroundOutcome, RuntimeBackgroundResult
-        from .sdk_session import BackgroundSessionOutcome
-
-        outcome = (
-            RuntimeBackgroundOutcome.FAILED
-            if result.outcome is BackgroundSessionOutcome.FAILED
-            else RuntimeBackgroundOutcome.COMPLETED
-        )
-        try:
-            await self._host.emit_background_result(
-                RuntimeBackgroundResult(content=result.content, outcome=outcome)
-            )
-        except Exception:
-            # A sealed host binding rejects late work.  Delivery/requeue is a
-            # host responsibility, so the plugin neither retries nor reroutes.
-            return
-
     def _default_auth_probe(self) -> Any:
         module = importlib.import_module(".auth", __package__)
         return module.probe_claude_auth()
@@ -171,7 +147,6 @@ class ClaudeAgentSDKRuntime:
             configuration,
             sdk_module=self._sdk,
             client_factory=self._client_factory,
-            on_background_result=self._emit_background_result,
             compaction_watchdog_seconds=self._compaction_watchdog_seconds,
         )
 
@@ -333,19 +308,16 @@ class ClaudeAgentSDKRuntime:
         bridge: HostToolBridge | None = None
         bridge_execution_start = 0
         try:
-            prompt_context = build_sdk_prompt_context(request)
-            system_parts = [prompt_context.base_prompt]
-            if prompt_context.system_prompt_append:
-                system_parts.append(prompt_context.system_prompt_append)
-            system_prompt_append = "\n\n".join(
-                part for part in system_parts if part
-            )[:_MAX_SYSTEM_APPEND] or None
+            # The host has already composed and snapshotted the prompt.  The
+            # SDK receives that exact value as its public system prompt; it
+            # must not add a preset or plugin-owned context of its own.
+            prompt_snapshot = request.prompt_snapshot
             session_contract = (
                 request.selection.provider,
                 request.selection.model,
                 request.selection.api_mode,
                 request.tool_schema_hash,
-                system_prompt_append,
+                prompt_snapshot,
             )
 
             def new_projector() -> Any:
@@ -376,7 +348,7 @@ class ClaudeAgentSDKRuntime:
                     cwd=self._cwd,
                     model=request.selection.model,
                     permission_mode="bypassPermissions",
-                    system_prompt_append=system_prompt_append,
+                    prompt_snapshot=prompt_snapshot,
                     resume_external_session_id=resume_id,
                     parent_env=(
                         self._parent_env if self._parent_env is not None else os.environ
@@ -420,6 +392,12 @@ class ClaudeAgentSDKRuntime:
             assert projector is not None
             projector.begin_turn(correlation_id=request.correlation_id)
             bridge_execution_start = bridge.host_execution_count
+            # The SDK must report only the exact fully-qualified names from
+            # this one strict Hermes MCP server. Raw aliases are deliberately
+            # not accepted because they can collide with Claude-native tools.
+            allowed_tool_names = frozenset(
+                f"mcp__{_MCP_SERVER_NAME}__{name}" for name in bridge.tool_names
+            )
 
             async def on_projection(projection: ProjectionResult) -> None:
                 await queue.put(projection)
@@ -504,6 +482,37 @@ class ClaudeAgentSDKRuntime:
                             "canonical_model": projection.canonical_model or "unknown",
                             "model_resolution": projection.model_resolution,
                         }
+                unexpected_native_tool = next(
+                    (
+                        event
+                        for event in projection.events
+                        if isinstance(event, RuntimeToolRequestEvent)
+                        and _safe_tool_observation_name(getattr(event, "name", None))
+                        not in allowed_tool_names
+                    ),
+                    None,
+                )
+                if unexpected_native_tool is not None:
+                    phase = (
+                        RuntimeFailurePhase.AFTER_SIDE_EFFECTS
+                        if bridge.host_execution_count > bridge_execution_start
+                        else RuntimeFailurePhase.AFTER_VISIBLE_OUTPUT
+                        if visible
+                        else RuntimeFailurePhase.BEFORE_VISIBLE_OUTPUT
+                    )
+                    await session.cancel()
+                    await task
+                    terminal = True
+                    yield RuntimeFailedEvent(
+                        failure=_failure(
+                            "claude_runtime_native_tool_unsupported",
+                            "Claude runtime emitted an unsupported native tool event",
+                            phase,
+                            replay_safe=False,
+                        )
+                    )
+                    return
+
                 for event in projection.events:
                     if isinstance(event, RuntimeCompletedEvent):
                         continue
@@ -566,7 +575,6 @@ class ClaudeAgentSDKRuntime:
                         replay_safe=False,
                     )
                 )
-                await session.release_background_results()
                 return
             if result.outcome is SessionOutcome.COMPLETE:
                 final_text = result.final_text or ""
@@ -608,12 +616,10 @@ class ClaudeAgentSDKRuntime:
                         **terminal_model_provenance,
                     }
                 )
-                await session.release_background_results()
                 return
             if result.outcome is SessionOutcome.CANCELLED:
                 terminal = True
                 yield RuntimeCancelledEvent(reason="cancelled")
-                await session.release_background_results()
                 return
 
             phase = (
@@ -626,6 +632,8 @@ class ClaudeAgentSDKRuntime:
             code = (
                 "claude_subscription_billing_blocked"
                 if result.outcome is SessionOutcome.BILLING_BLOCKED
+                else "claude_runtime_native_tool_unsupported"
+                if result.error_code == "sdk_native_tool_unsupported"
                 else result.error_code or "claude_runtime_failed"
             )
             terminal = True
@@ -638,7 +646,7 @@ class ClaudeAgentSDKRuntime:
                     retryable=result.retryable,
                 )
             )
-            await session.release_background_results()
+            return
         except asyncio.CancelledError:
             if self._session is not None:
                 await self._session.cancel()
@@ -675,8 +683,6 @@ class ClaudeAgentSDKRuntime:
                         replay_safe=False,
                     )
                 )
-                if self._session is not None:
-                    await self._session.release_background_results()
 
     async def close(self) -> None:
         if self._closed:

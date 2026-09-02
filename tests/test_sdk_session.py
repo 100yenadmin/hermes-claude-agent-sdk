@@ -7,11 +7,7 @@ from types import ModuleType
 
 from hermes_claude_agent_sdk.configuration import SDKSessionConfiguration
 from hermes_claude_agent_sdk.compaction import SessionCompactionPhase
-from hermes_claude_agent_sdk.sdk_session import (
-    BackgroundSessionOutcome,
-    SDKSession,
-    SessionOutcome,
-)
+from hermes_claude_agent_sdk.sdk_session import SDKSession, SessionOutcome
 
 
 SDK_IMPORTED_DURING_SESSION_IMPORT = "claude_agent_sdk" in sys.modules
@@ -32,6 +28,26 @@ class TextBlock:
 class AssistantMessage:
     content: list[object]
     model: str = "claude-fable-synthetic"
+    parent_tool_use_id: str | None = None
+
+
+@dataclass
+class ServerToolUseBlock:
+    id: str
+    name: str
+    input: dict[str, object]
+
+
+@dataclass
+class TaskStartedMessage:
+    subtype: str = "task_started"
+    data: dict[str, object] | None = None
+
+
+@dataclass
+class StreamEvent:
+    event: dict[str, object]
+    parent_tool_use_id: str | None = None
 
 
 @dataclass
@@ -47,6 +63,7 @@ class ResultMessage:
     total_cost_usd: float | None = None
     terminal_reason: str | None = "completed"
     api_error_status: int | None = None
+    deferred_tool_use: object | None = None
 
 
 class _Options:
@@ -250,6 +267,186 @@ def test_query_phase_timeout_has_the_same_typed_timeout_result() -> None:
     asyncio.run(scenario())
 
 
+def test_native_shapes_fail_before_projection() -> None:
+    async def scenario(message: object) -> tuple[object, list[object], _FakeClient]:
+        clients: list[_FakeClient] = []
+        projections: list[object] = []
+        session = SDKSession(
+            _configuration(),
+            sdk_module=_sdk(clients, [[message]]),
+        )
+        result = await session.run_turn(
+            "reject native",
+            on_projection=lambda projection: projections.append(projection),
+        )
+        client = clients[0]
+        await session.close()
+        return result, projections, client
+
+    cases = [
+        AssistantMessage(
+            [
+                type(
+                    "ToolUseBlock",
+                    (),
+                    {"id": "agent-1", "name": "Agent", "input": {}},
+                )()
+            ]
+        ),
+        AssistantMessage([ServerToolUseBlock("server-1", "web_search", {})]),
+        AssistantMessage([TextBlock("nested")], parent_tool_use_id="parent-1"),
+        TaskStartedMessage(),
+        ResultMessage(
+            deferred_tool_use=type(
+                "DeferredToolUse",
+                (),
+                {"id": "deferred-1", "name": "Agent", "input": {}},
+            )()
+        ),
+        StreamEvent(
+            {
+                "type": "content_block_start",
+                "content_block": {"type": "tool_use", "name": "Agent"},
+            }
+        ),
+        StreamEvent(
+            {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "input_json_delta", "partial_json": "{}"},
+            }
+        ),
+    ]
+
+    for message in cases:
+        result, projections, client = asyncio.run(scenario(message))
+        assert result.outcome is SessionOutcome.FAILED
+        assert result.error_code == "sdk_native_tool_unsupported"
+        assert projections == []
+        assert client.queries == ["reject native"]
+        assert client.interrupted == 1
+        assert client.disconnected == 1
+
+
+def test_exact_hermes_mcp_tool_is_allowed_before_projection() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        projections: list[object] = []
+        tool = type(
+            "ToolUseBlock",
+            (),
+            {
+                "id": "tool-1",
+                "name": "mcp__hermes-tools__pwd",
+                "input": {"path": "."},
+            },
+        )()
+        session = SDKSession(
+            _configuration(allowed_tools=("mcp__hermes-tools__pwd",)),
+            sdk_module=_sdk(
+                clients,
+                [[
+                    SystemMessage("init", {"apiKeySource": "none"}),
+                    AssistantMessage([tool]),
+                    ResultMessage(result="done"),
+                ]],
+            ),
+        )
+        result = await session.run_turn(
+            "allow mcp",
+            on_projection=lambda projection: projections.append(projection),
+        )
+        await session.close()
+
+        assert result.outcome is SessionOutcome.COMPLETE
+        assert len(projections) == 3
+
+    asyncio.run(scenario())
+
+
+def test_exact_hermes_mcp_partial_stream_is_allowed() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        session = SDKSession(
+            _configuration(allowed_tools=("mcp__hermes-tools__pwd",)),
+            sdk_module=_sdk(
+                clients,
+                [[
+                    SystemMessage("init", {"apiKeySource": "none"}),
+                    StreamEvent(
+                        {
+                            "type": "content_block_start",
+                            "index": 0,
+                            "content_block": {
+                                "type": "tool_use",
+                                "name": "mcp__hermes-tools__pwd",
+                            },
+                        }
+                    ),
+                    StreamEvent(
+                        {
+                            "type": "content_block_delta",
+                            "index": 0,
+                            "delta": {
+                                "type": "input_json_delta",
+                                "partial_json": "{}",
+                            },
+                        }
+                    ),
+                    ResultMessage(result="done"),
+                ]],
+            ),
+        )
+        result = await session.run_turn("allow stream")
+        await session.close()
+
+        assert result.outcome is SessionOutcome.COMPLETE
+
+    asyncio.run(scenario())
+
+
+def test_idle_native_shape_fails_before_next_query_or_projection() -> None:
+    async def scenario() -> None:
+        clients: list[_FakeClient] = []
+        projections: list[object] = []
+        session = SDKSession(
+            _configuration(),
+            sdk_module=_sdk(
+                clients,
+                [[
+                    SystemMessage("init", {"apiKeySource": "none"}),
+                    AssistantMessage([TextBlock("done")]),
+                    ResultMessage(),
+                ]],
+            ),
+        )
+        first = await session.run_turn("first", on_projection=projections.append)
+        await clients[0]._messages.put(
+            AssistantMessage(
+                [
+                    type(
+                        "ToolUseBlock",
+                        (),
+                        {"id": "agent-2", "name": "Agent", "input": {}},
+                    )()
+                ]
+            )
+        )
+        for _ in range(20):
+            await asyncio.sleep(0)
+        projection_count = len(projections)
+        second = await session.run_turn("second", on_projection=projections.append)
+        await session.close()
+
+        assert first.outcome is SessionOutcome.COMPLETE
+        assert second.outcome is SessionOutcome.FAILED
+        assert second.error_code == "sdk_native_tool_unsupported"
+        assert len(projections) == projection_count
+        assert clients[0].queries == ["first"]
+
+    asyncio.run(scenario())
+
+
 def test_text_turn_uses_public_options_one_reader_projection_and_exact_close() -> None:
     async def scenario() -> None:
         clients: list[_FakeClient] = []
@@ -292,8 +489,9 @@ def test_text_turn_uses_public_options_one_reader_projection_and_exact_close() -
             "ANTHROPIC_API_KEY": "",
             "CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK": "1",
         }
+        assert fields["system_prompt"] == ""
         assert fields["setting_sources"] == []
-        assert fields["tools"] == ["Agent"]
+        assert fields["tools"] == []
         assert set(fields["hooks"]) == {"PreCompact"}
         assert client.queries == ["synthetic prompt"]
         assert client.receive_calls == 1
@@ -614,116 +812,28 @@ def test_concurrent_turns_are_serialized_on_one_reader() -> None:
     asyncio.run(scenario())
 
 
-def test_idle_result_bursts_are_ordered_deduplicated_and_do_not_expose_session_ids() -> None:
+def test_post_terminal_sdk_output_is_a_protocol_failure_without_background_delivery() -> None:
     async def scenario() -> None:
         clients: list[_FakeClient] = []
-        delivered = []
         session = SDKSession(
             _configuration(),
             sdk_module=_sdk(
                 clients,
                 [[SystemMessage("init", {"apiKeySource": "none"}), ResultMessage()]],
             ),
-            on_background_result=delivered.append,
         )
 
-        turn = await session.run_turn("parent turn")
-        assert turn.outcome is SessionOutcome.COMPLETE
-        client = clients[0]
-        for message in (
-            AssistantMessage([TextBlock("first background")]),
-            ResultMessage(result="first background", session_id="synthetic-hidden-one"),
-            AssistantMessage([TextBlock("second background")]),
-            ResultMessage(result="second background", session_id="synthetic-hidden-two"),
-            AssistantMessage([TextBlock("first background")]),
-            ResultMessage(result="first background", session_id="synthetic-hidden-three"),
-            AssistantMessage([TextBlock("failed background")]),
-            ResultMessage(
-                result="failed background",
-                session_id="synthetic-hidden-four",
-                is_error=True,
-            ),
-        ):
-            await client._messages.put(message)
-
+        first = await session.run_turn("parent turn")
+        assert first.outcome is SessionOutcome.COMPLETE
+        await clients[0]._messages.put(AssistantMessage([TextBlock("idle output")]))
+        await clients[0]._messages.put(ResultMessage(result="idle output"))
         for _ in range(20):
             await asyncio.sleep(0)
-        assert delivered == []
-        await session.release_background_results()
-        await session.close()
-        await session.close()
+        second = await session.run_turn("next turn")
 
-        assert [item.content for item in delivered] == [
-            "first background",
-            "second background",
-            "failed background",
-        ]
-        assert [item.outcome for item in delivered] == [
-            BackgroundSessionOutcome.COMPLETED,
-            BackgroundSessionOutcome.COMPLETED,
-            BackgroundSessionOutcome.FAILED,
-        ]
-        assert all(len(item.content.encode("utf-8")) <= 16_384 for item in delivered)
-        assert set(delivered[0].__dataclass_fields__) == {"content", "outcome"}
-        assert client.receive_calls == 1
-        assert client.disconnected == 1
-
-    asyncio.run(scenario())
-
-
-def test_background_callback_never_holds_delivery_state_lock() -> None:
-    async def scenario() -> None:
-        clients: list[_FakeClient] = []
-        callback_started = asyncio.Event()
-        release_callback = asyncio.Event()
-
-        async def blocked_callback(_result) -> None:
-            callback_started.set()
-            await release_callback.wait()
-
-        session = SDKSession(
-            _configuration(),
-            sdk_module=_sdk(
-                clients,
-                [[SystemMessage("init", {"apiKeySource": "none"}), ResultMessage()]],
-            ),
-            on_background_result=blocked_callback,
-        )
-        assert (await session.run_turn("parent turn")).outcome is SessionOutcome.COMPLETE
-        await session.release_background_results()
-        await clients[0]._messages.put(AssistantMessage([TextBlock("background")]))
-        await clients[0]._messages.put(ResultMessage(result="background"))
-        await asyncio.wait_for(callback_started.wait(), 0.1)
-
-        await asyncio.wait_for(session._pause_background_delivery(), 0.05)
-        release_callback.set()
-        await session.close()
-
-    asyncio.run(scenario())
-
-
-def test_idle_background_after_close_is_dropped_without_duplicate_disconnect() -> None:
-    async def scenario() -> None:
-        clients: list[_FakeClient] = []
-        delivered = []
-        session = SDKSession(
-            _configuration(),
-            sdk_module=_sdk(
-                clients,
-                [[SystemMessage("init", {"apiKeySource": "none"}), ResultMessage()]],
-            ),
-            on_background_result=delivered.append,
-        )
-
-        await session.run_turn("parent turn")
-        await session.close()
-        await clients[0]._messages.put(
-            ResultMessage(result="too late", session_id="synthetic-hidden-late")
-        )
-        await asyncio.sleep(0)
-        await session.close()
-
-        assert delivered == []
+        assert second.outcome is SessionOutcome.FAILED
+        assert second.error_code == "sdk_post_terminal_output"
+        assert clients[0].queries == ["parent turn"]
         assert clients[0].disconnected == 1
 
     asyncio.run(scenario())

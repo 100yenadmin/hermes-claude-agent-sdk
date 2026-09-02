@@ -23,7 +23,7 @@ from __future__ import annotations
 import json
 import math
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, MutableMapping, Sequence
 from dataclasses import dataclass, field
 from itertools import islice
 from typing import Any
@@ -37,7 +37,12 @@ from agent.runtime_api import (
     RuntimeUsageReceipt,
 )
 
-__all__ = ["ClaudeSdkEventProjector", "ProjectionResult", "ToolResultMetadata"]
+__all__ = [
+    "ClaudeSdkEventProjector",
+    "ProjectionResult",
+    "ToolResultMetadata",
+    "zero_native_violation",
+]
 
 
 _MAX_TEXT_CHARS = 4_000
@@ -57,6 +62,131 @@ _SYNTHETIC_MODEL_IDENTIFIERS = frozenset(
     {"synthetic", "claude-fable-synthetic"}
 )
 _MISSING = object()
+_STREAM_TOOL_INDEX_LIMIT = 128
+
+
+def _mapping_value(source: Any, *keys: str) -> Any:
+    """Read a bounded raw stream field without invoking arbitrary methods."""
+    if not isinstance(source, Mapping):
+        return _MISSING
+    for key in keys:
+        try:
+            if key in source:
+                return source[key]
+        except Exception:
+            return _MISSING
+    return _MISSING
+
+
+def _stream_tool_violation(
+    message: Any,
+    allowed_tool_names: Collection[str],
+    stream_tool_indexes: MutableMapping[int, str],
+) -> bool:
+    """Reject native tool use in a partial public SDK stream event.
+
+    ``StreamEvent`` carries raw Anthropic events rather than typed content
+    blocks.  A tool input delta has no tool name, so it is accepted only when
+    a preceding bounded content-block-start proved the exact Hermes MCP name.
+    """
+    event = _safe_attr(message, "event")
+    if not isinstance(event, Mapping):
+        return False
+    index = _mapping_value(event, "index")
+    index = index if type(index) is int and 0 <= index < _STREAM_TOOL_INDEX_LIMIT else None
+    event_type = _mapping_value(event, "type")
+    event_type = event_type if isinstance(event_type, str) else ""
+    block = _mapping_value(event, "content_block", "contentBlock")
+    delta = _mapping_value(event, "delta")
+
+    if isinstance(block, Mapping):
+        block_type = _mapping_value(block, "type")
+        if block_type in {"server_tool_use", "server_tool_result", "tool_result"}:
+            return True
+        if block_type == "tool_use":
+            name = _mapping_value(block, "name")
+            if type(name) is not str or name not in allowed_tool_names:
+                return True
+            if index is not None:
+                stream_tool_indexes[index] = name
+            return False
+
+    if isinstance(delta, Mapping):
+        delta_type = _mapping_value(delta, "type")
+        if delta_type in {"server_tool_use", "server_tool_result", "tool_result"}:
+            return True
+        if delta_type == "tool_use" or delta_type == "tool_use_delta":
+            name = _mapping_value(delta, "name")
+            if type(name) is not str or name not in allowed_tool_names:
+                return True
+            if index is not None:
+                stream_tool_indexes[index] = name
+            return False
+        if delta_type == "input_json_delta":
+            # No name is present on a partial JSON delta.  Only an index that
+            # was previously proved to be an exact Hermes MCP tool is safe.
+            return index is None or index not in stream_tool_indexes
+
+    if event_type in {"content_block_stop", "contentBlockStop"}:
+        if index is not None:
+            stream_tool_indexes.pop(index, None)
+        return False
+    if event_type in {"content_block_start", "contentBlockStart"}:
+        # A start event with an unrecognized block shape is not evidence of a
+        # supported tool and therefore cannot opt into the native tool path.
+        if not isinstance(block, Mapping):
+            return False
+        return _mapping_value(block, "type") not in {"text", "thinking"}
+    return False
+
+
+def zero_native_violation(
+    message: Any,
+    *,
+    allowed_tool_names: Collection[str] = (),
+    stream_tool_indexes: MutableMapping[int, str] | None = None,
+) -> bool:
+    """Return whether an SDK message crosses the zero-native boundary.
+
+    This check deliberately runs before ``ClaudeSdkEventProjector.project``.
+    It returns only a boolean so provider-controlled names or payloads never
+    enter a public failure message or retained session state.
+    """
+    message_name = _sdk_type_name(message)
+    if message_name.startswith("Task"):
+        return True
+    subtype = _safe_attr(message, "subtype")
+    if isinstance(subtype, str) and subtype.startswith("task_"):
+        return True
+    if _safe_attr(message, "parent_tool_use_id", None) is not None:
+        return True
+    if (
+        message_name == "ResultMessage"
+        and _safe_attr(message, "deferred_tool_use", None) is not None
+    ):
+        return True
+    if message_name == "StreamEvent":
+        if stream_tool_indexes is None:
+            stream_tool_indexes = {}
+        return _stream_tool_violation(
+            message, allowed_tool_names, stream_tool_indexes
+        )
+
+    content = _safe_attr(message, "content")
+    if isinstance(content, Sequence) and not isinstance(
+        content, (str, bytes, bytearray)
+    ):
+        for block in islice(content, _MAX_ARGUMENT_ITEMS):
+            block_name = _sdk_type_name(block)
+            if block_name in {"ServerToolUseBlock", "ServerToolResultBlock"}:
+                return True
+            if block_name == "ToolUseBlock":
+                tool_name = _safe_attr(block, "name", _MISSING)
+                if type(tool_name) is not str or tool_name not in allowed_tool_names:
+                    return True
+                if _safe_attr(block, "parent_tool_use_id", None) is not None:
+                    return True
+    return False
 
 
 def _sdk_type_name(obj: Any) -> str:

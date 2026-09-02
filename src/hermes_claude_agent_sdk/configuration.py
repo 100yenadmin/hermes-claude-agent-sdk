@@ -11,7 +11,7 @@ from .billing import plan_sdk_env_overrides
 
 
 _MAX_TEXT = 4_096
-_MAX_PROMPT_APPEND = 32_000
+_MAX_PROMPT_SNAPSHOT = 32_000
 _PERMISSION_MODES = {
     "default",
     "acceptEdits",
@@ -46,7 +46,7 @@ class SDKSessionConfiguration:
     cwd: str
     model: str | None
     permission_mode: str
-    system_prompt_append: str | None = field(repr=False)
+    prompt_snapshot: str = field(repr=False)
     resume_external_session_id: str | None = field(repr=False)
     env_overrides: tuple[tuple[str, str], ...]
     setting_sources: tuple[str, ...]
@@ -63,7 +63,7 @@ class SDKSessionConfiguration:
         cwd: str,
         model: str | None = None,
         permission_mode: str = "dontAsk",
-        system_prompt_append: str | None = None,
+        prompt_snapshot: str = "",
         resume_external_session_id: str | None = None,
         parent_env: Mapping[str, object] | None = None,
         configured_env: Mapping[str, object] | None = None,
@@ -77,11 +77,10 @@ class SDKSessionConfiguration:
         safe_cwd = _optional_text(cwd, field="cwd")
         assert safe_cwd is not None
         safe_model = _optional_text(model, field="model")
-        safe_append = _optional_text(
-            system_prompt_append,
-            field="system_prompt_append",
-            max_length=_MAX_PROMPT_APPEND,
-        )
+        if not isinstance(prompt_snapshot, str):
+            raise TypeError("prompt_snapshot must be text")
+        if len(prompt_snapshot) > _MAX_PROMPT_SNAPSHOT or "\x00" in prompt_snapshot:
+            raise ValueError("prompt_snapshot is invalid")
         safe_resume = _optional_text(
             resume_external_session_id, field="resume_external_session_id"
         )
@@ -92,17 +91,19 @@ class SDKSessionConfiguration:
             raise ValueError("resume_external_session_id is invalid")
         if permission_mode not in _PERMISSION_MODES:
             raise ValueError("permission_mode is invalid")
-        if not isinstance(setting_sources, tuple) or any(
-            source not in {"user", "project", "local"} for source in setting_sources
-        ):
-            raise ValueError("setting_sources is invalid")
-        if len(set(setting_sources)) != len(setting_sources):
-            raise ValueError("setting_sources contains duplicates")
+        if setting_sources != ():
+            raise ValueError("setting_sources must be empty")
         if not isinstance(allowed_tools, tuple) or any(
             not isinstance(name, str) or not name or len(name) > _MAX_TEXT
             for name in allowed_tools
         ):
             raise ValueError("allowed_tools is invalid")
+        if any(
+            not name.startswith("mcp__hermes-tools__")
+            or name == "mcp__hermes-tools__"
+            for name in allowed_tools
+        ):
+            raise ValueError("allowed_tools must contain Hermes MCP names")
         if len(set(allowed_tools)) != len(allowed_tools):
             raise ValueError("allowed_tools contains duplicates")
         safe_mcp_servers = dict(mcp_servers or {})
@@ -111,6 +112,8 @@ class SDKSessionConfiguration:
             for name in safe_mcp_servers
         ):
             raise ValueError("mcp_servers is invalid")
+        if any(name != "hermes-tools" for name in safe_mcp_servers):
+            raise ValueError("mcp_servers must contain only Hermes MCP")
 
         timeouts = (
             float(turn_timeout_seconds),
@@ -128,7 +131,7 @@ class SDKSessionConfiguration:
             cwd=safe_cwd,
             model=safe_model,
             permission_mode=permission_mode,
-            system_prompt_append=safe_append,
+            prompt_snapshot=prompt_snapshot,
             resume_external_session_id=safe_resume,
             env_overrides=tuple(sorted(planned.items())),
             setting_sources=setting_sources,
@@ -142,22 +145,16 @@ class SDKSessionConfiguration:
     def option_fields(self) -> dict[str, object]:
         """Return a fresh public ``ClaudeAgentOptions`` field mapping."""
 
-        system_prompt: dict[str, str] = {
-            "type": "preset",
-            "preset": "claude_code",
-        }
-        if self.system_prompt_append is not None:
-            system_prompt["append"] = self.system_prompt_append
         fields: dict[str, object] = {
             "cwd": self.cwd,
             "model": self.model,
             "permission_mode": self.permission_mode,
-            "system_prompt": system_prompt,
+            "system_prompt": self.prompt_snapshot,
             "env": dict(self.env_overrides),
             "setting_sources": list(self.setting_sources),
-            # Keep only Claude's native Agent tool available. Hermes tools are
-            # exposed through the strict, host-owned MCP bridge below.
-            "tools": ["Agent"],
+            # Claude-native tools are disabled. Hermes tools are exposed only
+            # through the strict, host-owned MCP bridge below.
+            "tools": [],
             "mcp_servers": dict(self.mcp_servers),
             "strict_mcp_config": bool(self.mcp_servers),
             "allowed_tools": list(self.allowed_tools),

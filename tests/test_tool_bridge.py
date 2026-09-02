@@ -319,6 +319,9 @@ def test_canonical_host_error_envelope_is_marked_as_sdk_error(host_result: Any) 
 
 
 def test_sdk_adapter_is_lazy_and_handler_only_calls_host(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in tuple(sys.modules):
+        if name == "claude_agent_sdk" or name.startswith("claude_agent_sdk."):
+            monkeypatch.delitem(sys.modules, name, raising=False)
     assert "claude_agent_sdk" not in sys.modules
 
     registered: list[Any] = []

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 import hermes_claude_agent_sdk.compatibility as compatibility
+from hermes_claude_agent_sdk.configuration import SDKSessionConfiguration
 
 
 class _Distribution:
@@ -144,8 +145,72 @@ def test_incompatible_metadata_status_cannot_be_overridden_by_version_values():
     assert result["reason"] == "metadata_unavailable"
 
 
+def test_fable_51_rejects_a_non_exact_bundled_cli_identity():
+    result = compatibility.check_model_compatibility(
+        compatibility.FABLE_51_MODEL_ID,
+        sdk_metadata={
+            "installed_version": "0.2.151",
+            "bundled_cli_version": "2.1.259",
+            "metadata_status": "compatible",
+        },
+    )
+
+    assert result["compatible"] is False
+    assert result["reason"] == "bundled_cli_version_unsupported"
+
+
 def test_package_dependency_admits_both_frozen_and_successor_cells():
     root = Path(__file__).resolve().parents[1]
     project = (root / "pyproject.toml").read_text()
 
-    assert '"claude-agent-sdk>=0.2.144,<0.2.152"' in project
+    assert '"claude-agent-sdk==0.2.151"' in project
+
+
+def test_option_fields_are_zero_native_and_use_the_exact_prompt_snapshot():
+    configuration = SDKSessionConfiguration.create(
+        cwd="/synthetic/workspace",
+        model="claude-fable-5-1",
+        prompt_snapshot="Hermes-owned prompt snapshot",
+        mcp_servers={"hermes-tools": {"tools": []}},
+        allowed_tools=("mcp__hermes-tools__pwd",),
+    )
+
+    fields = configuration.option_fields()
+
+    assert fields["system_prompt"] == "Hermes-owned prompt snapshot"
+    assert fields["tools"] == []
+    assert fields["setting_sources"] == []
+    assert fields["strict_mcp_config"] is True
+    assert set(fields["mcp_servers"]) == {"hermes-tools"}
+    assert fields["allowed_tools"] == ["mcp__hermes-tools__pwd"]
+    assert not {
+        "agents",
+        "plugins",
+        "extra_args",
+        "settings",
+        "skills",
+        "hooks",
+        "can_use_tool",
+    } & set(fields)
+
+
+def test_nonempty_setting_sources_are_rejected_fail_closed():
+    with pytest.raises(ValueError, match="setting_sources must be empty"):
+        SDKSessionConfiguration.create(
+            cwd="/synthetic/workspace",
+            prompt_snapshot="Hermes-owned prompt snapshot",
+            setting_sources=("user",),
+        )
+
+
+def test_non_hermes_mcp_server_and_raw_tool_names_are_rejected():
+    with pytest.raises(ValueError, match="mcp_servers must contain only Hermes MCP"):
+        SDKSessionConfiguration.create(
+            cwd="/synthetic/workspace",
+            mcp_servers={"other": {"tools": []}},
+        )
+    with pytest.raises(ValueError, match="Hermes MCP names"):
+        SDKSessionConfiguration.create(
+            cwd="/synthetic/workspace",
+            allowed_tools=("pwd",),
+        )

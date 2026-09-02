@@ -23,15 +23,15 @@ if TYPE_CHECKING:  # pragma: no cover - imports are documentation-only at runtim
 PLUGIN_VERSION = "0.1.0rc1"
 RUNTIME_ID = "hermes-claude-agent-sdk"
 SDK_DISTRIBUTION = "claude-agent-sdk"
-# ``SDK_VERSION`` remains the immutable exact dependency used by the frozen
-# parity-v2 lane.  The standalone package policy is now a bounded range so a
-# newer bundled Claude Code can be admitted for the successor model.
-SDK_VERSION = "0.2.144"
-SDK_MIN_VERSION = "0.2.144"
+# ``SDK_VERSION`` is the immutable exact dependency used by this standalone
+# zero-native plugin lane. Its metadata report remains bounded so drift is
+# rejected before any runtime session is attempted.
+SDK_VERSION = "0.2.151"
+SDK_MIN_VERSION = "0.2.151"
 SDK_MAX_VERSION = "0.2.152"
 FABLE_51_MODEL_ID = "claude-fable-5-1"
 FABLE_51_MIN_SDK_VERSION = "0.2.151"
-FABLE_51_MIN_CLI_VERSION = "2.1.257"
+FABLE_51_MIN_CLI_VERSION = "2.1.258"
 _CLI_VERSION_RESOURCE = "claude_agent_sdk/_cli_version.py"
 _CLI_BUNDLE_RESOURCE = "claude_agent_sdk/_bundled/claude"
 _CLI_BUNDLE_RESOURCE_WINDOWS = "claude_agent_sdk/_bundled/claude.exe"
@@ -42,10 +42,10 @@ _VERSION_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 # factory or SDK client can be activated.
 REQUIRED_HOST_CAPABILITIES = frozenset(
     {
-        "background_delivery_v1",
         "cancellation_v1",
         "compaction_events_v1",
         "host_approval_v1",
+        "host_content_stream_v1",
         "host_status_v1",
         "host_tool_execution_v1",
         "provider_profile_registration_v1",
@@ -319,10 +319,8 @@ def check_model_compatibility(
 ) -> dict[str, Any]:
     """Return a bounded, model-specific SDK/CLI compatibility decision.
 
-    Fable 5 keeps the historical behavior and does not require a successor
-    catalog. Direct Fable 5.1 is admitted only when the installed
-    distribution version and its bundled CLI declaration meet the recorded
-    floors. The check is metadata-only and never imports the SDK.
+    Direct Fable 5.1 is admitted only for the exact first-RC SDK and bundled
+    CLI identities. The check is metadata-only and never imports the SDK.
     """
 
     result: dict[str, Any] = {
@@ -365,7 +363,7 @@ def check_model_compatibility(
     if cli_parsed is None:
         result["reason"] = "bundled_cli_metadata_missing_or_malformed"
         return result
-    if cli_parsed < minimum_cli:
+    if cli_parsed != minimum_cli:
         result["reason"] = "bundled_cli_version_unsupported"
         return result
 
