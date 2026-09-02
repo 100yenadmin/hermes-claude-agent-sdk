@@ -93,6 +93,10 @@ class ClaudeAgentSDKRuntime:
         self._host: Any | None = None
         self._session_contract: tuple[str, str, str, str, str | None] | None = None
         self._session_configuration: SDKSessionConfiguration | None = None
+        # One successful preflight may be consumed only by the exact request
+        # object that was checked.  This avoids probing auth twice on the
+        # supported host path without caching authorization across turns.
+        self._preflight_request: Any | None = None
         self._closed = False
 
     async def _emit_background_result(self, result: Any) -> None:
@@ -147,6 +151,7 @@ class ClaudeAgentSDKRuntime:
     def preflight(self, request: Any) -> Any:
         from agent.runtime_api import RuntimeFailurePhase
 
+        self._preflight_request = None
         selection = request.selection
         if not (
             selection.provider in PROVIDER_IDS
@@ -192,7 +197,13 @@ class ClaudeAgentSDKRuntime:
                 RuntimeFailurePhase.PREFLIGHT,
                 replay_safe=False,
             )
+        self._preflight_request = request
         return None
+
+    def _consume_preflight(self, request: Any) -> bool:
+        preflight_request = self._preflight_request
+        self._preflight_request = None
+        return preflight_request is request
 
     async def run_turn(self, request: Any, host: Any):
         from agent.runtime_api import (
@@ -210,10 +221,21 @@ class ClaudeAgentSDKRuntime:
         from .compaction import SessionCompactionPhase
         from .sdk_session import SessionOutcome
 
-        preflight_failure = self.preflight(request)
-        if preflight_failure is not None:
-            yield RuntimeFailedEvent(failure=preflight_failure)
-            return
+        if not self._consume_preflight(request):
+            preflight_failure = self.preflight(request)
+            if preflight_failure is not None:
+                yield RuntimeFailedEvent(failure=preflight_failure)
+                return
+            if not self._consume_preflight(request):
+                yield RuntimeFailedEvent(
+                    failure=_failure(
+                        "claude_runtime_preflight_unavailable",
+                        "Claude runtime preflight could not be consumed",
+                        RuntimeFailurePhase.PREFLIGHT,
+                        replay_safe=False,
+                    )
+                )
+                return
         if self._closed:
             yield RuntimeFailedEvent(
                 failure=_failure(
@@ -597,6 +619,7 @@ class ClaudeAgentSDKRuntime:
         if self._closed:
             return
         self._closed = True
+        self._preflight_request = None
         if self._session is not None:
             await self._session.close()
 

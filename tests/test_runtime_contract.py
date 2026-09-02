@@ -428,6 +428,40 @@ def test_preflight_rechecks_after_transient_auth_probe_failure() -> None:
     assert auth_calls == 2
 
 
+def test_host_preflight_is_consumed_once_and_next_turn_revalidates() -> None:
+    auth_calls = 0
+
+    def auth_probe():
+        nonlocal auth_calls
+        auth_calls += 1
+        return type(
+            "AuthResult",
+            (),
+            {"allowed": True, "category": "subscription_oauth"},
+        )()
+
+    class CancelledHost(_Host):
+        def cancellation_requested(self):
+            return True
+
+    runtime = runtime_module.ClaudeAgentSDKRuntime(auth_probe=auth_probe)
+    first = _request()
+    second = replace(first, correlation_id="synthetic-correlation-2")
+
+    async def collect(request):
+        return [event async for event in runtime.run_turn(request, CancelledHost())]
+
+    assert runtime.preflight(first) is None
+    first_events = asyncio.run(collect(first))
+    assert [event.kind.value for event in first_events] == ["cancelled"]
+    assert auth_calls == 1
+
+    assert runtime.preflight(second) is None
+    second_events = asyncio.run(collect(second))
+    assert [event.kind.value for event in second_events] == ["cancelled"]
+    assert auth_calls == 2
+
+
 def test_incompatible_host_manifest_is_reported_before_any_sdk_access(monkeypatch):
     monkeypatch.delitem(sys.modules, "claude_agent_sdk", raising=False)
 
