@@ -539,6 +539,232 @@ def test_source_docs_contract_reports_missing_tool_evidence_before_marker_gap(
     assert extra["projected_read_count"] == 0
 
 
+@pytest.mark.parametrize(
+    ("terminal", "failure_code", "billing", "silent_fallback", "expected_reason"),
+    (
+        (
+            "failed",
+            "sdk_stream_failed",
+            "subscription_included",
+            False,
+            "active_source_terminal_transport_failed",
+        ),
+        (
+            "failed",
+            "sdk_result_failed",
+            "subscription_included",
+            False,
+            "active_source_terminal_query_failed",
+        ),
+        (
+            "failed",
+            "sdk_turn_timeout",
+            "subscription_included",
+            False,
+            "active_source_terminal_timeout",
+        ),
+        (
+            "failed",
+            "sdk_api_rate_limit_429",
+            "subscription_included",
+            False,
+            "active_source_terminal_capacity_failed",
+        ),
+        (
+            "failed",
+            "claude_subscription_auth_rejected",
+            "subscription_included",
+            False,
+            "active_source_terminal_auth_failed",
+        ),
+        (
+            "failed",
+            "sdk_billing_blocked",
+            "subscription_included",
+            False,
+            "active_source_terminal_billing_failed",
+        ),
+        (
+            "failed",
+            "claude_runtime_session_contract_changed",
+            "subscription_included",
+            False,
+            "active_source_terminal_contract_failed",
+        ),
+        (
+            "failed",
+            "synthetic-unlisted-private-code",
+            "subscription_included",
+            False,
+            "active_source_terminal_unknown_failed",
+        ),
+        (
+            "cancelled",
+            None,
+            "subscription_included",
+            False,
+            "active_source_terminal_cancelled_or_interrupted",
+        ),
+        (
+            "invalid",
+            None,
+            "subscription_included",
+            False,
+            "active_source_terminal_invalid",
+        ),
+        (
+            "completed",
+            None,
+            "none",
+            False,
+            "active_source_billing_mismatch",
+        ),
+        (
+            "completed",
+            None,
+            "subscription_included",
+            True,
+            "active_source_silent_fallback",
+        ),
+    ),
+)
+def test_source_docs_contract_reports_bounded_terminal_failure_before_other_gaps(
+    tmp_path,
+    terminal: str,
+    failure_code: str | None,
+    billing: str,
+    silent_fallback: bool,
+    expected_reason: str,
+) -> None:
+    source = LiveTurn(
+        terminal=terminal,
+        failure_code=failure_code,
+        billing=billing,
+        final_text="",
+        final_hash=sha256_value(""),
+        state=None,
+        state_hash="a" * 64,
+        tool_names=(),
+        compaction_phases=(),
+        background_hashes=(),
+        event_hash="b" * 64,
+        silent_fallback=silent_fallback,
+    )
+    docs_text = "SOURCE_QUARTZ_7319 DOCS_EMBER_4826 SOURCE_DOCS_PASS"
+    docs = LiveTurn(
+        terminal="completed",
+        failure_code=None,
+        billing="subscription_included",
+        final_text=docs_text,
+        final_hash=sha256_value(docs_text),
+        state=None,
+        state_hash="c" * 64,
+        tool_names=("read",),
+        compaction_phases=(),
+        background_hashes=(),
+        event_hash="d" * 64,
+        silent_fallback=False,
+    )
+    host = NativeSandboxHost(tmp_path, (), deny_first=False)
+
+    ok, reason, extra = _source_docs_contract(source, docs, host)
+
+    assert ok is False
+    assert reason == expected_reason
+    assert extra["source_stage_ok"] is False
+
+
+def test_source_docs_contract_reports_docs_terminal_failure_before_tool_gaps(
+    tmp_path,
+) -> None:
+    source_text = "SOURCE_QUARTZ_7319 SOURCE_STAGE_PASS"
+    source = LiveTurn(
+        terminal="completed",
+        failure_code=None,
+        billing="subscription_included",
+        final_text=source_text,
+        final_hash=sha256_value(source_text),
+        state=None,
+        state_hash="a" * 64,
+        tool_names=(),
+        compaction_phases=(),
+        background_hashes=(),
+        event_hash="b" * 64,
+        silent_fallback=False,
+    )
+    docs = LiveTurn(
+        terminal="failed",
+        failure_code="sdk_result_error_during_execution",
+        billing="subscription_included",
+        final_text="",
+        final_hash=sha256_value(""),
+        state=None,
+        state_hash="c" * 64,
+        tool_names=(),
+        compaction_phases=(),
+        background_hashes=(),
+        event_hash="d" * 64,
+        silent_fallback=False,
+    )
+    host = NativeSandboxHost(tmp_path, (), deny_first=False)
+
+    ok, reason, extra = _source_docs_contract(source, docs, host)
+
+    assert ok is False
+    assert reason == "active_docs_terminal_query_failed"
+    assert extra["source_stage_ok"] is True
+    assert extra["docs_stage_ok"] is False
+
+
+@pytest.mark.parametrize(
+    ("denial_observed", "recovery_observed", "expected_reason"),
+    (
+        (False, False, "active_source_docs_denial_missing"),
+        (True, False, "active_source_docs_recovery_missing"),
+    ),
+)
+def test_source_docs_contract_reports_denial_and_recovery_before_marker_gaps(
+    tmp_path,
+    denial_observed: bool,
+    recovery_observed: bool,
+    expected_reason: str,
+) -> None:
+    source_text = "SOURCE_QUARTZ_7319 SOURCE_STAGE_PASS"
+    docs_text = "SOURCE_QUARTZ_7319 DOCS_EMBER_4826 SOURCE_DOCS_PASS"
+
+    def turn(text: str) -> LiveTurn:
+        return LiveTurn(
+            terminal="completed",
+            failure_code=None,
+            billing="subscription_included",
+            final_text=text,
+            final_hash=sha256_value(text),
+            state=None,
+            state_hash="a" * 64,
+            tool_names=("read",),
+            compaction_phases=(),
+            background_hashes=(),
+            event_hash="b" * 64,
+            silent_fallback=False,
+        )
+
+    host = NativeSandboxHost(tmp_path, (), deny_first=False)
+    host.successful_calls = 2
+    host.denial_observed = denial_observed
+    host.recovery_observed = recovery_observed
+
+    ok, reason, extra = _source_docs_contract(
+        turn(source_text),
+        turn(docs_text),
+        host,
+    )
+
+    assert ok is False
+    assert reason == expected_reason
+    assert extra["source_stage_ok"] is True
+    assert extra["docs_stage_ok"] is True
+
+
 def test_source_docs_contract_reports_marker_gap_after_host_tool_recovery(
     tmp_path,
 ) -> None:

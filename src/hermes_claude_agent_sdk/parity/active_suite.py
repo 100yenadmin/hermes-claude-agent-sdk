@@ -74,6 +74,100 @@ _AUTH_PREFLIGHT_FAILURE_CODE = "claude_subscription_auth_rejected"
 _ACTIVE_CASE_TIMEOUT_SECONDS = 300.0
 _MCP_EVENT_PREFIX = "mcp__hermes-tools__"
 
+_AUTH_FAILURE_CODES = frozenset(
+    {
+        _AUTH_PREFLIGHT_FAILURE_CODE,
+        "sdk_api_auth_401",
+        "sdk_api_auth_403",
+    }
+)
+_BILLING_FAILURE_CODES = frozenset(
+    {
+        "claude_subscription_billing_blocked",
+        "sdk_api_billing_402",
+        "sdk_billing_blocked",
+    }
+)
+_TIMEOUT_FAILURE_CODES = frozenset(
+    {
+        "sdk_api_timeout_408",
+        "sdk_compaction_watchdog",
+        "sdk_turn_timeout",
+    }
+)
+_CAPACITY_FAILURE_CODES = frozenset(
+    {
+        "sdk_api_overloaded_503",
+        "sdk_api_overloaded_529",
+        "sdk_api_rate_limit_429",
+        *(f"sdk_api_server_error_{status}" for status in range(500, 600)),
+    }
+)
+_TRANSPORT_FAILURE_CODES = frozenset(
+    {
+        "sdk_start_failed",
+        "sdk_stream_ended",
+        "sdk_stream_failed",
+        "sdk_turn_failed",
+    }
+)
+_QUERY_FAILURE_CODES = frozenset(
+    {
+        "sdk_result_error_during_execution",
+        "sdk_result_error_max_turns",
+        "sdk_result_failed",
+        "sdk_terminal_api_error",
+        "sdk_terminal_max_turns",
+        *(f"sdk_api_error_{status}" for status in range(400, 600)),
+    }
+)
+_CONTRACT_FAILURE_CODES = frozenset(
+    {
+        "claude_runtime_cancellation_unavailable",
+        "claude_runtime_closed",
+        "claude_runtime_configuration_failed",
+        "claude_runtime_host_binding_changed",
+        "claude_runtime_image_invalid",
+        "claude_runtime_preflight_unavailable",
+        "claude_runtime_prompt_invalid",
+        "claude_runtime_sdk_compatibility_unsupported",
+        "claude_runtime_selection_unsupported",
+        "claude_runtime_session_contract_changed",
+        "claude_runtime_state_invalid",
+    }
+)
+
+_TURN_READINESS_REASONS: dict[str, dict[str, str]] = {
+    "source": {
+        "auth": "active_source_terminal_auth_failed",
+        "billing": "active_source_terminal_billing_failed",
+        "timeout": "active_source_terminal_timeout",
+        "capacity": "active_source_terminal_capacity_failed",
+        "transport": "active_source_terminal_transport_failed",
+        "query": "active_source_terminal_query_failed",
+        "contract": "active_source_terminal_contract_failed",
+        "unknown": "active_source_terminal_unknown_failed",
+        "cancelled": "active_source_terminal_cancelled_or_interrupted",
+        "invalid": "active_source_terminal_invalid",
+        "billing_mismatch": "active_source_billing_mismatch",
+        "fallback": "active_source_silent_fallback",
+    },
+    "docs": {
+        "auth": "active_docs_terminal_auth_failed",
+        "billing": "active_docs_terminal_billing_failed",
+        "timeout": "active_docs_terminal_timeout",
+        "capacity": "active_docs_terminal_capacity_failed",
+        "transport": "active_docs_terminal_transport_failed",
+        "query": "active_docs_terminal_query_failed",
+        "contract": "active_docs_terminal_contract_failed",
+        "unknown": "active_docs_terminal_unknown_failed",
+        "cancelled": "active_docs_terminal_cancelled_or_interrupted",
+        "invalid": "active_docs_terminal_invalid",
+        "billing_mismatch": "active_docs_billing_mismatch",
+        "fallback": "active_docs_silent_fallback",
+    },
+}
+
 
 @dataclass(frozen=True, slots=True)
 class LiveTurn:
@@ -525,6 +619,43 @@ def _live_ok(turn: LiveTurn, *, markers: Sequence[str] = ()) -> bool:
     )
 
 
+def _bounded_failure_category(failure_code: str | None) -> str:
+    """Classify one runtime code without copying untrusted values into evidence."""
+
+    if failure_code in _AUTH_FAILURE_CODES:
+        return "auth"
+    if failure_code in _BILLING_FAILURE_CODES:
+        return "billing"
+    if failure_code in _TIMEOUT_FAILURE_CODES:
+        return "timeout"
+    if failure_code in _CAPACITY_FAILURE_CODES:
+        return "capacity"
+    if failure_code in _TRANSPORT_FAILURE_CODES:
+        return "transport"
+    if failure_code in _QUERY_FAILURE_CODES:
+        return "query"
+    if failure_code in _CONTRACT_FAILURE_CODES:
+        return "contract"
+    return "unknown"
+
+
+def _turn_readiness_failure(turn: LiveTurn, *, stage: str) -> str | None:
+    """Return one fixed diagnostic reason without changing turn acceptance."""
+
+    reasons = _TURN_READINESS_REASONS[stage]
+    if turn.terminal == "completed":
+        if turn.billing != "subscription_included":
+            return reasons["billing_mismatch"]
+        if turn.silent_fallback:
+            return reasons["fallback"]
+        return None
+    if turn.terminal == "cancelled":
+        return reasons["cancelled"]
+    if turn.terminal == "failed":
+        return reasons[_bounded_failure_category(turn.failure_code)]
+    return reasons["invalid"]
+
+
 def _source_docs_contract(
     source_turn: LiveTurn,
     docs_turn: LiveTurn,
@@ -533,8 +664,14 @@ def _source_docs_contract(
     source_marker: str = "SOURCE_QUARTZ_7319",
     docs_marker: str = "DOCS_EMBER_4826",
 ) -> tuple[bool, str, dict[str, Any]]:
-    source_turn_ready = _live_ok(source_turn)
-    docs_turn_ready = _live_ok(docs_turn)
+    source_readiness_failure = _turn_readiness_failure(
+        source_turn,
+        stage="source",
+    )
+    docs_readiness_failure = _turn_readiness_failure(
+        docs_turn,
+        stage="docs",
+    )
     source_stage_ok = _live_ok(
         source_turn,
         markers=(source_marker, "SOURCE_STAGE_PASS"),
@@ -548,10 +685,10 @@ def _source_docs_contract(
         for name in (*source_turn.tool_names, *docs_turn.tool_names)
     )
     failure_reason = "active_behavior_or_trace_failed"
-    if not source_turn_ready:
-        failure_reason = "active_source_stage_failed"
-    elif not docs_turn_ready:
-        failure_reason = "active_docs_or_session_recall_failed"
+    if source_readiness_failure is not None:
+        failure_reason = source_readiness_failure
+    elif docs_readiness_failure is not None:
+        failure_reason = docs_readiness_failure
     elif projected_read_count < 1 or host.successful_calls < 2:
         failure_reason = "active_source_docs_tool_trace_incomplete"
     elif not host.denial_observed:
