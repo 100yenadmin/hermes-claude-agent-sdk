@@ -141,8 +141,23 @@ def test_projection_writer_rejects_caller_supplied_raw_pass(tmp_path: Path, monk
     projections = v4_preflights.collect_preflights(_candidate(), plugin, host)
     projections["background_owner"]["observation"]["raw_prompt"] = "caller assertion"
     with pytest.raises(v4_preflights.PreflightCollectorViolation):
-        v4_preflights.write_preflight_projections(projections, tmp_path / "rejected")
+        v4_preflights.write_preflight_projections(projections, tmp_path / "rejected", candidate_hash=sha256_value(_candidate()))
     assert not (tmp_path / "rejected").exists()
+
+def test_projection_writer_rejects_consistent_rewritten_candidate_hash(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    plugin, host = _roots(tmp_path)
+    _fake_run(monkeypatch, plugin=plugin, host=host)
+    projections = v4_preflights.collect_preflights(_candidate(), plugin, host)
+    for projection in projections.values():
+        projection["candidate_hash"] = "f" * 64
+    with pytest.raises(v4_preflights.PreflightCollectorViolation):
+        v4_preflights.write_preflight_projections(
+            projections,
+            tmp_path / "rejected-candidate",
+            candidate_hash=sha256_value(_candidate()),
+        )
+    assert not (tmp_path / "rejected-candidate").exists()
+
 def test_projection_documents_have_only_receipt_schema_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     plugin, host = _roots(tmp_path)
     _fake_run(monkeypatch, plugin=plugin, host=host)
