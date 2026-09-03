@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
+from .v4_host_probe import collect_v4_host_observation
 from .v4_gateway import OpaqueHandle
 from .v4_live_executor import (
     V4LiveExecutor,
@@ -269,6 +270,41 @@ class V4LiveSession:
             self._closed = True
             raise V4LiveSessionViolation("gateway close failed") from exc
         self._closed = True
+    def collect_host_observation(
+        self,
+        db_path: str | Path,
+        *,
+        allowed_root: str | Path | None = None,
+        expected_turn_count: int,
+    ) -> dict[str, Any]:
+        """Collect the closed, sanitized host proof for this session."""
+        if (
+            not self._started
+            or self._failed
+            or not isinstance(self._stored_session_id, str)
+            or not self._stored_session_id
+        ):
+            raise V4LiveSessionViolation("session is not valid for host observation")
+        if type(expected_turn_count) is not int or not 1 <= expected_turn_count <= 4:
+            raise V4LiveSessionViolation("host observation turn count is invalid")
+        try:
+            observation = collect_v4_host_observation(
+                db_path,
+                self._stored_session_id,
+                allowed_root=allowed_root,
+                expected_turn_count=expected_turn_count,
+            )
+            if not isinstance(observation, Mapping) or observation.get("status") != "PASS":
+                raise V4LiveSessionViolation("host observation is not a closed PASS")
+            return dict(observation)
+        except Exception:
+            self._failed = True
+            if not self._closed:
+                try:
+                    self.close()
+                except Exception:
+                    pass
+            raise V4LiveSessionViolation("host observation failed") from None
     def restart(self, *, gateway: V4LiveGateway, planned_calls: int | None = None, planned_turns: int | None = None) -> "V4LiveSession":
         if self._stored_session_id is None or not self._closed:
             raise V4LiveSessionViolation("session has no stored identity or is still live")
