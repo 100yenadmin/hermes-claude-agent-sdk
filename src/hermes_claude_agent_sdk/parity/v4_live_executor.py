@@ -21,6 +21,8 @@ _RAW = frozenset({"raw_prompt", "raw_content", "raw_transcript", "session_id", "
 _CANDIDATE = frozenset({"plugin_sha", "host_sha", "wheel_sha256", "profile_sha256", "sdk_distribution", "sdk_version", "cli_version", "model", "runner_id", "runner_version"})
 _SESSION = frozenset({"cols", "cwd", "hidden", "source", "title"})
 _APPROVAL = frozenset({"approval.request", "approval.requested"})
+_RESULT_KINDS = frozenset({"null", "boolean", "number", "string", "array", "object"})
+_MAX_RESULT_BYTES = 1_048_576
 CONTROL_CALL_LIMIT = 16
 class V4LiveExecutorViolation(ValueError):
     """An attempt cannot be admitted or did not close safely."""
@@ -102,6 +104,49 @@ def _approval_id(event: Mapping[str, Any]) -> str:
                 if isinstance(source.get(key), str) and source[key]: return _safe_id(source[key], "approval_id")
     raise V4LiveExecutorViolation("approval request lacks a usable ID")
 
+def _approval_request_projection(projection: EventProjection) -> dict[str, object]:
+    """Keep only the gateway's content-free approval event projection."""
+    if (
+        not isinstance(projection.event_type, str)
+        or not projection.event_type
+        or type(projection.byte_length) is not int
+        or not 0 <= projection.byte_length <= _MAX_RESULT_BYTES
+        or not isinstance(projection.sha256, str)
+        or _HEX64.fullmatch(projection.sha256) is None
+    ):
+        raise V4LiveExecutorViolation("approval request projection is invalid")
+    return {
+        "kind": projection.event_type,
+        "byte_length": projection.byte_length,
+        "sha256": projection.sha256,
+    }
+
+def _approval_decision_projection(response: Mapping[str, Any], decision_class: str) -> dict[str, object]:
+    """Keep only the safe result envelope returned by ``approval.respond``."""
+    ok, result_kind, result_bytes, result_sha256 = (
+        response.get("ok"),
+        response.get("result_kind"),
+        response.get("result_bytes"),
+        response.get("result_sha256"),
+    )
+    if (
+        type(ok) is not bool
+        or not isinstance(result_kind, str)
+        or result_kind not in _RESULT_KINDS
+        or type(result_bytes) is not int
+        or not 0 <= result_bytes <= _MAX_RESULT_BYTES
+        or not isinstance(result_sha256, str)
+        or _HEX64.fullmatch(result_sha256) is None
+    ):
+        raise V4LiveExecutorViolation("approval response envelope is invalid")
+    return {
+        "decision_class": decision_class,
+        "ok": ok,
+        "result_kind": result_kind,
+        "result_bytes": result_bytes,
+        "result_sha256": result_sha256,
+    }
+
 class V4LiveExecutor:
     """Admit and execute exactly one normal-Hermes gateway attempt."""
 
@@ -145,7 +190,7 @@ class V4LiveExecutor:
                 if isinstance(envelope, Mapping) and any(key in envelope and envelope[key] != value for key, value in expected): raise V4LiveExecutorViolation("gateway response identity does not match")
         if method == "prompt.submit": self._provider_calls += 1
         return result
-    def _next(self, session_id: str, choice: str, accumulator: EventAccumulator, captured: dict[str, Mapping[str, Any]]) -> EventProjection:
+    def _next(self, session_id: str, choice: str, decision_class: str, accumulator: EventAccumulator, captured: dict[str, Mapping[str, Any]], approval_receipts: list[dict[str, dict[str, object]]]) -> EventProjection:
         def project(raw: object) -> None:
             if isinstance(raw, Mapping): captured["value"] = raw
         try: value = self._gateway.next_event(projector=project)
@@ -160,12 +205,16 @@ class V4LiveExecutor:
         if kind in _APPROVAL:
             if raw is None: raise V4LiveExecutorViolation("approval request lacks a usable ID")
             approval = _approval_id(raw); params = {"session_id": session_id, "choice": choice, "request_id": approval}
-            self._call("approval.respond", params)
+            response = self._call("approval.respond", params)
+            approval_receipts.append({
+                "request": _approval_request_projection(projection),
+                "decision": _approval_decision_projection(response, decision_class),
+            })
             self._approval_count += 1
         return projection
 
     def _execute_turn(self, prompt: str, *, session_id: str, approval_choice: str) -> dict[str, Any]:
-        terminal: str | None = None; events: list[EventProjection] = []; accumulator = EventAccumulator()
+        terminal: str | None = None; events: list[EventProjection] = []; accumulator = EventAccumulator(); approval_receipts: list[dict[str, dict[str, object]]] = []
         decision = approval_choice.casefold(); decision_class = "allow" if decision in {"allow", "approve", "yes"} else "deny" if decision in {"deny", "reject", "no", "cancel"} else "other"
         submitted_session: list[str] = []
         def project_submit(raw: object) -> None:
@@ -174,7 +223,7 @@ class V4LiveExecutor:
         returned_session = submitted_session[0] if submitted_session else submitted.get("session_id")
         if isinstance(returned_session, str) and returned_session != session_id: raise V4LiveExecutorViolation("prompt response session identity does not match")
         while terminal is None:
-            captured: dict[str, Mapping[str, Any]] = {}; projection = self._next(session_id, approval_choice, accumulator, captured); events.append(projection)
+            captured: dict[str, Mapping[str, Any]] = {}; projection = self._next(session_id, approval_choice, decision_class, accumulator, captured, approval_receipts); events.append(projection)
             if projection.terminal_status is not None: terminal = projection.terminal_status
             if len(events) > MAX_EVENTS: raise V4LiveExecutorViolation("event sequence exceeds the bounded count")
         try: trailing = self._gateway.next_event(timeout=0.01)
@@ -186,7 +235,14 @@ class V4LiveExecutor:
             )
         classification = "COMPLETE"
         counts = Counter(event.event_type for event in events)
-        return {"identity": self._identity.to_dict(), "candidate": dict(self._candidate), "classification": classification, "terminal_status": terminal, "event_count": len(events), "event_kinds": dict(sorted(counts.items())), "events": [event.to_dict() for event in events], "control_calls_used": self._control_calls, "provider_calls": self._provider_calls, "turns_used": 1, "approval": {"decision_class": decision_class, "decision_count": self._approval_count}}
+        approval = {
+            "decision_class": decision_class,
+            "request_count": len(approval_receipts),
+            "decision_count": self._approval_count,
+            "requests": [item["request"] for item in approval_receipts],
+            "decisions": [item["decision"] for item in approval_receipts],
+        }
+        return {"identity": self._identity.to_dict(), "candidate": dict(self._candidate), "classification": classification, "terminal_status": terminal, "event_count": len(events), "event_kinds": dict(sorted(counts.items())), "events": [event.to_dict() for event in events], "control_calls_used": self._control_calls, "provider_calls": self._provider_calls, "turns_used": 1, "approval": approval}
 
     def run_on_session(self, prompt: str, *, session_id: str, approval_choice: str = "deny") -> dict[str, Any]:
         if self._used: raise V4LiveExecutorViolation("attempt is already terminal")

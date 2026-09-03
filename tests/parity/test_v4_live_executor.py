@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from hermes_claude_agent_sdk.parity.hashing import sha256_value
+from hermes_claude_agent_sdk.parity.hashing import canonical_json_bytes, sha256_value
 from hermes_claude_agent_sdk.parity.v4_contract import (
     OWNERSHIP_PREFLIGHTS,
     V4_CLI_VERSION,
@@ -114,10 +114,11 @@ def _executor(fake: _FakeTransport, *, path: str = "positive", trial_index: int 
 
 def test_executor_drives_normal_gateway_sequence_and_safe_receipt() -> None:
     approval_token = sha256_value({"fixture": "approval"})
+    request = _event("approval.request", {"request_id": approval_token})
     fake = _FakeTransport(
         [
             _event("message.start"),
-            _event("approval.requested", {"approval_id": approval_token}),
+            request,
             _event("message.delta", {"content": "never-return"}),
             _event("message.complete", {"status": "completed"}),
         ]
@@ -134,12 +135,57 @@ def test_executor_drives_normal_gateway_sequence_and_safe_receipt() -> None:
     assert receipt["terminal_status"] == "completed"
     assert receipt["provider_calls"] == 1
     assert receipt["control_calls_used"] == 3 and fake.provider_calls == 0
-    assert receipt["approval"] == {"decision_class": "deny", "decision_count": 1}
+    assert receipt["approval"] == {
+        "decision_class": "deny",
+        "request_count": 1,
+        "decision_count": 1,
+        "requests": [{
+            "kind": "approval.request",
+            "byte_length": len(canonical_json_bytes(request)),
+            "sha256": sha256_value(request),
+        }],
+        "decisions": [{
+            "decision_class": "deny",
+            "ok": True,
+            "result_kind": "object",
+            "result_bytes": len(canonical_json_bytes({"status": "streaming"})),
+            "result_sha256": sha256_value({"status": "streaming"}),
+        }],
+    }
     assert receipt["event_count"] == 4
-    assert receipt["event_kinds"]["approval.requested"] == 1
+    assert receipt["event_kinds"]["approval.request"] == 1
     assert prompt not in repr(receipt)
     assert approval_token not in repr(receipt)
     assert fake.closed
+
+def test_executor_keeps_explicit_empty_approval_receipt_without_request() -> None:
+    fake = _FakeTransport([_event("message.complete", {"status": "completed"})])
+    receipt = _executor(fake).run("fixture", approval_choice="allow")
+    assert receipt["approval"] == {
+        "decision_class": "allow",
+        "request_count": 0,
+        "decision_count": 0,
+        "requests": [],
+        "decisions": [],
+    }
+    assert [method for method, _ in fake.calls] == ["session.create", "prompt.submit"]
+
+def test_executor_counts_duplicate_approval_evidence_and_keeps_each_safe_projection() -> None:
+    first = _event("approval.request", {"request_id": "first-approval"})
+    second = _event("approval.request", {"request_id": "second-approval"})
+    fake = _FakeTransport([
+        first,
+        second,
+        _event("message.complete", {"status": "completed"}),
+    ])
+    receipt = _executor(fake).run("fixture", approval_choice="yes")
+    approval = receipt["approval"]
+    assert approval["decision_class"] == "allow"
+    assert approval["request_count"] == approval["decision_count"] == 2
+    assert len(approval["requests"]) == len(approval["decisions"]) == 2
+    assert [request["sha256"] for request in approval["requests"]] == [sha256_value(first), sha256_value(second)]
+    assert all(decision["decision_class"] == "allow" and decision["ok"] is True for decision in approval["decisions"])
+    assert [method for method, _ in fake.calls] == ["session.create", "prompt.submit", "approval.respond", "approval.respond"]
 
 def test_admission_rejects_budget_and_identity_before_gateway_start() -> None:
     fake = _FakeTransport([_event("message.complete", {"status": "completed"})])
@@ -180,7 +226,7 @@ def test_executor_rejects_terminal_duplicates_and_post_terminal_events() -> None
     )
     with pytest.raises(V4LiveExecutorViolation):
         _executor(trailing).run("fixture")
-    missing = _FakeTransport([_event("approval.requested"), _event("message.complete", {"status": "completed"})])
+    missing = _FakeTransport([_event("approval.request"), _event("message.complete", {"status": "completed"})])
     with pytest.raises(V4LiveExecutorViolation): _executor(missing).run("fixture")
     assert [method for method, _ in missing.calls] == ["session.create", "prompt.submit"]
 
