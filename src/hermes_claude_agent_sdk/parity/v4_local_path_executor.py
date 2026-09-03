@@ -7,11 +7,12 @@ import json
 import os
 import shutil
 import sys
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from .hashing import canonical_json_bytes, sha256_value
-from .v4_live_map import load_v4_live_execution_map
+from .v4_live_map import V4LiveMapViolation, load_v4_live_execution_map
 
 _ROOT = Path(__file__).resolve().parents[3]
 _MAP = _ROOT / "qa" / "parity-v4-live-execution-map.yaml"
@@ -78,7 +79,7 @@ def _fixture_module() -> Any:
     module = importlib.util.module_from_spec(spec)
     try:
         spec.loader.exec_module(module)
-    except Exception:
+    except (ImportError, OSError, RuntimeError, SyntaxError, TypeError, ValueError):
         _fail("fixed local fixture could not be loaded")
     return module
 
@@ -184,7 +185,7 @@ def execute_v4_local_path(*, row_key: str, trial_index: int, path: str, task_roo
     try:
         document = load_v4_live_execution_map(_MAP)
         map_hash = hashlib.sha256(_MAP.read_bytes()).hexdigest()
-    except Exception:
+    except (OSError, TypeError, V4LiveMapViolation):
         _fail("immutable v4 map is unavailable")
     if map_hash != _MAP_SHA256 or document.get("source", {}).get("contract_sha256") != "53864834496403388f3475291475fea70acfa3105609ad49f5edf75ad1c67d94":
         _fail("immutable v4 map identity drifted")
@@ -201,13 +202,17 @@ def execute_v4_local_path(*, row_key: str, trial_index: int, path: str, task_roo
         sys.path.insert(0, host_str)
     plugin = _fixture_module()
     try:
-        from agent import runtime_dispatch as dispatch
         from agent import runtime_api as host_api
+        from agent import runtime_dispatch as dispatch
         from hermes_cli import plugins as plugins_mod
         from hermes_cli.plugins import PluginManager
-        from hermes_constants import hermes_home_key, reset_hermes_home_override, set_hermes_home_override
+        from hermes_constants import (
+            hermes_home_key,
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
         from tools.terminal_tool import _get_approval_callback, set_approval_callback
-    except Exception:
+    except (ImportError, OSError, RuntimeError):
         _fail("fixed host runtime could not be loaded")
     if Path(getattr(dispatch, "__file__", "")).resolve() != host_root / "agent" / "runtime_dispatch.py" or Path(getattr(host_api, "__file__", "")).resolve() != host_root / "agent" / "runtime_api.py":
         _fail("fixed host runtime identity drifted")
@@ -236,7 +241,7 @@ def execute_v4_local_path(*, row_key: str, trial_index: int, path: str, task_roo
             decisions.append(choice)
             return choice
         set_approval_callback(approval_callback)
-        manager = PluginManager(scope_key=hermes_home_key(home)); manager._scan_entry_points = lambda: []
+        manager = PluginManager(scope_key=hermes_home_key(home)); manager._scan_entry_points = list
         plugins_mod._plugin_manager = manager
         manager.discover_and_load()
         registration = manager.select_agent_runtime(host_api.RuntimeSelection(plugin.PROVIDER_ID, plugin.MODEL_ID, plugin.API_MODE))
@@ -251,7 +256,6 @@ def execute_v4_local_path(*, row_key: str, trial_index: int, path: str, task_roo
             if attempts[0]["terminal"] != "denied" or denied["present"] or attempts[1]["terminal"] != "completed" or not after["present"]:
                 _fail("fixture recovery did not prove denial then one write")
         else:
-            choice = "deny" if path == "denial" else "once"
             attempts.append(_run_attempt(plugin, registration, dispatch, 1))
             after = _snapshot(state)
             if path == "denial" and (attempts[0]["terminal"] != "denied" or after["present"]):
@@ -278,10 +282,7 @@ def execute_v4_local_path(*, row_key: str, trial_index: int, path: str, task_roo
         return {"schema_version": 1, "status": "PASS", "path": path, "host_local": True, "provider_calls": 0, "terminal_status": terminal, "events": events, "observation": observation, "proof_hashes": {"primary": proof_primary, "secondary": proof_secondary}}
     finally:
         if manager is not None:
-            try:
-                manager.unload(plugin.PLUGIN_ID)
-            except Exception:
-                pass
+            manager.unload(plugin.PLUGIN_ID)
         set_approval_callback(old_callback)
         plugins_mod._plugin_manager = old_manager
         reset_hermes_home_override(override)

@@ -1,37 +1,49 @@
 """Explicit normal-Gateway orchestration for one provider-free v4 trial."""
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass
 import hashlib
 import os
-from pathlib import Path
 import re
 import shutil
 import sys
-from typing import Any, Protocol
+import tempfile
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
-from .hashing import sha256_value
+from .v4_background_delivery_receipt import run_v4_background_delivery_receipt
 from .v4_contract import OWNERSHIP_PREFLIGHTS, load_v4_contract, validate_v4_contract
 from .v4_fixture_materializer import V4FixtureMaterializer
-from .v4_gateway import Gateway, HOST_TOOLS, MCP_TOOLS
+from .v4_gateway import HOST_TOOLS, MCP_TOOLS, Gateway
 from .v4_gateway_observer import V4GatewayObserver
 from .v4_live_executor import V4LiveGateway, _candidate, _preflight_hash
-from .v4_live_fixtures import V4LiveFixtureManifest, load_v4_live_fixture_manifest, validate_v4_live_fixture_manifest
+from .v4_live_fixtures import (
+    V4LiveFixtureManifest,
+    load_v4_live_fixture_manifest,
+    validate_v4_live_fixture_manifest,
+)
 from .v4_live_map import load_v4_live_execution_map, validate_v4_live_execution_map
 from .v4_live_packets import LIVE_MAP_SHA256, build_v4_live_packets
 from .v4_live_scenarios import build_v4_live_scenario_catalog
 from .v4_live_session import V4LiveSession
+from .v4_local_path_executor import execute_v4_local_path
+from .v4_local_restart import run_v4_local_restart
+
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 _SAFE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@/+#\-]{0,255}$")
 _CANONICAL = {"message.start": "start", "session.start": "start", "run.start": "start", "message.state": "state", "session.state": "state", "message.usage": "usage", "tool.request": "tool_requested", "tool.requested": "tool_requested", "tool.complete": "tool_result", "tool.completed": "tool_result", "approval.request": "approval_requested", "approval.requested": "approval_requested", "approval.responded": "approval_decision", "approval.decision": "approval_decision", "compaction": "compaction", "background": "background", "restart": "restart", "message.complete": "terminal", "session.complete": "terminal", "run.complete": "terminal", "task.complete": "terminal", "terminal": "terminal"}
 _STRIP = frozenset({"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GLM_API_KEY", "ZAI_API_KEY", "EXTRA_USAGE", "CLAUDE_CODE_EXTRA_USAGE", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX"})
 class V4NormalGatewayRunnerViolation(ValueError):
     """Admission, observation, or packet composition failed closed."""
-class V4SealedLocalObservation(Protocol):
-    """Future sealed host-transition input; no implementation is accepted yet."""
 
-    def read(self, *, row_key: str, trial_index: int, expected_trace: tuple[str, ...]) -> Mapping[str, Any]: ...
+
+_LOCAL_EXECUTORS = {
+    "clawprobench_native/constraints_23_external_approval_boundary_live": execute_v4_local_path,
+    "openclaw_active/config-restart-capability-flip": run_v4_local_restart,
+    "openclaw_active/subagent-handoff": run_v4_background_delivery_receipt,
+    "openclaw_active/subagent-fanout-synthesis": run_v4_background_delivery_receipt,
+}
 @dataclass(frozen=True, slots=True)
 class V4NormalGatewayAdmission:
     candidate_hash: str
@@ -221,6 +233,29 @@ def _delegation(scenario: Any, trial_index: int, snapshots: tuple[Mapping[str, A
     return {"count": count, "background_count": batch_count, "lifecycle": lifecycle, "parent_link_sha256": next(iter(parents))}
 
 
+def _local_observations(scenario: Any, trial_index: int, task_root: Path) -> dict[str, Mapping[str, Any]]:
+    """Run only contract-bound provider-free denial/recovery mechanisms.
+
+    Local receipts are selected by immutable row identity.  They are never
+    accepted from the caller and cannot replace the provider-live positive
+    attempt.
+    """
+    executor = _LOCAL_EXECUTORS.get(scenario.row_key)
+    if executor is None:
+        return {}
+    paths = tuple(path for path in scenario.mandatory_paths if path != "positive")
+    observations: dict[str, Mapping[str, Any]] = {}
+    for path in paths:
+        with tempfile.TemporaryDirectory(prefix="v4-local-observation-", dir=task_root) as scratch:
+            observations[path] = executor(
+                row_key=scenario.row_key,
+                trial_index=trial_index,
+                path=path,
+                task_root=Path(scratch),
+            )
+    return observations
+
+
 class V4NormalGatewayRunner:
     """Admit one row/trial and execute only its positive provider turns."""
 
@@ -280,7 +315,7 @@ class V4NormalGatewayRunner:
             raise V4NormalGatewayRunnerViolation("row/trial admission occurs at execute")
         return self._admission
 
-    def execute(self, row_key: str | None = None, trial_index: int | None = None, *, db_path: str | Path | None = None, sealed_local_observation: V4SealedLocalObservation | None = None, gateway: V4LiveGateway | None = None) -> dict[str, Any]:
+    def execute(self, row_key: str | None = None, trial_index: int | None = None, *, db_path: str | Path | None = None, gateway: V4LiveGateway | None = None) -> dict[str, Any]:
         if self._executed:
             raise V4NormalGatewayRunnerViolation("runner is single-use")
         self._executed = True
@@ -292,8 +327,6 @@ class V4NormalGatewayRunner:
             if self._admission is not None and (row_key, trial_index) != (self._bound_row_key, self._bound_trial_index):
                 raise V4NormalGatewayRunnerViolation("execution identity differs from admission")
             scenario = self._admit(row_key, trial_index) if self._admission is None else next(item for item in self._catalog.scenarios if item.row_key == row_key)
-            if sealed_local_observation is not None:
-                raise V4NormalGatewayRunnerViolation("sealed local observation interface is reserved for a future host-transition fixture")
             self._home.mkdir(parents=True, exist_ok=True)
             if self._task_root != self._home:
                 self._task_root.mkdir(parents=True, exist_ok=True)
@@ -323,7 +356,8 @@ class V4NormalGatewayRunner:
             delegation = _delegation(scenario, trial_index, observed_gateway.snapshots, durable)
             packet_attempts = [_packet_attempt(attempt) for attempt in attempts]
             receipt = {"schema_version": 1, "candidate": self._candidate, "preflight_projections": self._preflights, "attempts": packet_attempts, "host_observation": host, "profile_id": self._profile_id, "inventory_hash": self._inventory_hash, "stream_projection": {"schema_version": 1, "name": "stream", "candidate_hash": self._candidate_hash, "trial_candidate_hash": attempts[0]["identity"]["candidate_hash"], "trial_index": trial_index, "status": "PASS", "source": {"executable": "normal_gateway", "source_ref": "v4_gateway_observer", "test_id": "positive_turn"}, "observation": {"event_count": sum(item["event_count"] for item in attempts), "provider_calls": scenario.turn_count}}, "scenario_trace": trace, "delegation": delegation}
-            return build_v4_live_packets(self._contract, scenario, receipt, None, live_map=self._map, map_path=self._map_path, scenario_catalog=self._catalog)
+            local_observations = _local_observations(scenario, trial_index, self._task_root)
+            return build_v4_live_packets(self._contract, scenario, receipt, local_observations, live_map=self._map, map_path=self._map_path, scenario_catalog=self._catalog)
         except V4NormalGatewayRunnerViolation:
             raise
         except Exception as exc:
@@ -331,4 +365,4 @@ class V4NormalGatewayRunner:
     run = execute
 run_v4_normal_gateway = V4NormalGatewayRunner
 NormalGatewayRunner = V4NormalGatewayRunner
-__all__ = ["NormalGatewayRunner", "V4NormalGatewayAdmission", "V4NormalGatewayRunner", "V4NormalGatewayRunnerViolation", "V4SealedLocalObservation", "run_v4_normal_gateway"]
+__all__ = ["NormalGatewayRunner", "V4NormalGatewayAdmission", "V4NormalGatewayRunner", "V4NormalGatewayRunnerViolation", "run_v4_normal_gateway"]

@@ -1,16 +1,16 @@
 """Sealed, provider-free host restart observations for the one v4 restart row."""
 from __future__ import annotations
 
-from collections.abc import Mapping
 import hashlib
 import os
-from pathlib import Path
 import sys
 import tempfile
+from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 from .hashing import canonical_json_bytes, sha256_value
-from .v4_gateway import Gateway, GatewayRpcError, OpaqueHandle
+from .v4_gateway import Gateway, GatewayError, GatewayRpcError, OpaqueHandle
 
 _ROW_KEY = "openclaw_active/config-restart-capability-flip"
 _TRIALS = frozenset({1, 2, 3})
@@ -86,7 +86,7 @@ def _rpc(gateway: Any, method: str, params: Mapping[str, Any], *, projector: Any
         response = gateway.call(method, params, projector=projector)
     except GatewayRpcError:
         raise
-    except Exception:
+    except (GatewayError, OSError, TypeError, ValueError):
         raise V4LocalRestartViolation("gateway RPC failed") from None
     if not isinstance(response, Mapping):
         raise V4LocalRestartViolation("gateway RPC response is malformed")
@@ -120,14 +120,14 @@ def _close(gateway: Any) -> dict[str, Any]:
     started = bool(getattr(gateway, "started", False))
     try:
         gateway.close()
-    except Exception:
+    except (GatewayError, OSError, TypeError, ValueError):
         raise V4LocalRestartViolation("gateway close failed") from None
     process = getattr(gateway, "_process", None)
     exited = process is None
     if process is not None:
         try:
             exited = process.poll() is not None
-        except Exception:
+        except (AttributeError, OSError, TypeError, ValueError):
             exited = False
     return {"operation": "gateway.close", "started": started, "exited": exited}
 
@@ -135,7 +135,7 @@ def _close(gateway: Any) -> dict[str, Any]:
 def _start(gateway: Any) -> dict[str, Any]:
     try:
         gateway.start()
-    except Exception:
+    except (GatewayError, OSError, TypeError, ValueError):
         raise V4LocalRestartViolation("gateway start failed") from None
     started = getattr(gateway, "started", True)
     if type(started) is not bool or not started:
@@ -160,7 +160,6 @@ def _capture(identities: dict[str, str]):
                 candidate = value.get(name)
                 if isinstance(candidate, str) and candidate:
                     identities[name] = candidate
-        return None
 
     return projector
 
@@ -189,7 +188,7 @@ def _gateway(env: Mapping[str, str]) -> Gateway:
     host_root = _host_root()
     try:
         return Gateway(python=sys.executable, cwd=host_root, env=env)
-    except Exception:
+    except (OSError, TypeError, ValueError):
         raise V4LocalRestartViolation("normal gateway could not be constructed") from None
 
 

@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from hermes_claude_agent_sdk.parity.v4_live_packets import _local
-from hermes_claude_agent_sdk.parity.v4_contract import load_v4_contract
 from hermes_claude_agent_sdk.parity.hashing import sha256_file
+from hermes_claude_agent_sdk.parity.v4_contract import load_v4_contract
+from hermes_claude_agent_sdk.parity.v4_live_packets import _local
 from hermes_claude_agent_sdk.parity.v4_local_path_executor import (
     V4LocalPathExecutorViolation,
     execute_v4_local_path,

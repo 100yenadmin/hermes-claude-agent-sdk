@@ -1,10 +1,19 @@
 from __future__ import annotations
+
+import inspect
 from collections import deque
 from pathlib import Path
+
 import pytest
+
+from hermes_claude_agent_sdk.parity import v4_normal_gateway_runner as runner_module
 from hermes_claude_agent_sdk.parity.v4_gateway import Gateway
 from hermes_claude_agent_sdk.parity.v4_live_session import V4LiveSession
-from hermes_claude_agent_sdk.parity.v4_normal_gateway_runner import V4NormalGatewayRunner, V4NormalGatewayRunnerViolation
+from hermes_claude_agent_sdk.parity.v4_normal_gateway_runner import (
+    V4NormalGatewayRunner,
+    V4NormalGatewayRunnerViolation,
+)
+
 from .test_v4_live_executor import _candidate, _event, _preflights
 from .test_v4_live_packets import _host
 
@@ -64,3 +73,31 @@ def test_background_batch_count_mismatch_fails_closed(tmp_path, monkeypatch):
     monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(1)); monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 2, "background_count": 2, "invariant_violations": [], "parent_link_sha256": "a" * 64, "lifecycle": "completed"})
     transport = _Transport(_events(_children(None, 1, True)))
     with pytest.raises(V4NormalGatewayRunnerViolation): _runner(tmp_path / "home", lambda **k: Gateway(python="fake", cwd=ROOT, env=k["env"], transport=transport, host_tools=k["host_tools"], mcp_tools=k["mcp_tools"]), "v2_non_soak/BG-01").execute()
+
+
+def test_local_observations_are_selected_internally_by_immutable_row(tmp_path, monkeypatch):
+    runner = _runner(tmp_path / "home", lambda **_: None, "openclaw_active/config-restart-capability-flip")
+    scenario = next(item for item in runner._catalog.scenarios if item.row_key == "openclaw_active/config-restart-capability-flip")
+    calls = []
+
+    def sealed_executor(**kwargs):
+        assert Path(kwargs["task_root"]).is_dir()
+        calls.append({key: value for key, value in kwargs.items() if key != "task_root"})
+        return {"path": kwargs["path"]}
+
+    monkeypatch.setitem(runner_module._LOCAL_EXECUTORS, scenario.row_key, sealed_executor)
+    observations = runner_module._local_observations(scenario, 1, tmp_path)
+    assert observations == {"denial": {"path": "denial"}, "recovery": {"path": "recovery"}}
+    assert calls == [
+        {"row_key": scenario.row_key, "trial_index": 1, "path": "denial"},
+        {"row_key": scenario.row_key, "trial_index": 1, "path": "recovery"},
+    ]
+
+
+def test_unmapped_local_row_stays_pending_and_caller_cannot_inject_observations(tmp_path):
+    runner = _runner(tmp_path / "home", lambda **_: None, "clawprobench_native/constraints_22_message_audience_boundary_live")
+    scenario = next(item for item in runner._catalog.scenarios if item.row_key == "clawprobench_native/constraints_22_message_audience_boundary_live")
+    assert runner_module._local_observations(scenario, 1, tmp_path) == {}
+    assert "sealed_local_observation" not in inspect.signature(V4NormalGatewayRunner.execute).parameters
+    with pytest.raises(TypeError):
+        runner.execute(sealed_local_observation={"denial": {}})

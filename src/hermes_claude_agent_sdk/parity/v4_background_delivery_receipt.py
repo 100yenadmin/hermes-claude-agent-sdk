@@ -173,18 +173,22 @@ def run_v4_background_delivery_receipt(row_key: str, trial_index: int, path: str
         host_root = Path(host_value).resolve()
         if str(host_root) not in sys.path:
             sys.path.insert(0, str(host_root))
-        from hermes_constants import hermes_home_key, reset_hermes_home_override, set_hermes_home_override
+        from gateway.wake import persist_delegation_delivery
         from hermes_cli import plugins as plugins_mod
         from hermes_cli.plugins import PluginManager
+        from hermes_constants import (
+            hermes_home_key,
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
         from hermes_state import SessionDB
         from run_agent import AIAgent
         from tools.process_registry import process_registry
-        from gateway.wake import persist_delegation_delivery
 
         override = set_hermes_home_override(home)
         old_manager = plugins_mod._plugin_manager
         manager = PluginManager(scope_key=hermes_home_key(home))
-        manager._scan_entry_points = lambda: []  # type: ignore[method-assign]
+        manager._scan_entry_points = list  # type: ignore[method-assign]
         plugins_mod._plugin_manager = manager
         manager.discover_and_load()
         db = SessionDB(home / "state.db")
@@ -216,7 +220,11 @@ def run_v4_background_delivery_receipt(row_key: str, trial_index: int, path: str
             if before != {"state": "completed", "delivery_state": "pending", "delivery_attempts": 0, "parent_delivery_rows": 0, "durable_rows": 1}:
                 raise V4BackgroundDeliveryViolation("producer completion state is not pending delivery")
             consumer = "v4-background-receipt"
-            from tools.async_delegation import claim_event_delivery, complete_event_delivery, release_event_delivery
+            from tools.async_delegation import (
+                claim_event_delivery,
+                complete_event_delivery,
+                release_event_delivery,
+            )
             transitions: list[dict[str, Any]] = []
             if path == "denial":
                 claim = claim_event_delivery(event, consumer)
