@@ -2,7 +2,8 @@ from __future__ import annotations
 from pathlib import Path
 import pytest
 from hermes_claude_agent_sdk.parity.hashing import sha256_value
-from hermes_claude_agent_sdk.parity.v4_contract import OWNERSHIP_PREFLIGHTS, load_v4_contract
+from hermes_claude_agent_sdk.parity.results import candidate_hash
+from hermes_claude_agent_sdk.parity.v4_contract import OWNERSHIP_PREFLIGHTS, V3_RESULT_CATALOG_HASH, load_v4_contract
 from hermes_claude_agent_sdk.parity.v4_live_map import load_v4_live_execution_map
 from hermes_claude_agent_sdk.parity.v4_live_packets import V4LivePacketViolation, build_v4_live_packets
 from hermes_claude_agent_sdk.parity.v4_live_scenarios import LIVE_MAP_SHA256, load_v4_live_scenario_catalog
@@ -35,9 +36,10 @@ def _delegation(scenario, trial_index=None):
     trial_index = scenario.trial_indexes[0] if trial_index is None else trial_index
     count = sum(1 for _, bound_trial, _, _, path in scenario.child_bindings if bound_trial == trial_index and path == "positive")
     return {"count": count, "background_count": 0, "lifecycle": "completed" if count else "none", "parent_link_sha256": "d" * 64 if count else None}
-def _host(turn_count):
+def _host(turn_count, *, assistant_count=None):
     usage = [{"ordinal": index, "sha256": f"{index}".ljust(64, "0"), "provider": "anthropic", "model": "claude-fable-5-1", "selected_model": "claude-fable-5-1", "effective_model": "claude-fable-5-1", "canonical_model": "claude-fable-5-1", "model_resolution": "exact", "billing_mode": "subscription_included", "cost_status": "included", "fallback_used": False, "api_call_count": turn_count, "tokens": {"input_tokens": 1, "output_tokens": 1}} for index in range(1, turn_count + 1)]
-    return {"schema_version": 1, "status": "PASS", "runtime": "claude-agent-sdk", "invariant_violations": [], "expected_turn_count": turn_count, "transcript": {"row_count": turn_count * 2, "canonical_rows": {"user": {"count": turn_count}, "assistant": {"count": turn_count}}, "terminal": {"count": turn_count, "persisted": True, "sha256": "a" * 64}}, "runtime_state": {"present": False, "schema_version": None, "sha256": None}, "runtime_usage": {"receipt_count": turn_count, "ordered": usage, "latest": usage[-1]}}
+    assistant_count = turn_count if assistant_count is None else assistant_count
+    return {"schema_version": 1, "status": "PASS", "runtime": "claude-agent-sdk", "invariant_violations": [], "expected_turn_count": turn_count, "transcript": {"row_count": turn_count + assistant_count, "canonical_rows": {"user": {"count": turn_count}, "assistant": {"count": assistant_count}}, "terminal": {"count": turn_count, "persisted": True, "sha256": "a" * 64}}, "runtime_state": {"present": False, "schema_version": None, "sha256": None}, "runtime_usage": {"receipt_count": turn_count, "ordered": usage, "latest": usage[-1]}}
 def _local(path, expected, terminal, prefix):
     events = [{"kind": {"start": "message.start", "state": "message.state", "terminal": "message.complete"}[name], "byte_length": 12 + index, "sha256": f"{prefix}{index}".ljust(64, "0"), "terminal_status": terminal if name == "terminal" else None} for index, name in enumerate(expected, 1)]
     return {"schema_version": 1, "status": "PASS", "path": path, "host_local": True, "provider_calls": 0, "terminal_status": terminal, "events": events, "observation": {"surface": "host_local", "observation_count": 1}, "proof_hashes": {"primary": f"{prefix}".ljust(64, "0"), "secondary": f"{prefix}f".ljust(64, "0")}}
@@ -49,7 +51,8 @@ def _inputs(row_key="openclaw_active/source-docs-discovery-report"):
     candidate = _candidate(); preflights = _preflights(candidate); v4_hash = sha256_value(candidate)
     pf_hash = _preflight_hash(preflights, v4_hash)
     attempts = [_attempt(scenario, candidate, pf_hash, index) for index in range(1, scenario.turn_count + 1)]
-    stream = {"schema_version": 1, "name": "stream", "candidate_hash": v4_hash, "trial_candidate_hash": "f" * 64, "trial_index": scenario.trial_indexes[0], "status": "PASS", "source": {"executable": "pytest", "source_ref": "tests/stream.py", "test_id": "stream:scenario"}, "observation": {"stream_count": 1, "content_hash": "e" * 64}}
+    trial_hash = candidate_hash(catalog_hash=V3_RESULT_CATALOG_HASH, plugin_sha=candidate["plugin_sha"], host_sha=candidate["host_sha"], sdk_version=candidate["sdk_version"], profile_hash=candidate["profile_sha256"], runner_version=candidate["runner_version"], inventory_hash="5" * 64)
+    stream = {"schema_version": 1, "name": "stream", "candidate_hash": v4_hash, "trial_candidate_hash": trial_hash, "trial_index": scenario.trial_indexes[0], "status": "PASS", "source": {"executable": "pytest", "source_ref": "tests/stream.py", "test_id": "stream:scenario"}, "observation": {"stream_count": 1, "content_hash": "e" * 64}}
     receipt = {"schema_version": 1, "candidate": candidate, "preflight_projections": preflights, "attempts": attempts, "host_observation": _host(scenario.turn_count), "profile_id": "isolated", "inventory_hash": "5" * 64, "stream_projection": stream, "scenario_trace": _scenario_trace(contract, scenario, attempts), "delegation": _delegation(scenario)}
     return contract, live_map, catalog, scenario, receipt
 def test_one_positive_bundle_and_pending_local_paths_without_triple_counting():
@@ -65,6 +68,21 @@ def test_one_positive_bundle_and_pending_local_paths_without_triple_counting():
     assert not bundle["paths"]["denial"]["trial"].normalized_events
     assert bundle["paths"]["denial"]["packet"] is None and bundle["paths"]["recovery"]["packet"] is None
     assert "provider_calls" not in bundle["paths"]["positive"]["trial"].to_dict()
+
+
+@pytest.mark.parametrize("field", ("candidate_hash", "trial_candidate_hash", "trial_index"))
+def test_stream_projection_identity_mismatch_fails_closed(field):
+    contract, live_map, _, scenario, receipt = _inputs()
+    receipt["stream_projection"][field] = 99 if field == "trial_index" else "f" * 64
+    with pytest.raises(V4LivePacketViolation, match="stream projection identity"):
+        build_v4_live_packets(contract, scenario, receipt, live_map=live_map, map_path=MAP)
+
+
+def test_host_projection_accepts_extra_assistant_rows_with_valid_terminal_invariants():
+    contract, live_map, _, scenario, receipt = _inputs()
+    receipt["host_observation"] = _host(scenario.turn_count, assistant_count=scenario.turn_count + 1)
+    bundle = build_v4_live_packets(contract, scenario, receipt, live_map=live_map, map_path=MAP)
+    assert bundle["paths"]["positive"]["classification"] == "COMPLETE"
 def test_explicit_denial_recovery_are_zero_turn_host_local_paths():
     contract, live_map, _, scenario, receipt = _inputs()
     expected = next(row["expected_trace"] for row in contract["source_rows"] if f"{row['source_pack']}/{row['source_item_id']}" == scenario.row_key)

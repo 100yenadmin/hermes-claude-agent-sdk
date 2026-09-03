@@ -248,6 +248,7 @@ def _run(row_key: str, trial_index: int, path: str, task_root: str | Path) -> di
         if path == "recovery":
             methods.append("session.resume")
         observation = {
+            "identity": {"row_key": row_key, "path": path, "trial_index": trial_index},
             "state": {"root_hash": sha256_value(str(state)), "handles": handles},
             "operations": {"start": start_value, "restart": restart_value, "terminal": terminal_value},
             "rpc_methods": methods,
@@ -259,7 +260,7 @@ def _run(row_key: str, trial_index: int, path: str, task_root: str | Path) -> di
             _event("restart", restart_value, None),
             _event("terminal", terminal_value, terminal_status),
         ]
-        proofs_input = {"handles": handles, "operations": observation["operations"], "terminal": terminal_status}
+        proofs_input = {"identity": observation["identity"], "handles": handles, "operations": observation["operations"], "terminal": terminal_status}
         return {
             "schema_version": 1,
             "status": "PASS",
@@ -271,7 +272,7 @@ def _run(row_key: str, trial_index: int, path: str, task_root: str | Path) -> di
             "observation": observation,
             "proof_hashes": {
                 "primary": sha256_value(proofs_input),
-                "secondary": sha256_value({"events": events, "methods": methods}),
+                "secondary": sha256_value({"identity": observation["identity"], "events": events, "methods": methods}),
             },
         }
     finally:

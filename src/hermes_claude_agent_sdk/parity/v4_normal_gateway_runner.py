@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .v4_background_delivery_receipt import run_v4_background_delivery_receipt
-from .v4_contract import OWNERSHIP_PREFLIGHTS, load_v4_contract, validate_v4_contract
+from .v4_contract import V3_RESULT_CATALOG_HASH, OWNERSHIP_PREFLIGHTS, load_v4_contract, validate_v4_contract
 from .v4_fixture_materializer import V4FixtureMaterializer
 from .v4_gateway import HOST_TOOLS, MCP_TOOLS, Gateway
 from .v4_gateway_observer import V4GatewayObserver
@@ -29,11 +29,12 @@ from .v4_live_scenarios import build_v4_live_scenario_catalog
 from .v4_live_session import V4LiveSession
 from .v4_local_path_executor import execute_v4_local_path
 from .v4_local_restart import run_v4_local_restart
+from .results import candidate_hash as result_candidate_hash
 
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 _SAFE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@/+#\-]{0,255}$")
 _CANONICAL = {"message.start": "start", "session.start": "start", "run.start": "start", "message.state": "state", "session.state": "state", "message.usage": "usage", "tool.request": "tool_requested", "tool.requested": "tool_requested", "tool.complete": "tool_result", "tool.completed": "tool_result", "approval.request": "approval_requested", "approval.requested": "approval_requested", "approval.responded": "approval_decision", "approval.decision": "approval_decision", "compaction": "compaction", "background": "background", "restart": "restart", "message.complete": "terminal", "session.complete": "terminal", "run.complete": "terminal", "task.complete": "terminal", "terminal": "terminal"}
-_STRIP = frozenset({"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GLM_API_KEY", "ZAI_API_KEY", "EXTRA_USAGE", "CLAUDE_CODE_EXTRA_USAGE", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX"})
+_STRIP = frozenset({"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GLM_API_KEY", "ZAI_API_KEY", "EXTRA_USAGE", "CLAUDE_CODE_EXTRA_USAGE", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP", "PYTHONEXECUTABLE"})
 class V4NormalGatewayRunnerViolation(ValueError):
     """Admission, observation, or packet composition failed closed."""
 
@@ -358,7 +359,8 @@ class V4NormalGatewayRunner:
             trace = _trace(self._contract, scenario, attempts, observed_gateway.snapshots)
             delegation = _delegation(scenario, trial_index, observed_gateway.snapshots, durable)
             packet_attempts = [_packet_attempt(attempt) for attempt in attempts]
-            receipt = {"schema_version": 1, "candidate": self._candidate, "preflight_projections": self._preflights, "attempts": packet_attempts, "host_observation": host, "profile_id": self._profile_id, "inventory_hash": self._inventory_hash, "stream_projection": {"schema_version": 1, "name": "stream", "candidate_hash": self._candidate_hash, "trial_candidate_hash": attempts[0]["identity"]["candidate_hash"], "trial_index": trial_index, "status": "PASS", "source": {"executable": "normal_gateway", "source_ref": "v4_gateway_observer", "test_id": "positive_turn"}, "observation": {"event_count": sum(item["event_count"] for item in attempts), "provider_calls": scenario.turn_count}}, "scenario_trace": trace, "delegation": delegation}
+            trial_candidate_hash = result_candidate_hash(catalog_hash=V3_RESULT_CATALOG_HASH, plugin_sha=self._candidate["plugin_sha"], host_sha=self._candidate["host_sha"], sdk_version=self._candidate["sdk_version"], profile_hash=self._candidate["profile_sha256"], runner_version=self._candidate["runner_version"], inventory_hash=self._inventory_hash)
+            receipt = {"schema_version": 1, "candidate": self._candidate, "preflight_projections": self._preflights, "attempts": packet_attempts, "host_observation": host, "profile_id": self._profile_id, "inventory_hash": self._inventory_hash, "stream_projection": {"schema_version": 1, "name": "stream", "candidate_hash": self._candidate_hash, "trial_candidate_hash": trial_candidate_hash, "trial_index": trial_index, "status": "PASS", "source": {"executable": "normal_gateway", "source_ref": "v4_gateway_observer", "test_id": "positive_turn"}, "observation": {"event_count": sum(item["event_count"] for item in attempts), "provider_calls": scenario.turn_count}}, "scenario_trace": trace, "delegation": delegation}
             local_observations = _local_observations(scenario, trial_index, self._task_root)
             return build_v4_live_packets(self._contract, scenario, receipt, local_observations, live_map=self._map, map_path=self._map_path, scenario_catalog=self._catalog)
         except V4NormalGatewayRunnerViolation:

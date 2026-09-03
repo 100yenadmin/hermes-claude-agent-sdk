@@ -34,6 +34,7 @@ _TRACE_EVENT = frozenset({"kind", "byte_length", "sha256", "terminal_status", "e
 _TRACE_EVIDENCE = frozenset({"source", "attempt_index", "source_sha256"})
 _TERMINALS = frozenset({"completed", "denied", "failed", "cancelled"})
 _CONTENT = frozenset({"message.delta", "message.content", "content", "text", "message.text"})
+_LOCAL_RESTART_ROW_KEY = "openclaw_active/config-restart-capability-flip"
 class V4LivePacketViolation(ValueError):
     """A scenario bundle cannot form a safe immutable packet set."""
 def _raw(value: Any, location: str = "value") -> None:
@@ -43,7 +44,8 @@ def _raw(value: Any, location: str = "value") -> None:
                 raise V4LivePacketViolation(f"{location} has an invalid key")
             lowered = key.casefold().replace("-", "_")
             host_transcript = lowered == "transcript" and location.endswith("host_observation")
-            if (lowered in _RAW and not host_transcript) or lowered.startswith("raw_") or lowered.endswith("_raw"):
+            sanitized_host_row = lowered in {"tool_call", "tool_result"} and location.endswith("transcript.canonical_rows")
+            if (lowered in _RAW and not host_transcript and not sanitized_host_row) or lowered.startswith("raw_") or lowered.endswith("_raw"):
                 raise V4LivePacketViolation(f"{location} contains forbidden raw data")
             _raw(child, f"{location}.{key}")
     elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
@@ -257,7 +259,7 @@ def _host(value: Any, turn_count: int, provider_calls: int) -> tuple[dict[str, A
     transcript, usage = _copy(host["transcript"], "transcript"), _copy(host["runtime_usage"], "runtime_usage")
     terminal = _copy(transcript.get("terminal"), "transcript.terminal")
     rows = _copy(transcript.get("canonical_rows"), "transcript.canonical_rows")
-    if type(terminal.get("count")) is not int or terminal["count"] != turn_count or terminal.get("persisted") is not True or not _digest(terminal.get("sha256"), "transcript terminal") or type(rows.get("user", {}).get("count")) is not int or rows["user"]["count"] != turn_count or type(rows.get("assistant", {}).get("count")) is not int or rows["assistant"]["count"] != turn_count:
+    if type(terminal.get("count")) is not int or terminal["count"] != turn_count or terminal.get("persisted") is not True or not _digest(terminal.get("sha256"), "transcript terminal") or type(rows.get("user", {}).get("count")) is not int or rows["user"]["count"] != turn_count or type(rows.get("assistant", {}).get("count")) is not int or rows["assistant"]["count"] < turn_count:
         raise V4LivePacketViolation("persisted transcript/terminal evidence is incomplete")
     ordered = usage.get("ordered")
     if usage.get("receipt_count") != turn_count or not isinstance(ordered, list) or len(ordered) != turn_count or usage.get("latest") != ordered[-1]:
@@ -272,10 +274,24 @@ def _host(value: Any, turn_count: int, provider_calls: int) -> tuple[dict[str, A
     elif state != {"present": False, "schema_version": None, "sha256": None}:
         raise V4LivePacketViolation("runtime state evidence is malformed")
     return host, {"primary": terminal["sha256"], "secondary": ordered[-1]["sha256"]}
-def _local(value: Any, path: str, expected_trace: Sequence[str]) -> tuple[tuple[dict[str, Any], ...], dict[str, str]]:
+def _local(value: Any, path: str, expected_trace: Sequence[str], *, expected_row_key: str | None = None, expected_trial_index: int | None = None) -> tuple[tuple[dict[str, Any], ...], dict[str, str]]:
     item = _copy(value, f"{path} observation")
     if set(item) != {"schema_version", "status", "path", "host_local", "provider_calls", "terminal_status", "events", "observation", "proof_hashes"} or item["schema_version"] != 1 or item["status"] != "PASS" or item["path"] != path or item["host_local"] is not True or item["provider_calls"] != 0 or item["terminal_status"] not in _TERMINALS or not _copy(item["observation"], f"{path}.observation"):
         raise V4LivePacketViolation(f"{path} host-local observation is incomplete")
+    observation = _copy(item["observation"], f"{path}.observation")
+    identity_value = observation.get("identity")
+    if identity_value is not None or expected_row_key is not None or expected_trial_index is not None:
+        identity = _copy(identity_value, f"{path}.observation.identity")
+        if set(identity) != {"row_key", "path", "trial_index"} or not _id(identity["row_key"], f"{path}.observation.identity.row_key") or identity["path"] != path or type(identity["trial_index"]) is not int or identity["trial_index"] < 1:
+            raise V4LivePacketViolation(f"{path} local observation identity is incomplete")
+        if identity["row_key"] != _LOCAL_RESTART_ROW_KEY:
+            raise V4LivePacketViolation(f"{path} local observation identity is not a restart row")
+        if expected_row_key is not None and identity["row_key"] != expected_row_key:
+            raise V4LivePacketViolation(f"{path} local observation identity is not row-bound")
+        if expected_trial_index is not None and identity["trial_index"] != expected_trial_index:
+            raise V4LivePacketViolation(f"{path} local observation identity is not trial-bound")
+    else:
+        identity = None
     classification = "EXPECTED_NEGATIVE" if path == "denial" else "COMPLETE"
     events, _, _ = _events(item["events"], classification)
     if tuple(event["kind"] for event in events) != tuple(expected_trace):
@@ -286,6 +302,16 @@ def _local(value: Any, path: str, expected_trace: Sequence[str]) -> tuple[tuple[
     if set(proofs) != {"primary", "secondary"}:
         raise V4LivePacketViolation(f"{path} proof hashes are incomplete")
     _digest(proofs["primary"], f"{path} primary proof"); _digest(proofs["secondary"], f"{path} secondary proof")
+    if identity is not None:
+        state = _copy(observation.get("state"), f"{path}.observation.state")
+        operations = _copy(observation.get("operations"), f"{path}.observation.operations")
+        methods = observation.get("rpc_methods")
+        if not isinstance(methods, list) or any(not isinstance(method, str) for method in methods):
+            raise V4LivePacketViolation(f"{path} local RPC method projection is malformed")
+        expected_primary = sha256_value({"identity": identity, "handles": state.get("handles"), "operations": operations, "terminal": item["terminal_status"]})
+        expected_secondary = sha256_value({"identity": identity, "events": item["events"], "methods": methods})
+        if proofs != {"primary": expected_primary, "secondary": expected_secondary}:
+            raise V4LivePacketViolation(f"{path} local proof hashes do not match identity-bound evidence")
     return events, {"primary": proofs["primary"], "secondary": proofs["secondary"]}
 def _map(value: Mapping[str, Any] | str | Path | None, map_path: str | Path | None) -> tuple[dict[str, Any], Path]:
     source = Path(map_path).expanduser().resolve() if map_path is not None else Path(value).expanduser().resolve() if isinstance(value, (str, Path)) else Path(__file__).resolve().parents[3] / "qa" / "parity-v4-live-execution-map.yaml"
@@ -311,7 +337,8 @@ def _stream(base: Any, candidate_hash: str, trial: ResultPacket, scenario_hash: 
     fields = {"schema_version", "name", "candidate_hash", "trial_candidate_hash", "trial_index", "status", "source", "observation"}
     if set(stream) != fields or stream["schema_version"] != 1 or stream["name"] != "stream" or stream["status"] != "PASS":
         raise V4LivePacketViolation("stream projection is not closed PASS evidence")
-    stream["candidate_hash"], stream["trial_candidate_hash"], stream["trial_index"] = candidate_hash, trial.candidate_hash, trial.trial_index
+    if (stream["candidate_hash"], stream["trial_candidate_hash"], stream["trial_index"]) != (candidate_hash, trial.candidate_hash, trial.trial_index):
+        raise V4LivePacketViolation("stream projection identity is mismatched")
     observation = _copy(stream["observation"], "stream.observation")
     observation.update({"scenario_receipt_hash": scenario_hash, "content_projection_hash": content_hash})
     stream["observation"] = observation
@@ -371,7 +398,8 @@ def build_v4_live_packets(contract: Mapping[str, Any], scenario: V4LiveScenario 
             if path == "positive":
                 events, proofs, classification, turns = scenario_events, host_proofs, "COMPLETE", selected.turn_count
             elif path in observations:
-                events, proofs = _local(observations[path], path, row["expected_trace"])
+                strict_identity = selected.row_key == "openclaw_active/config-restart-capability-flip"
+                events, proofs = _local(observations[path], path, row["expected_trace"], expected_row_key=selected.row_key if strict_identity else None, expected_trial_index=first_identity["trial_index"] if strict_identity else None)
                 classification, turns = ("EXPECTED_NEGATIVE", 0) if path == "denial" else ("COMPLETE", 0)
             else:
                 events, proofs, classification, turns = (), host_proofs, "PENDING", 0

@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from hermes_claude_agent_sdk.parity import v4_local_restart as restart
-from hermes_claude_agent_sdk.parity.v4_live_packets import _local
+from hermes_claude_agent_sdk.parity.v4_live_packets import V4LivePacketViolation, _local
 
 ROW = "openclaw_active/config-restart-capability-flip"
 TRACE = ("start", "restart", "terminal")
@@ -23,6 +23,11 @@ def test_actual_task_local_gateway_restart_packet(tmp_path: Path, path: str, ter
     assert packet["host_local"] is True
     assert packet["provider_calls"] == 0
     assert packet["terminal_status"] == terminal
+    assert packet["observation"]["identity"] == {
+        "row_key": ROW,
+        "path": path,
+        "trial_index": 1,
+    }
     assert tuple(event["kind"] for event in events) == TRACE
     assert proofs == packet["proof_hashes"]
     expected_methods = [
@@ -43,6 +48,43 @@ def test_actual_task_local_gateway_restart_packet(tmp_path: Path, path: str, ter
     assert "session_id" not in repr(packet)
     assert "stored_session_id" not in repr(packet)
     assert "prompt.submit" not in repr(packet)
+
+
+def _synthetic_local_packet() -> dict[str, object]:
+    events = [
+        {"kind": "start", "byte_length": 1, "sha256": "a" * 64, "terminal_status": None},
+        {"kind": "restart", "byte_length": 1, "sha256": "b" * 64, "terminal_status": None},
+        {"kind": "terminal", "byte_length": 1, "sha256": "c" * 64, "terminal_status": "denied"},
+    ]
+    return {
+        "schema_version": 1,
+        "status": "PASS",
+        "path": "denial",
+        "host_local": True,
+        "provider_calls": 0,
+        "terminal_status": "denied",
+        "events": events,
+        "observation": {
+            "identity": {"row_key": ROW, "path": "denial", "trial_index": 1},
+            "state": {"root_hash": "d" * 64, "handles": {}},
+            "operations": {},
+            "rpc_methods": [],
+            "provider_calls": 0,
+        },
+        "proof_hashes": {"primary": "e" * 64, "secondary": "f" * 64},
+    }
+
+
+def test_local_validator_rejects_identity_or_proof_drift() -> None:
+    packet = _synthetic_local_packet()
+    packet["observation"]["identity"]["path"] = "recovery"  # type: ignore[index]
+    with pytest.raises(V4LivePacketViolation, match="identity"):
+        _local(packet, "denial", TRACE)
+
+    packet = _synthetic_local_packet()
+    packet["proof_hashes"]["primary"] = "1" * 64  # type: ignore[index]
+    with pytest.raises(V4LivePacketViolation, match="proof"):
+        _local(packet, "denial", TRACE)
 
 
 def test_restart_call_is_sealed_and_admits_only_mapped_trials(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
