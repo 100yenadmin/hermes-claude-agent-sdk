@@ -23,6 +23,11 @@ def test_actual_task_local_gateway_restart_packet(tmp_path: Path, path: str, ter
     assert packet["host_local"] is True
     assert packet["provider_calls"] == 0
     assert packet["terminal_status"] == terminal
+    assert packet["observation"]["identity"] == {
+        "row_key": ROW,
+        "path": path,
+        "trial_index": 1,
+    }
     assert tuple(event["kind"] for event in events) == TRACE
     assert proofs == packet["proof_hashes"]
     expected_methods = [
@@ -43,6 +48,43 @@ def test_actual_task_local_gateway_restart_packet(tmp_path: Path, path: str, ter
     assert "session_id" not in repr(packet)
     assert "stored_session_id" not in repr(packet)
     assert "prompt.submit" not in repr(packet)
+
+
+def test_restart_proofs_bind_trial_identity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeGateway:
+        def __init__(self, **_: object) -> None:
+            self.started = False
+            self._process = None
+
+        def start(self) -> None:
+            self.started = True
+
+        def call(self, method, params=None, *, projector=None, **kwargs):
+            if method == "session.resume" and str((params or {}).get("session_id", "")).startswith("v4-stale-"):
+                raise restart.GatewayRpcError(method, -1, "synthetic stale session")
+            projected = {"session_id": "live", "stored_session_id": "stored"} if method == "session.create" else {}
+            if callable(projector):
+                projector(projected)
+            return {
+                "ok": True,
+                "method": method,
+                "result_kind": "object",
+                "result_bytes": 1,
+                "result_sha256": "a" * 64,
+            }
+
+        def close(self) -> None:
+            self.started = False
+
+    monkeypatch.setattr(restart, "Gateway", FakeGateway)
+    first = restart.run_v4_local_restart(ROW, 1, "denial", tmp_path)
+    second = restart.run_v4_local_restart(ROW, 2, "denial", tmp_path)
+    assert first["proof_hashes"] != second["proof_hashes"]
+    assert second["observation"]["identity"] == {
+        "row_key": ROW,
+        "path": "denial",
+        "trial_index": 2,
+    }
 
 
 def test_restart_call_is_sealed_and_admits_only_mapped_trials(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

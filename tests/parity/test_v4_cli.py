@@ -81,3 +81,21 @@ def test_bind_grade_cli_rejects_conflicting_output_before_partial_persistence(tm
     (output / "trial.json").write_text("conflict", encoding="utf-8")
     assert _run(contract, packets, receipts, output) == 2
     assert not (output / "grade-rc.json").exists()
+
+
+def test_bind_grade_cli_rejects_symlinked_input_directory_before_resolution(tmp_path: Path) -> None:
+    contract, packets, receipts = _inputs(tmp_path)
+    packet_link = tmp_path / "v3-link"
+    packet_link.symlink_to(packets, target_is_directory=True)
+    assert _run(contract, packet_link, receipts, tmp_path / "out") == 2
+    assert not (tmp_path / "out").exists()
+
+
+def test_bind_grade_cli_rejects_symlinked_output_before_resolution(tmp_path: Path) -> None:
+    contract, packets, receipts = _inputs(tmp_path)
+    target = tmp_path / "real-output"
+    target.mkdir()
+    output_link = tmp_path / "output-link"
+    output_link.symlink_to(target, target_is_directory=True)
+    assert _run(contract, packets, receipts, output_link) == 2
+    assert list(target.iterdir()) == []

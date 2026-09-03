@@ -240,10 +240,16 @@ def _persist(output: Path, documents: Mapping[str, Mapping[str, Any]]) -> None:
 def bind_and_grade(*, contract_path: str | Path, v3_packets: str | Path, ownership_receipts: str | Path, output: str | Path, lane: str = "rc") -> tuple[dict[str, Any], int]:
     """Bind all supplied v3 packets, then grade the resulting v4 packets."""
 
-    contract_source = Path(contract_path).expanduser().resolve()
-    packets_source = Path(v3_packets).expanduser().resolve()
-    receipts_source = Path(ownership_receipts).expanduser().resolve()
-    output_path = Path(output).expanduser().resolve()
+    contract_input = Path(contract_path).expanduser()
+    packets_input = Path(v3_packets).expanduser()
+    receipts_input = Path(ownership_receipts).expanduser()
+    output_input = Path(output).expanduser()
+    if any(path.is_symlink() for path in (contract_input, packets_input, receipts_input, output_input)):
+        raise V4CLIError("input and output paths must not be symlinks")
+    contract_source = contract_input.resolve()
+    packets_source = packets_input.resolve()
+    receipts_source = receipts_input.resolve()
+    output_path = output_input.resolve()
     if lane not in {"rc", "runtime"}:
         raise V4CLIError("grade lane must be rc or runtime")
     if _paths_overlap(output_path, (packets_source, receipts_source)):

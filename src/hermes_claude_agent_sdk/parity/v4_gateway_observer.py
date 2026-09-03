@@ -6,7 +6,7 @@ from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import Any
-from .v4_gateway import EventProjection
+from .v4_gateway import TURN_TERMINAL_TYPES, EventProjection
 MAX_FIXTURE_BYTES = 64 * 1024
 MAX_OBSERVED_EVENTS = 10_000
 STATE_FILE = ".hermes_v4_fixture_state.json"
@@ -59,7 +59,7 @@ def _parts(value: object) -> tuple[Mapping[str, Any], str, int, str, str | None]
     payload = params.get("payload") if isinstance(params.get("payload"), Mapping) else {}
     lowered = kind.casefold()
     terminal = None if lowered in _CHILD else payload.get("terminal_outcome")
-    if terminal is None and (kind.casefold() in {"terminal", "message.complete", "session.complete", "run.complete", "task.complete"} or kind.casefold().endswith((".terminal", ".finished", ".done"))):
+    if terminal is None and (lowered in TURN_TERMINAL_TYPES or lowered.endswith((".terminal", ".finished", ".done"))):
         terminal = _TERMINALS.get(payload.get("status")) if isinstance(payload.get("status"), str) else None
     if terminal is not None and terminal not in {"completed", "denied", "failed", "cancelled"}: _fail("event terminal status is unsupported")
     return params, kind, size, digest, terminal

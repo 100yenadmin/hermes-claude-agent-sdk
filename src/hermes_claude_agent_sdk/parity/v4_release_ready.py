@@ -209,8 +209,11 @@ def validate_v4_release_ready(value: Mapping[str, Any]) -> dict[str, Any]:
 def load_v4_release_ready(path: str | Path) -> dict[str, Any]:
     """Load and validate one bounded JSON receipt."""
 
-    source = Path(path).expanduser().resolve()
-    if source.is_symlink() or not source.is_file() or source.stat().st_size > 64 * 1024:
+    unresolved = Path(path).expanduser()
+    if unresolved.is_symlink():
+        raise V4ReleaseReadyViolation("receipt is not a bounded regular file")
+    source = unresolved.resolve()
+    if not source.is_file() or source.stat().st_size > 64 * 1024:
         raise V4ReleaseReadyViolation("receipt is not a bounded regular file")
     try:
         value = json.loads(source.read_text(encoding="utf-8"))

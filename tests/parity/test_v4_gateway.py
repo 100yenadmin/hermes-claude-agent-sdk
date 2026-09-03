@@ -2,8 +2,9 @@ from __future__ import annotations
 import queue
 from collections import deque
 from pathlib import Path
+from types import SimpleNamespace
 import pytest
-from hermes_claude_agent_sdk.parity.v4_gateway import DuplicateTerminalError, EventAccumulator, EventAccumulatorError, Gateway, GatewayProtocolError, MissingTerminalError, NativeToolEvent, OpaqueHandle, PostTerminalEventError
+from hermes_claude_agent_sdk.parity.v4_gateway import MAX_FRAME_BYTES, DuplicateTerminalError, EventAccumulator, EventAccumulatorError, Gateway, GatewayProtocolError, MissingTerminalError, NativeToolEvent, OpaqueHandle, PostTerminalEventError
 def _event(kind: str, payload: dict[str, object] | None = None) -> dict[str, object]:
     return {"jsonrpc": "2.0", "method": "event", "params": {"type": kind, "payload": payload or {}}}
 class _Transport:
@@ -109,6 +110,29 @@ def test_gateway_accepts_hermes_subagent_lifecycle_from_fake_transport() -> None
         "subagent.spawn_requested", "subagent.start", "subagent.complete", "subagent.text", "subagent.thinking", "subagent.tool", "subagent.progress"
     ]
     gateway.close()
+
+
+def test_stdio_reader_bounds_each_read_before_frame_allocation() -> None:
+    class Stream:
+        def __init__(self) -> None:
+            self.readline_sizes: list[int] = []
+            self.iterated = False
+
+        def __iter__(self):
+            self.iterated = True
+            return iter((b"x" * (MAX_FRAME_BYTES + 1),))
+
+        def readline(self, size: int) -> bytes:
+            self.readline_sizes.append(size)
+            return b"x" * (MAX_FRAME_BYTES + 1)
+
+    stream = Stream()
+    gateway = Gateway(python="python", cwd="/tmp", env={"PATH": "/bin"})
+    gateway._process = SimpleNamespace(stdout=stream)
+    gateway._pump_stdio()
+    assert not stream.iterated
+    assert stream.readline_sizes == [MAX_FRAME_BYTES + 1]
+    assert isinstance(gateway._reader_error, GatewayProtocolError)
 
 @pytest.mark.parametrize(
     ("status", "expected"),

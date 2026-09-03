@@ -23,6 +23,7 @@ V4_DELEGATION_OBSERVATION_SCHEMA_VERSION = 1
 HOST_RUNTIME_ID = "hermes-claude-agent-sdk"
 V4_MODEL = "claude-fable-5-1"
 V4_RECEIPT_PROVIDER = "anthropic"
+V4_RUNTIME_DISTRIBUTION = "claude-agent-sdk"
 _MAX_TOKEN = 10**12
 _MAX_STATE_BYTES = 64 * 1024
 _TEXT = re.compile(r"^[^\x00-\x1f\x7f-\x9f]{1,512}$")
@@ -264,9 +265,12 @@ def _usage(conn: sqlite3.Connection, session: sqlite3.Row, expected_turn_count: 
     rows = conn.execute("SELECT id, provider, model, selected_model, effective_model, canonical_model, model_resolution, billing_mode, cost_status, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, replay_safe, correlation_id, fallback_used, recorded_at FROM runtime_usage_receipts WHERE session_id=? AND runtime_id=? ORDER BY id ASC", (session["id"], HOST_RUNTIME_ID)).fetchall()
     if len(rows) != expected_turn_count:
         _bad("runtime usage receipt evidence is absent or ambiguous")
+    session_call_count = _bounded_int(session["api_call_count"])
+    if session_call_count != expected_turn_count:
+        _bad("session API call count does not match the expected turn count")
     projections: list[dict[str, Any]] = []
     for ordinal, row in enumerate(rows, 1):
-        if (row["provider"], row["model"], row["selected_model"], row["effective_model"], row["model_resolution"], row["billing_mode"], row["cost_status"]) != (V4_RECEIPT_PROVIDER, V4_MODEL, V4_MODEL, V4_MODEL, "exact", "subscription_included", "included") or row["canonical_model"] not in (None, V4_MODEL) or row["fallback_used"] != 0 or row["replay_safe"] not in (0, 1):
+        if (row["provider"], row["model"], row["selected_model"], row["effective_model"], row["canonical_model"], row["model_resolution"], row["billing_mode"], row["cost_status"]) != (V4_RECEIPT_PROVIDER, V4_MODEL, V4_MODEL, V4_MODEL, V4_MODEL, "exact", "subscription_included", "included") or row["fallback_used"] != 0 or row["replay_safe"] not in (0, 1):
             _bad("runtime usage receipt model or billing evidence is not exact")
         correlation = row["correlation_id"]
         if not isinstance(correlation, str) or not _TEXT.fullmatch(correlation) or len(correlation.encode("utf-8")) > 2048:
@@ -276,7 +280,7 @@ def _usage(conn: sqlite3.Connection, session: sqlite3.Row, expected_turn_count: 
             _bad("runtime usage receipt timestamp is malformed")
         correlation_digest = {"sha256": sha256_value(correlation), "byte_length": len(correlation.encode("utf-8"))}
         digest_fields = {field: row[field] for field in ("provider", "model", "selected_model", "effective_model", "canonical_model", "model_resolution", "billing_mode", "cost_status", *(_TOKEN_FIELDS), "replay_safe", "fallback_used", "recorded_at")}; digest_fields.update({"ordinal": ordinal, "correlation": correlation_digest})
-        projections.append({"ordinal": ordinal, "sha256": sha256_value(digest_fields), "correlation": correlation_digest, "provider": V4_RECEIPT_PROVIDER, "model": V4_MODEL, "selected_model": V4_MODEL, "effective_model": V4_MODEL, "canonical_model": row["canonical_model"], "model_resolution": "exact", "billing_mode": "subscription_included", "cost_status": "included", "fallback_used": False, "api_call_count": _bounded_int(session["api_call_count"]), "tokens": tokens})
+        projections.append({"ordinal": ordinal, "sha256": sha256_value(digest_fields), "correlation": correlation_digest, "provider": V4_RECEIPT_PROVIDER, "model": V4_MODEL, "selected_model": V4_MODEL, "effective_model": V4_MODEL, "canonical_model": row["canonical_model"], "model_resolution": "exact", "billing_mode": "subscription_included", "cost_status": "included", "fallback_used": False, "api_call_count": session_call_count, "tokens": tokens})
     return {"receipt_count": len(projections), "ordered": projections, "latest": projections[-1]}
 
 
@@ -479,7 +483,7 @@ def collect_v4_host_observation(db_path: str | Path, session_id: str, *, allowed
         if len(sessions) != 1:
             _bad("session evidence is absent or ambiguous")
         rows = _host_messages(conn, sid)
-        return {"schema_version": V4_HOST_PROBE_SCHEMA_VERSION, "status": "PASS", "expected_turn_count": expected_turn_count, "transcript": _transcript(rows, expected_turn_count), "runtime_state": _state(conn, sid), "runtime_usage": _usage(conn, sessions[0], expected_turn_count)}
+        return {"schema_version": V4_HOST_PROBE_SCHEMA_VERSION, "status": "PASS", "runtime": V4_RUNTIME_DISTRIBUTION, "invariant_violations": [], "expected_turn_count": expected_turn_count, "transcript": _transcript(rows, expected_turn_count), "runtime_state": _state(conn, sid), "runtime_usage": _usage(conn, sessions[0], expected_turn_count)}
     except V4HostProbeViolation:
         raise
     except (sqlite3.Error, OSError, TypeError, ValueError, UnicodeError, RecursionError):

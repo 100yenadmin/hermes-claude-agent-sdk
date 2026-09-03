@@ -7,6 +7,7 @@ import shutil
 import sys
 from pathlib import Path
 from types import ModuleType
+from types import SimpleNamespace
 from typing import Any, Mapping
 import pytest
 _HOST_ROOT_VALUE = os.environ.get("HERMES_AGENT_HOST_ROOT")
@@ -121,6 +122,18 @@ def test_preflight_rejects_open_or_caller_directed_inputs() -> None:
         api_mode=plugin.API_MODE, messages=(), prompt_snapshot=plugin.PROMPT,
         tool_schemas=(_tool_schema(plugin), {"name": "arbitrary_tool"}))
     assert plugin.create_runtime().preflight(request) is not None
+
+
+def test_preflight_returns_runtime_failure_for_missing_tool_parameters() -> None:
+    plugin = _fixture_module()
+    request = SimpleNamespace(
+        selection=RuntimeSelection(plugin.PROVIDER_ID, plugin.MODEL_ID, plugin.API_MODE),
+        prompt_snapshot=plugin.PROMPT,
+        tool_schemas=({"name": plugin.TOOL_NAME},),
+    )
+    failure = plugin.create_runtime().preflight(request)
+    assert failure is not None
+    assert failure.code == "fixture_runtime_tool_surface_unsupported"
 def test_discovered_runtime_crosses_real_host_approval_and_records_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

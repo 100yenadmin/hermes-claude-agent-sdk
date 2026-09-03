@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import os
+import builtins
+import sys
 from pathlib import Path
 
 import pytest
@@ -58,6 +60,31 @@ def test_manager_restores_none_after_receipt(tmp_path: Path, monkeypatch: pytest
     monkeypatch.setattr(plugins_mod, "_plugin_manager", None)
     _receipt(tmp_path, "openclaw_active/subagent-handoff", "positive")
     assert plugins_mod._plugin_manager is None
+
+
+def test_setup_failure_restores_process_global_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    before_path = list(sys.path)
+    before_env = {
+        key: os.environ.get(key)
+        for key in ("HERMES_HOME", "HERMES_BUNDLED_PLUGINS", "HERMES_INTERACTIVE")
+    }
+    real_import = builtins.__import__
+
+    def fail_gateway_import(name, *args, **kwargs):
+        if name == "gateway.wake":
+            raise RuntimeError("synthetic setup failure")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fail_gateway_import)
+    with pytest.raises(RuntimeError, match="synthetic setup failure"):
+        run_v4_background_delivery_receipt(
+            "openclaw_active/subagent-handoff", 1, "positive", tmp_path
+        )
+    assert sys.path == before_path
+    assert {
+        key: os.environ.get(key)
+        for key in ("HERMES_HOME", "HERMES_BUNDLED_PLUGINS", "HERMES_INTERACTIVE")
+    } == before_env
 
 
 def test_fanout_recovery_is_one_batch_and_one_parent_delivery(tmp_path: Path) -> None:

@@ -77,6 +77,13 @@ def test_fake_normal_gateway_positive_packet_and_safe_env(tmp_path, monkeypatch)
     assert result["paths"]["positive"]["classification"] == "COMPLETE" and transport.sid not in repr(result)
     assert env["HOME"] == str(transient_home) and env["CLAUDE_CONFIG_DIR"] == str(transient_config) and env["HERMES_MODEL"] == "claude-fable-5-1" and env["HERMES_TUI_PROVIDER"] == "claude-agent-sdk"
     assert all(name not in env for name in ("ANTHROPIC_API_KEY", "GLM_API_KEY", "EXTRA_USAGE")); assert "v4_fixture_local_state" in seen["host_tools"] and "mcp__hermes-tools__v4_fixture_local_state" in seen["mcp_tools"]
+
+
+def test_safe_env_strips_python_startup_overrides(tmp_path, monkeypatch):
+    for name in ("PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP", "PYTHONEXECUTABLE"):
+        monkeypatch.setenv(name, f"/ambient/{name.casefold()}")
+    environment = runner_module._safe_env(tmp_path / "home")
+    assert all(name not in environment for name in ("PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP", "PYTHONEXECUTABLE"))
 def test_missing_host_observation_fails_closed_without_path_fabrication(tmp_path):
     transport = _Transport(_events())
     with pytest.raises(V4NormalGatewayRunnerViolation): _runner(tmp_path / "home", lambda **kwargs: Gateway(python="fake", cwd=ROOT, env=kwargs["env"], transport=transport, host_tools=kwargs["host_tools"], mcp_tools=kwargs["mcp_tools"])).execute()

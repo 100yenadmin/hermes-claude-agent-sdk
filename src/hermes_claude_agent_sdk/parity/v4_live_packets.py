@@ -43,7 +43,8 @@ def _raw(value: Any, location: str = "value") -> None:
                 raise V4LivePacketViolation(f"{location} has an invalid key")
             lowered = key.casefold().replace("-", "_")
             host_transcript = lowered == "transcript" and location.endswith("host_observation")
-            if (lowered in _RAW and not host_transcript) or lowered.startswith("raw_") or lowered.endswith("_raw"):
+            sanitized_host_row = lowered in {"tool_call", "tool_result"} and location.endswith("transcript.canonical_rows")
+            if (lowered in _RAW and not host_transcript and not sanitized_host_row) or lowered.startswith("raw_") or lowered.endswith("_raw"):
                 raise V4LivePacketViolation(f"{location} contains forbidden raw data")
             _raw(child, f"{location}.{key}")
     elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
@@ -257,7 +258,7 @@ def _host(value: Any, turn_count: int, provider_calls: int) -> tuple[dict[str, A
     transcript, usage = _copy(host["transcript"], "transcript"), _copy(host["runtime_usage"], "runtime_usage")
     terminal = _copy(transcript.get("terminal"), "transcript.terminal")
     rows = _copy(transcript.get("canonical_rows"), "transcript.canonical_rows")
-    if type(terminal.get("count")) is not int or terminal["count"] != turn_count or terminal.get("persisted") is not True or not _digest(terminal.get("sha256"), "transcript terminal") or type(rows.get("user", {}).get("count")) is not int or rows["user"]["count"] != turn_count or type(rows.get("assistant", {}).get("count")) is not int or rows["assistant"]["count"] != turn_count:
+    if type(terminal.get("count")) is not int or terminal["count"] != turn_count or terminal.get("persisted") is not True or not _digest(terminal.get("sha256"), "transcript terminal") or type(rows.get("user", {}).get("count")) is not int or rows["user"]["count"] != turn_count or type(rows.get("assistant", {}).get("count")) is not int or rows["assistant"]["count"] < turn_count:
         raise V4LivePacketViolation("persisted transcript/terminal evidence is incomplete")
     ordered = usage.get("ordered")
     if usage.get("receipt_count") != turn_count or not isinstance(ordered, list) or len(ordered) != turn_count or usage.get("latest") != ordered[-1]:
@@ -311,7 +312,8 @@ def _stream(base: Any, candidate_hash: str, trial: ResultPacket, scenario_hash: 
     fields = {"schema_version", "name", "candidate_hash", "trial_candidate_hash", "trial_index", "status", "source", "observation"}
     if set(stream) != fields or stream["schema_version"] != 1 or stream["name"] != "stream" or stream["status"] != "PASS":
         raise V4LivePacketViolation("stream projection is not closed PASS evidence")
-    stream["candidate_hash"], stream["trial_candidate_hash"], stream["trial_index"] = candidate_hash, trial.candidate_hash, trial.trial_index
+    if (stream["candidate_hash"], stream["trial_candidate_hash"], stream["trial_index"]) != (candidate_hash, trial.candidate_hash, trial.trial_index):
+        raise V4LivePacketViolation("stream projection identity is mismatched")
     observation = _copy(stream["observation"], "stream.observation")
     observation.update({"scenario_receipt_hash": scenario_hash, "content_projection_hash": content_hash})
     stream["observation"] = observation

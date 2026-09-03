@@ -12,11 +12,14 @@ from hermes_claude_agent_sdk.parity.v4_host_probe import (
     collect_v4_delegation_observation,
     collect_v4_host_observation,
 )
+from hermes_claude_agent_sdk.parity.v4_live_packets import build_v4_live_packets
+
+from .test_v4_live_packets import MAP, _inputs
 
 SID, CALL_ID, CONTENT, CORRELATION = "synthetic-session-secret", "synthetic-call-secret", "synthetic private prompt", "synthetic-correlation-secret"
 
 
-def _db(tmp_path: Path, *, provider: str = "anthropic", result_id: str = CALL_ID, duplicate_receipt: bool = False, turns: int = 1, correlation: str = CORRELATION) -> tuple[Path, str]:
+def _db(tmp_path: Path, *, provider: str = "anthropic", result_id: str = CALL_ID, duplicate_receipt: bool = False, turns: int = 1, correlation: str = CORRELATION, canonical_model: str | None = "claude-fable-5-1", api_call_count: int | None = None) -> tuple[Path, str]:
     path = tmp_path / "state.db"; conn = sqlite3.connect(path)
     conn.executescript("""
         CREATE TABLE sessions (id TEXT PRIMARY KEY, api_call_count INTEGER NOT NULL);
@@ -25,14 +28,14 @@ def _db(tmp_path: Path, *, provider: str = "anthropic", result_id: str = CALL_ID
         CREATE TABLE runtime_usage_receipts (id INTEGER PRIMARY KEY, session_id TEXT NOT NULL, runtime_id TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, selected_model TEXT, effective_model TEXT, canonical_model TEXT, model_resolution TEXT NOT NULL, billing_mode TEXT NOT NULL, cost_status TEXT NOT NULL, input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL, cache_read_tokens INTEGER NOT NULL, cache_write_tokens INTEGER NOT NULL, reasoning_tokens INTEGER NOT NULL, replay_safe INTEGER NOT NULL, correlation_id TEXT, fallback_used INTEGER NOT NULL, failure_phase TEXT, recorded_at REAL NOT NULL);
         CREATE TABLE async_delegations (delegation_id TEXT, parent_session_id TEXT, state TEXT, delivery_state TEXT, delivery_attempts INTEGER);
     """)
-    conn.execute("INSERT INTO sessions VALUES (?, ?)", (SID, 1))
+    conn.execute("INSERT INTO sessions VALUES (?, ?)", (SID, turns if api_call_count is None else api_call_count))
     calls = json.dumps([{"id": CALL_ID, "type": "function", "function": {"name": "terminal", "arguments": "{}"}}])
     conn.executemany("INSERT INTO messages (id, session_id, role, content, tool_call_id, tool_calls, tool_name, timestamp, finish_reason, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [(1, SID, "user", CONTENT, None, None, None, 1.0, None, 1), (2, SID, "assistant", "working", None, calls, None, 2.0, "tool_calls", 1), (3, SID, "tool", "private tool result", result_id, None, "terminal", 3.0, None, 1), (4, SID, "assistant", "done", None, None, None, 4.0, "stop", 1)])
     for turn in range(1, turns):
         base = turn * 4 + 1
         conn.executemany("INSERT INTO messages (id, session_id, role, content, tool_call_id, tool_calls, tool_name, timestamp, finish_reason, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [(base, SID, "user", f"turn {turn}", None, None, None, float(base), None, 1), (base + 1, SID, "assistant", "done", None, None, None, float(base + 1), "stop", 1)])
     conn.execute("INSERT INTO runtime_session_state VALUES (?, ?, ?, ?, ?)", (SID, "hermes-claude-agent-sdk", 1, '{"lifecycle":"completed"}', 4.0))
-    receipt = (1, SID, "hermes-claude-agent-sdk", provider, "claude-fable-5-1", "claude-fable-5-1", "claude-fable-5-1", None, "exact", "subscription_included", "included", 2, 3, 0, 0, 0, 0, correlation, 0, None, 4.0)
+    receipt = (1, SID, "hermes-claude-agent-sdk", provider, "claude-fable-5-1", "claude-fable-5-1", "claude-fable-5-1", canonical_model, "exact", "subscription_included", "included", 2, 3, 0, 0, 0, 0, correlation, 0, None, 4.0)
     for turn in range(turns):
         conn.execute("INSERT INTO runtime_usage_receipts VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (turn + 1, *receipt[1:17], f"{correlation}-{turn}" if turn else correlation, *receipt[18:]))
     if duplicate_receipt: conn.execute("INSERT INTO runtime_usage_receipts VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (turns + 1, *receipt[1:17], "other-correlation", *receipt[18:]))
@@ -124,6 +127,40 @@ def test_two_turns_are_ordered_and_count_is_strict(tmp_path: Path) -> None:
     assert all(set(item["correlation"]) == {"sha256", "byte_length"} for item in receipts)
     assert all(secret not in json.dumps(observation) for secret in (sid, CALL_ID, CONTENT, CORRELATION))
     with pytest.raises(V4HostProbeViolation): collect_v4_host_observation(path, sid, allowed_root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    ({"canonical_model": None}, {"turns": 2, "api_call_count": 1}),
+)
+def test_rejects_missing_canonical_model_or_inexact_session_call_count(tmp_path: Path, kwargs: dict[str, object]) -> None:
+    path, sid = _db(tmp_path, **kwargs)
+    with pytest.raises(V4HostProbeViolation):
+        collect_v4_host_observation(
+            path,
+            sid,
+            allowed_root=tmp_path,
+            expected_turn_count=int(kwargs.get("turns", 1)),
+        )
+
+
+def test_host_projection_binds_through_live_packet_validator(tmp_path: Path) -> None:
+    contract, live_map, _, scenario, receipt = _inputs()
+    path, sid = _db(tmp_path, turns=scenario.turn_count)
+    receipt["host_observation"] = collect_v4_host_observation(
+        path,
+        sid,
+        allowed_root=tmp_path,
+        expected_turn_count=scenario.turn_count,
+    )
+    bundle = build_v4_live_packets(
+        contract,
+        scenario,
+        receipt,
+        live_map=live_map,
+        map_path=MAP,
+    )
+    assert bundle["scenario_receipt"]["provider_accounting"]["positive_calls"] == scenario.turn_count
 
 
 def test_collects_closed_sanitized_durable_delegation_observation(tmp_path: Path) -> None:

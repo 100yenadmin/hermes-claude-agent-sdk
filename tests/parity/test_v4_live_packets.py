@@ -2,7 +2,8 @@ from __future__ import annotations
 from pathlib import Path
 import pytest
 from hermes_claude_agent_sdk.parity.hashing import sha256_value
-from hermes_claude_agent_sdk.parity.v4_contract import OWNERSHIP_PREFLIGHTS, load_v4_contract
+from hermes_claude_agent_sdk.parity.results import candidate_hash
+from hermes_claude_agent_sdk.parity.v4_contract import OWNERSHIP_PREFLIGHTS, V3_RESULT_CATALOG_HASH, load_v4_contract
 from hermes_claude_agent_sdk.parity.v4_live_map import load_v4_live_execution_map
 from hermes_claude_agent_sdk.parity.v4_live_packets import V4LivePacketViolation, build_v4_live_packets
 from hermes_claude_agent_sdk.parity.v4_live_scenarios import LIVE_MAP_SHA256, load_v4_live_scenario_catalog
@@ -49,7 +50,8 @@ def _inputs(row_key="openclaw_active/source-docs-discovery-report"):
     candidate = _candidate(); preflights = _preflights(candidate); v4_hash = sha256_value(candidate)
     pf_hash = _preflight_hash(preflights, v4_hash)
     attempts = [_attempt(scenario, candidate, pf_hash, index) for index in range(1, scenario.turn_count + 1)]
-    stream = {"schema_version": 1, "name": "stream", "candidate_hash": v4_hash, "trial_candidate_hash": "f" * 64, "trial_index": scenario.trial_indexes[0], "status": "PASS", "source": {"executable": "pytest", "source_ref": "tests/stream.py", "test_id": "stream:scenario"}, "observation": {"stream_count": 1, "content_hash": "e" * 64}}
+    trial_hash = candidate_hash(catalog_hash=V3_RESULT_CATALOG_HASH, plugin_sha=candidate["plugin_sha"], host_sha=candidate["host_sha"], sdk_version=candidate["sdk_version"], profile_hash=candidate["profile_sha256"], runner_version=candidate["runner_version"], inventory_hash="5" * 64)
+    stream = {"schema_version": 1, "name": "stream", "candidate_hash": v4_hash, "trial_candidate_hash": trial_hash, "trial_index": scenario.trial_indexes[0], "status": "PASS", "source": {"executable": "pytest", "source_ref": "tests/stream.py", "test_id": "stream:scenario"}, "observation": {"stream_count": 1, "content_hash": "e" * 64}}
     receipt = {"schema_version": 1, "candidate": candidate, "preflight_projections": preflights, "attempts": attempts, "host_observation": _host(scenario.turn_count), "profile_id": "isolated", "inventory_hash": "5" * 64, "stream_projection": stream, "scenario_trace": _scenario_trace(contract, scenario, attempts), "delegation": _delegation(scenario)}
     return contract, live_map, catalog, scenario, receipt
 def test_one_positive_bundle_and_pending_local_paths_without_triple_counting():
@@ -65,6 +67,14 @@ def test_one_positive_bundle_and_pending_local_paths_without_triple_counting():
     assert not bundle["paths"]["denial"]["trial"].normalized_events
     assert bundle["paths"]["denial"]["packet"] is None and bundle["paths"]["recovery"]["packet"] is None
     assert "provider_calls" not in bundle["paths"]["positive"]["trial"].to_dict()
+
+
+@pytest.mark.parametrize("field", ("candidate_hash", "trial_candidate_hash", "trial_index"))
+def test_stream_projection_identity_mismatch_fails_closed(field):
+    contract, live_map, _, scenario, receipt = _inputs()
+    receipt["stream_projection"][field] = 99 if field == "trial_index" else "f" * 64
+    with pytest.raises(V4LivePacketViolation, match="stream projection identity"):
+        build_v4_live_packets(contract, scenario, receipt, live_map=live_map, map_path=MAP)
 def test_explicit_denial_recovery_are_zero_turn_host_local_paths():
     contract, live_map, _, scenario, receipt = _inputs()
     expected = next(row["expected_trace"] for row in contract["source_rows"] if f"{row['source_pack']}/{row['source_item_id']}" == scenario.row_key)

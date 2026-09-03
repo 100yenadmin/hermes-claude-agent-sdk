@@ -52,3 +52,11 @@ def test_persistence_is_create_only_and_round_trips(tmp_path: Path) -> None:
     destination = write_v4_release_ready(_receipt(), tmp_path / "receipt.json")
     assert load_v4_release_ready(destination)["status"] == "release_ready"
     with pytest.raises(V4ReleaseReadyViolation): write_v4_release_ready(_receipt(), destination)
+
+
+def test_loader_rejects_symlink_before_resolution(tmp_path: Path) -> None:
+    target = write_v4_release_ready(_receipt(), tmp_path / "receipt.json")
+    link = tmp_path / "receipt-link.json"
+    link.symlink_to(target)
+    with pytest.raises(V4ReleaseReadyViolation, match="bounded regular file"):
+        load_v4_release_ready(link)

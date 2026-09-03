@@ -156,11 +156,11 @@ def _parse_test_outcome(result: subprocess.CompletedProcess[Any], node: TestNode
     if counts["passed"] != 1 or any(counts[label] for label in counts if label != "passed"):
         raise PreflightCollectorViolation(f"deterministic test lacks one passing test result: {node.node_id}")
     return 1, sha256_value({"passed": 1, "node_id": node.node_id})
-def _validate_projection(name: str, document: Mapping[str, Any]) -> None:
+def _validate_projection(name: str, document: Mapping[str, Any], candidate_hash: str) -> None:
     if not isinstance(document, Mapping):
         raise PreflightCollectorViolation(f"projection {name} is not a mapping")
     try:
-        _receipt_projection(document, name, document.get("candidate_hash"))
+        _receipt_projection(document, name, candidate_hash)
     except (KeyError, TypeError, ValueError) as exc:
         raise PreflightCollectorViolation(f"projection {name} is not a sanitized receipt projection") from exc
 def _run_node(*, node: TestNode, plugin_root: Path, host_root: Path, env: Mapping[str, str], wrapper: Path, timeout: float) -> tuple[int, str, str]:
@@ -178,16 +178,13 @@ def _run_node(*, node: TestNode, plugin_root: Path, host_root: Path, env: Mappin
     return passed, result_hash, executable
 def _path_overlap(output: Path, roots: tuple[Path, ...]) -> bool:
     return any(output == root or root in output.parents or output in root.parents for root in roots)
-def write_preflight_projections(projections: Mapping[str, Mapping[str, Any]], output: str | Path) -> Path:
+def write_preflight_projections(projections: Mapping[str, Mapping[str, Any]], output: str | Path, *, candidate_hash: str) -> Path:
     if not isinstance(projections, _CollectedProjections) or set(projections) != set(OWNERSHIP_PREFLIGHTS) or not isinstance(output, (str, Path)):
         raise PreflightCollectorViolation("projection set must contain exactly the eight named checks")
-    candidate_hash = None
+    _digest(candidate_hash, "candidate_hash")
     for name in OWNERSHIP_PREFLIGHTS:
-        _validate_projection(name, projections[name])
-        observed_hash = projections[name]["candidate_hash"]
-        if candidate_hash is None:
-            candidate_hash = observed_hash
-        elif observed_hash != candidate_hash:
+        _validate_projection(name, projections[name], candidate_hash)
+        if projections[name]["candidate_hash"] != candidate_hash:
             raise PreflightCollectorViolation("projection documents are bound to different candidates")
     destination = Path(output).expanduser()
     if destination.exists() or destination.is_symlink():
@@ -256,6 +253,6 @@ def collect_preflights(candidate: Mapping[str, Any], plugin_root: str | Path, ho
         executable = observation.pop("_executable")
         projections[spec.name] = {"schema_version": 1, "name": spec.name, "candidate_hash": candidate_digest, "status": "PASS", "source": {"executable": executable, "source_ref": spec.nodes[0].path, "test_id": spec.nodes[0].node_id}, "observation": observation}
     if output is not None:
-        write_preflight_projections(projections, output)
+        write_preflight_projections(projections, output, candidate_hash=candidate_digest)
     return projections
 __all__ = ["HOST_CANONICAL_WRAPPER", "OWNERSHIP_PREFLIGHTS", "PLUGIN_CANONICAL_COMMAND", "PREFLIGHT_NODE_MAP", "PreflightCollectorViolation", "PreflightSpec", "TestNode", "collect_preflights", "write_preflight_projections"]
