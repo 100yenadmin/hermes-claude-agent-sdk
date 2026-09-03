@@ -17,21 +17,23 @@ def _preflight_hash(preflights, candidate_hash):
     return sha256_value({name: {"candidate_hash": candidate_hash, "status": "PASS", "source_hash": sha256_value(item["source"]), "observation_hash": sha256_value(item["observation"])} for name, item in preflights.items()})
 def _attempt(scenario, candidate, preflight_hash, turn_index, *, outcome="completed"):
     kinds = {"start": "message.start", "state": "message.state", "usage": "message.usage", "tool_requested": "tool.request", "tool_result": "tool.complete", "approval_requested": "approval.requested", "approval_decision": "approval.responded", "compaction": "compaction", "background": "background", "restart": "restart", "terminal": "message.complete"}
-    events = [{"kind": kinds[name], "byte_length": 10 + index, "sha256": f"{turn_index}{index}".ljust(64, "0"), "terminal_status": outcome if name == "terminal" else None} for index, name in enumerate(("start", "state", "usage", "restart", "terminal"), 1)]
+    names = ("start", "tool_requested", "tool_result", "state", "terminal") if scenario.row_key == "v2_non_soak/TOOL-05" else ("start", "state", "usage", "restart", "terminal")
+    events = [{"kind": kinds[name], "byte_length": 10 + index, "sha256": f"{turn_index}{index}".ljust(64, "0"), "terminal_status": outcome if name == "terminal" else None} for index, name in enumerate(names, 1)]
     events.insert(1, {"kind": "message.delta", "byte_length": 19, "sha256": f"{turn_index}f".ljust(64, "0"), "terminal_status": None})
     candidate_hash = sha256_value(candidate)
     return {"identity": {"candidate_hash": candidate_hash, "preflight_hash": preflight_hash, "live_map_sha256": LIVE_MAP_SHA256, "row_key": scenario.row_key, "predecessor_execution_id": scenario.predecessor_execution_id, "path": "positive", "trial_index": scenario.trial_indexes[0]}, "candidate": candidate, "classification": "COMPLETE", "terminal_status": outcome, "event_count": len(events), "event_kinds": {event["kind"]: sum(item["kind"] == event["kind"] for item in events) for event in events}, "events": events, "control_calls_used": 1, "provider_calls": 1, "turns_used": 1, "approval": {"decision_class": "deny", "request_count": 0, "decision_count": 0, "requests": [], "decisions": []}, "turn_index": turn_index}
 def _scenario_trace(contract, scenario, attempts):
     expected = next(row["expected_trace"] for row in contract["source_rows"] if f"{row['source_pack']}/{row['source_item_id']}" == scenario.row_key)
-    refs = {"openclaw_active/source-docs-discovery-report": [(1, "start"), (2, "terminal")], "openclaw_active/thread-memory-isolation": [(1, "start"), (2, "state"), (4, "terminal")], "openclaw_active/config-restart-capability-flip": [(1, "start"), (2, "restart"), (2, "terminal")], "v2_non_soak/AUTH-01": [(1, "start"), (1, "state"), (1, "usage"), (1, "terminal")], "v2_non_soak/ORCH-01": [(1, "start"), (1, "state"), (1, "terminal")]}[scenario.row_key]
-    raw_kinds = {"start": "message.start", "state": "message.state", "usage": "message.usage", "restart": "restart", "terminal": "message.complete"}
+    refs = {"openclaw_active/source-docs-discovery-report": [(1, "start"), (2, "terminal")], "openclaw_active/thread-memory-isolation": [(1, "start"), (2, "state"), (4, "terminal")], "openclaw_active/config-restart-capability-flip": [(1, "start"), (2, "restart"), (2, "terminal")], "v2_non_soak/AUTH-01": [(1, "start"), (1, "state"), (1, "usage"), (1, "terminal")], "v2_non_soak/ORCH-01": [(1, "start"), (1, "state"), (1, "terminal")], "v2_non_soak/TOOL-05": [(1, "start"), (1, "tool_requested"), (1, "tool_result"), (1, "state"), (1, "terminal")], "v2_non_soak/ORCH-05": [(1, "start"), (1, "state"), (1, "terminal")]}[scenario.row_key]
+    raw_kinds = {"start": "message.start", "state": "message.state", "usage": "message.usage", "tool_requested": "tool.request", "tool_result": "tool.complete", "restart": "restart", "terminal": "message.complete"}
     events = []
     for (attempt_index, name), expected_kind in zip(refs, expected, strict=True):
         event = next(item for attempt in attempts if attempt["turn_index"] == attempt_index for item in attempt["events"] if item["kind"] == raw_kinds[name])
         events.append({"kind": expected_kind, "byte_length": event["byte_length"], "sha256": event["sha256"], "terminal_status": event["terminal_status"], "evidence": {"source": "attempt", "attempt_index": attempt_index, "source_sha256": event["sha256"]}})
     return {"schema_version": 1, "row_key": scenario.row_key, "predecessor_execution_id": scenario.predecessor_execution_id, "path": "positive", "trial_index": scenario.trial_indexes[0], "events": events}
-def _delegation(scenario):
-    count = scenario.child_calls
+def _delegation(scenario, trial_index=None):
+    trial_index = scenario.trial_indexes[0] if trial_index is None else trial_index
+    count = sum(1 for _, bound_trial, _, _, path in scenario.child_bindings if bound_trial == trial_index and path == "positive")
     return {"count": count, "background_count": 0, "lifecycle": "completed" if count else "none", "parent_link_sha256": "d" * 64 if count else None}
 def _host(turn_count):
     usage = [{"ordinal": index, "sha256": f"{index}".ljust(64, "0"), "provider": "anthropic", "model": "claude-fable-5-1", "selected_model": "claude-fable-5-1", "effective_model": "claude-fable-5-1", "canonical_model": "claude-fable-5-1", "model_resolution": "exact", "billing_mode": "subscription_included", "cost_status": "included", "fallback_used": False, "api_call_count": turn_count, "tokens": {"input_tokens": 1, "output_tokens": 1}} for index in range(1, turn_count + 1)]
@@ -101,3 +103,13 @@ def test_delegation_summary_is_explicit_and_scenario_bound():
     contract, live_map, _, scenario, receipt = _inputs("v2_non_soak/ORCH-01")
     with pytest.raises(V4LivePacketViolation):
         build_v4_live_packets(contract, scenario, {**receipt, "delegation": {"count": 0, "background_count": 0, "lifecycle": "none", "parent_link_sha256": None}}, live_map=live_map, map_path=MAP)
+@pytest.mark.parametrize("row_key,invalid_count", (("v2_non_soak/TOOL-05", 3), ("v2_non_soak/ORCH-05", 1), ("openclaw_active/source-docs-discovery-report", 1)))
+def test_delegation_count_uses_bound_trial_child_bindings(row_key, invalid_count):
+    contract, live_map, _, scenario, receipt = _inputs(row_key)
+    bundle = build_v4_live_packets(contract, scenario, receipt, live_map=live_map, map_path=MAP)
+    expected = sum(1 for _, trial_index, _, _, path in scenario.child_bindings if trial_index == scenario.trial_indexes[0] and path == "positive")
+    assert receipt["delegation"]["count"] == expected
+    assert bundle["scenario_receipt"]["delegation_summary"]["count"] == expected
+    bad = dict(receipt, delegation={**receipt["delegation"], "count": invalid_count, "lifecycle": "completed" if invalid_count else "none", "parent_link_sha256": "d" * 64 if invalid_count else None})
+    with pytest.raises(V4LivePacketViolation):
+        build_v4_live_packets(contract, scenario, bad, live_map=live_map, map_path=MAP)

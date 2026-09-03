@@ -96,8 +96,8 @@ def _kind(value: Any) -> str:
         "start": "start", "message.start": "start", "session.start": "start", "run.start": "start", "task.start": "start",
         "state": "state", "message.state": "state", "session.state": "state",
         "usage": "usage", "message.usage": "usage", "compaction": "compaction", "background": "background", "restart": "restart",
-        "approval.request": "approval_requested", "approval.requested": "approval_requested", "approval.decision": "approval_decision", "approval.decided": "approval_decision", "approval.responded": "approval_decision",
-        "tool.request": "tool_requested", "tool.requested": "tool_requested", "tool.start": "tool_requested", "tool.result": "tool_result", "tool.complete": "tool_result", "tool.completed": "tool_result",
+        "approval.request": "approval_requested", "approval.requested": "approval_requested", "approval_requested": "approval_requested", "approval.decision": "approval_decision", "approval.decided": "approval_decision", "approval.responded": "approval_decision", "approval_decision": "approval_decision",
+        "tool.request": "tool_requested", "tool.requested": "tool_requested", "tool.start": "tool_requested", "tool_requested": "tool_requested", "tool.result": "tool_result", "tool.complete": "tool_result", "tool.completed": "tool_result", "tool_result": "tool_result",
         "terminal": "terminal", "message.complete": "terminal", "session.complete": "terminal", "run.complete": "terminal", "task.complete": "terminal",
     }
     if name in exact:
@@ -161,11 +161,12 @@ def _approval(value: Any) -> dict[str, Any]:
             raise V4LivePacketViolation("approval response projection is invalid")
         _id(decision["result_kind"], "approval.decision.result_kind"); _digest(decision["result_sha256"], "approval.decision.result_sha256")
     return result
-def _delegation(value: Any, scenario: V4LiveScenario) -> dict[str, Any]:
+def _delegation(value: Any, scenario: V4LiveScenario, trial_index: int) -> dict[str, Any]:
     result = _copy(value, "delegation summary")
     if set(result) != _DELEGATION:
         raise V4LivePacketViolation("delegation summary fields are not closed")
-    if type(result["count"]) is not int or not 0 <= result["count"] <= 10_000 or result["count"] != scenario.child_calls:
+    expected_count = sum(1 for _, bound_trial, _, _, path in scenario.child_bindings if bound_trial == trial_index and path == "positive")
+    if type(result["count"]) is not int or not 0 <= result["count"] <= 10_000 or result["count"] != expected_count:
         raise V4LivePacketViolation("delegation count is not scenario-bound")
     if type(result["background_count"]) is not int or not 0 <= result["background_count"] <= result["count"]:
         raise V4LivePacketViolation("delegation background count is invalid")
@@ -357,7 +358,7 @@ def build_v4_live_packets(contract: Mapping[str, Any], scenario: V4LiveScenario 
         _id(receipt["profile_id"], "profile_id"); _digest(receipt["inventory_hash"], "inventory_hash")
         host, host_proofs = _host(receipt["host_observation"], selected.turn_count, selected.turn_count)
         scenario_events, scenario_trace_hash = _scenario_trace(receipt["scenario_trace"], selected, row["expected_trace"], attempts)
-        delegation = _delegation(receipt["delegation"], selected)
+        delegation = _delegation(receipt["delegation"], selected, first_identity["trial_index"])
         content_hash = sha256_value(tuple(content_hashes))
         catalog_hash = chosen_catalog.catalog_sha256
         core = {"schema_version": 1, "row_key": selected.row_key, "predecessor_execution_id": selected.predecessor_execution_id, "trial_index": first_identity["trial_index"], "scenario_catalog_hash": catalog_hash, "live_map_sha256": LIVE_MAP_SHA256, "candidate_hash": candidate_hash, "preflight_hash": first_identity["preflight_hash"], "attempt_hashes": [sha256_value(item) for item in attempts], "approval_projection_hashes": [sha256_value(item["approval"]) for item in attempts], "host_observation_hash": sha256_value(host), "scenario_trace_hash": scenario_trace_hash, "content_projection_hash": content_hash, "delegation_summary": delegation, "delegation_summary_hash": sha256_value(delegation), "turn_count": selected.turn_count, "provider_calls": selected.turn_count}
