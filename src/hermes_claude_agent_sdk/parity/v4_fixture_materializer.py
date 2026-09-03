@@ -45,10 +45,7 @@ _TOOLS_BY_MECHANISM = {
     "parent_state": ("mcp__hermes-tools__memory",),
     "host_tool_pdr": ("mcp__hermes-tools__v4_fixture_local_state",),
     "host_delegate": ("mcp__hermes-tools__delegate_task",),
-    "host_background": (
-        "mcp__hermes-tools__cron",
-        "mcp__hermes-tools__process_manage",
-    ),
+    "host_background": ("mcp__hermes-tools__delegate_task",),
     "memory_session": (
         "mcp__hermes-tools__memory",
         "mcp__hermes-tools__session_search",

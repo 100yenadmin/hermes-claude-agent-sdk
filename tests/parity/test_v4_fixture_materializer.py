@@ -47,6 +47,8 @@ def test_children_approval_recovery_and_external_delivery_are_closed_expectation
     fanout = materializer.materialize("v2_non_soak/ORCH-05", trial_index=1, turn_index=1)
     assert fanout.host.expected_child_count == 2 and fanout.host.allowed_tool_names == ("mcp__hermes-tools__delegate_task",)
     assert fanout.host.expected_child_ordinals == (1, 2)
+    background = materializer.materialize("v2_non_soak/BG-01", trial_index=1, turn_index=1)
+    assert background.host.allowed_tool_names == ("mcp__hermes-tools__delegate_task",)
     approval = materializer.materialize("clawprobench_native/constraints_23_external_approval_boundary_live", trial_index=2, turn_index=1)
     assert approval.host.approval_choice == "deny" and approval.host.allowed_tool_names == ("mcp__hermes-tools__v4_fixture_local_state",)
     assert approval.host.approval_sequence == ("deny", "safe_recovery")
