@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 PLUGIN_ID = "v4_hermes_fixture"
-TOOL_NAME = "mcp__hermes-fixture__local_state"
+TOOL_NAME = "v4_fixture_local_state"
 TOOLSET = "v4_hermes_fixture"
 STATE_FILE = ".hermes_v4_fixture_state.json"
 OPERATIONS = ("check", "record")

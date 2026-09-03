@@ -2,6 +2,6 @@ name: v4_hermes_fixture
 version: "1.0.0"
 description: "Provider-free Hermes-owned local fixture for parity tests"
 provides_tools:
-  - mcp__hermes-fixture__local_state
+  - v4_fixture_local_state
 provides_hooks:
   - pre_tool_call

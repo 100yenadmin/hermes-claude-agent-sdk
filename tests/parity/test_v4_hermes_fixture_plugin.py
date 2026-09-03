@@ -57,6 +57,8 @@ def test_registration_is_namespaced_and_schema_is_closed() -> None:
     plugin.register(ctx)
 
     assert [item["name"] for item in ctx.tools] == [plugin.TOOL_NAME]
+    assert plugin.TOOL_NAME == "v4_fixture_local_state"
+    assert f"mcp__hermes-tools__{plugin.TOOL_NAME}" == "mcp__hermes-tools__v4_fixture_local_state"
     tool = ctx.tools[0]
     assert tool["toolset"] == plugin.TOOLSET
     assert tool["is_async"] is False
@@ -135,14 +137,20 @@ def test_fixture_has_no_native_or_provider_route() -> None:
         assert marker not in source
 
 
-def test_real_hermes_discovery_dispatch_denial_recovery_and_unload(tmp_path: Path) -> None:
+def test_real_hermes_discovery_handle_call_denial_recovery_and_unload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     host_root_value = os.environ.get("HERMES_AGENT_HOST_ROOT")
     if not host_root_value or not Path(host_root_value).is_dir():
         pytest.skip("HERMES_AGENT_HOST_ROOT is not configured")
     host_root = Path(host_root_value)
     if str(host_root) not in sys.path:
         sys.path.insert(0, str(host_root))
+    from hermes_constants import hermes_home_key, reset_hermes_home_override, set_hermes_home_override
+    from hermes_cli import plugins as plugins_mod
     from hermes_cli.plugins import PluginManager
+    from model_tools import handle_function_call
+    from tools import approval
     from tools.registry import registry
 
     home = tmp_path / "hermes-home"
@@ -154,23 +162,56 @@ def test_real_hermes_discovery_dispatch_denial_recovery_and_unload(tmp_path: Pat
         encoding="utf-8",
     )
     plugin = _fixture_module()
-    manager = PluginManager(scope_key=str(home))
+    manager = PluginManager(scope_key=hermes_home_key(home))
     manager.discover_and_load()
     loaded = manager._plugins[plugin.PLUGIN_ID]
     assert loaded.enabled is True
     assert registry.get_entry(plugin.TOOL_NAME, scope=manager.scope_key) is not None
 
+    monkeypatch.setattr(plugins_mod, "_plugin_manager", manager)
+    approval_calls: list[dict[str, Any]] = []
+    decisions = iter((False, True))
+
+    def fake_request_tool_approval(tool_name: str, reason: str, **kwargs: Any) -> dict[str, Any]:
+        from tools.approval import _approval_tool_call_id, _approval_turn_id
+
+        approval_calls.append(
+            {
+                "tool_name": tool_name,
+                "has_reason": bool(reason),
+                "has_rule_key": bool(kwargs.get("rule_key")),
+                "turn_context_bound": _approval_turn_id.get() == "synthetic-turn",
+                "tool_context_bound": _approval_tool_call_id.get() == "synthetic-call",
+            }
+        )
+        approved = next(decisions)
+        return {"approved": approved, "message": "synthetic host approval denied" if not approved else None}
+
+    monkeypatch.setattr(approval, "request_tool_approval", fake_request_tool_approval)
     args = _args(tmp_path, operation="record")
-    directives = manager.invoke_hook("pre_tool_call", tool_name=plugin.TOOL_NAME, args=args, task_id="synthetic-task")
-    assert directives[0]["action"] == "approve"
-    assert not (tmp_path / plugin.STATE_FILE).exists()
-    # A denied host decision does not dispatch the tool.
-    denied = {"ok": False, "error": "host approval denied"}
-    assert denied["ok"] is False
-    assert not (tmp_path / plugin.STATE_FILE).exists()
-    result = json.loads(registry.dispatch(plugin.TOOL_NAME, args, scope=manager.scope_key, task_id="synthetic-task"))
-    assert result["ok"] is True
-    assert (tmp_path / plugin.STATE_FILE).exists()
+    def host_call() -> dict[str, Any]:
+        return json.loads(handle_function_call(
+            plugin.TOOL_NAME, args, task_id="synthetic-task",
+            tool_call_id="synthetic-call", turn_id="synthetic-turn",
+            skip_tool_request_middleware=True, skip_tool_execution_middleware=True,
+        ))
+
+    override = set_hermes_home_override(home)
+    try:
+        denied = host_call()
+        assert denied["error"] == "synthetic host approval denied"
+        assert not (tmp_path / plugin.STATE_FILE).exists()
+
+        result = host_call()
+        assert result["ok"] is True
+        assert result["record_count"] == 1
+        assert (tmp_path / plugin.STATE_FILE).exists()
+        assert approval_calls == [{
+            "tool_name": plugin.TOOL_NAME, "has_reason": True, "has_rule_key": True,
+            "turn_context_bound": True, "tool_context_bound": True,
+        }] * 2
+    finally:
+        reset_hermes_home_override(override)
 
     assert manager.unload(plugin.PLUGIN_ID) is True
     assert registry.get_entry(plugin.TOOL_NAME, scope=manager.scope_key) is None
