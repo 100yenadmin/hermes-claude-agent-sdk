@@ -7,6 +7,7 @@ import pytest
 from hermes_claude_agent_sdk.parity.v4_fixture_materializer import (
     V4FixtureMaterializer,
     V4FixtureMaterializerViolation,
+    materialize_v4_fixture,
 )
 
 ROOT = Path(__file__).parents[2]
@@ -25,7 +26,9 @@ def test_materializes_every_declared_trial_and_turn_without_prompt_receipt_conte
     receipt = values[0].to_receipt()
     assert set(receipt) == {"schema_version", "row_key", "root", "trial_index", "turn_index", "path", "mechanism_class", "prompt", "expected"}
     assert set(receipt["prompt"]) == {"byte_count", "sha256"}
+    assert "fixture_tool_args" not in receipt["expected"]
     assert values[0].prompt.ephemeral_text not in repr(receipt)
+    assert all(item.fixture_tool_args is None for item in values)
 
 
 def test_special_recipes_have_distinct_labels_and_one_positive_parent_call() -> None:
@@ -76,3 +79,40 @@ def test_materializer_rejects_unsafe_fixture_mapping() -> None:
     fixture["raw_prompt"] = "must not enter the materializer"
     with pytest.raises(V4FixtureMaterializerViolation):
         _materializer().materialize(fixture, trial_index=1, turn_index=1)
+
+
+def test_fixture_tool_args_use_an_ephemeral_validated_task_root(tmp_path: Path) -> None:
+    value = _materializer().materialize(
+        "clawprobench_native/constraints_23_external_approval_boundary_live",
+        trial_index=2,
+        turn_index=1,
+        task_root=tmp_path,
+    )
+    count, item_hash = value.fixture_tool_args
+    assert 0 <= count <= 32 and len(item_hash) == 64
+    assert "task_root=" + str(tmp_path) in value.prompt.ephemeral_text
+    assert "record (host denial expected), then check (safe recovery)" in value.prompt.ephemeral_text
+    assert "item_count=" + str(count) in value.prompt.ephemeral_text
+    assert "item_hash=" + item_hash in value.prompt.ephemeral_text
+    assert str(tmp_path) not in repr(value) and str(tmp_path) not in repr(value.to_receipt())
+    assert value.to_receipt()["expected"]["fixture_tool_args"] == {"item_count": count, "item_hash": item_hash}
+    alias = materialize_v4_fixture(row_key=value.row_key, trial_index=2, turn_index=1, task_root=tmp_path, materializer=_materializer())
+    assert alias.fixture_tool_args == value.fixture_tool_args
+
+
+@pytest.mark.parametrize("bad_root", ["relative-root", Path("/"), "missing-root"])
+def test_fixture_tool_rejects_unsafe_task_roots(tmp_path: Path, bad_root: str | Path) -> None:
+    with pytest.raises(V4FixtureMaterializerViolation):
+        _materializer().materialize("clawprobench_native/constraints_23_external_approval_boundary_live", trial_index=1, turn_index=1, task_root=bad_root)
+
+
+def test_fixture_tool_rejects_symlink_and_non_fixture_inventory(tmp_path: Path) -> None:
+    link = tmp_path / "link"
+    link.symlink_to(tmp_path, target_is_directory=True)
+    materializer = _materializer()
+    with pytest.raises(V4FixtureMaterializerViolation):
+        materializer.materialize("clawprobench_native/constraints_23_external_approval_boundary_live", trial_index=1, turn_index=1, task_root=link)
+    with pytest.raises(V4FixtureMaterializerViolation):
+        materializer.materialize("clawprobench_native/constraints_23_external_approval_boundary_live", trial_index=1, turn_index=1, task_root=tmp_path / "missing")
+    with pytest.raises(V4FixtureMaterializerViolation):
+        materializer.materialize("v2_non_soak/AUTH-01", trial_index=1, turn_index=1, task_root=tmp_path)

@@ -72,6 +72,22 @@ class V4FixtureMaterializerViolation(ValueError):
     """A fixture identity or clean-room materialization is unsafe."""
 
 
+def _task_root(value: str | Path) -> str:
+    try:
+        root = Path(value)
+    except (TypeError, ValueError, OSError):
+        raise V4FixtureMaterializerViolation("task root is invalid") from None
+    if not isinstance(value, (str, Path)) or not root.is_absolute() or ".." in root.parts or root.is_symlink() or len(str(root)) > 4096:
+        raise V4FixtureMaterializerViolation("task root is invalid")
+    try:
+        resolved = root.resolve(strict=True)
+    except (OSError, RuntimeError):
+        raise V4FixtureMaterializerViolation("task root is invalid") from None
+    if not resolved.is_dir() or resolved == Path(resolved.anchor):
+        raise V4FixtureMaterializerViolation("task root is invalid")
+    return str(resolved)
+
+
 @dataclass(frozen=True, slots=True)
 class V4PromptMaterial:
     """Ephemeral prompt content plus the receipt-safe bytes and digest."""
@@ -113,6 +129,7 @@ class V4HostSurfaceExpectations:
     turn_label: str
     expected_parent_provider_calls: int
     external_delivery_allowed: bool
+    fixture_tool_args: tuple[int, str] | None = None
 
     def __post_init__(self) -> None:
         if any(tool not in _HERMES_MCP_TOOLS for tool in self.allowed_tool_names):
@@ -129,6 +146,8 @@ class V4HostSurfaceExpectations:
             raise V4FixtureMaterializerViolation("turn label is unsupported")
         if self.expected_parent_provider_calls not in {0, 1} or self.external_delivery_allowed:
             raise V4FixtureMaterializerViolation("provider or delivery expectation is unsafe")
+        if self.fixture_tool_args is not None and (len(self.fixture_tool_args) != 2 or type(self.fixture_tool_args[0]) is not int or not 0 <= self.fixture_tool_args[0] <= 32 or not isinstance(self.fixture_tool_args[1], str) or _HEX64.fullmatch(self.fixture_tool_args[1]) is None):
+            raise V4FixtureMaterializerViolation("fixture-tool arguments are invalid")
 
     @property
     def allowed_host_tool_names(self) -> tuple[str, ...]:
@@ -141,7 +160,7 @@ class V4HostSurfaceExpectations:
         return self.expected_parent_provider_calls
 
     def to_receipt(self) -> dict[str, Any]:
-        return {
+        receipt = {
             "allowed_tool_names": list(self.allowed_tool_names),
             "required_observations": list(self.required_observations),
             "approval_choice": self.approval_choice,
@@ -153,6 +172,9 @@ class V4HostSurfaceExpectations:
             "expected_parent_provider_calls": self.expected_parent_provider_calls,
             "external_delivery_allowed": self.external_delivery_allowed,
         }
+        if self.fixture_tool_args is not None:
+            receipt["fixture_tool_args"] = {"item_count": self.fixture_tool_args[0], "item_hash": self.fixture_tool_args[1]}
+        return receipt
 
     to_dict = to_receipt
 
@@ -177,6 +199,10 @@ class V4FixtureMaterialization:
     @property
     def expected(self) -> V4HostSurfaceExpectations:
         return self.host
+
+    @property
+    def fixture_tool_args(self) -> tuple[int, str] | None:
+        return self.host.fixture_tool_args
 
     def to_receipt(self) -> dict[str, Any]:
         return {
@@ -234,7 +260,7 @@ class V4FixtureMaterializer:
             raise V4FixtureMaterializerViolation("unknown fixture row")
         return candidate
 
-    def materialize(self, fixture: str | V4LiveFixture | Mapping[str, Any] | None = None, *, row_key: str | None = None, trial_index: int, turn_index: int, path: str = "positive", root: str | None = None) -> V4FixtureMaterialization:
+    def materialize(self, fixture: str | V4LiveFixture | Mapping[str, Any] | None = None, *, row_key: str | None = None, trial_index: int, turn_index: int, path: str = "positive", root: str | None = None, task_root: str | Path | None = None) -> V4FixtureMaterialization:
         if fixture is not None and row_key is not None:
             raise V4FixtureMaterializerViolation("fixture and row_key are mutually exclusive")
         if fixture is None:
@@ -251,6 +277,9 @@ class V4FixtureMaterializer:
         expected_root = item["fixture_id"]
         if root is not None and (not isinstance(root, str) or root != expected_root):
             raise V4FixtureMaterializerViolation("fixture root does not match the validated entry")
+        if task_root is not None and "mcp__hermes-tools__v4_fixture_local_state" not in _TOOLS_BY_MECHANISM[item["mechanism_class"]]:
+            raise V4FixtureMaterializerViolation("task root requires the local fixture tool")
+        execution_root = _task_root(task_root) if task_root is not None else None
         scenario = self._scenarios[item.row_key]
         recipe = self._manifest["turn_recipes"][item["turn_recipe"]]
         label = recipe["turn_labels"][turn_index - 1]
@@ -268,14 +297,14 @@ class V4FixtureMaterializer:
             "deny" if approval else "not_required", sequence, len(bindings),
             tuple(binding[2] for binding in bindings), child_ids, label,
             1 if path == "positive" else 0, False,
+            None if execution_root is None else (len(surfaces), hashlib.sha256(f"{item.row_key}|{trial_index}|{turn_index}|{path}|{label}".encode()).hexdigest()),
         )
-        prompt = self._prompt(item, trial_index, turn_index, path, label, expected)
+        prompt = self._prompt(item, trial_index, turn_index, path, label, expected, execution_root)
         return V4FixtureMaterialization(item.row_key, expected_root, trial_index, turn_index, path, item["mechanism_class"], prompt, expected)
 
-    def _prompt(self, item: V4LiveFixture, trial: int, turn: int, path: str, label: str, expected: V4HostSurfaceExpectations) -> V4PromptMaterial:
+    def _prompt(self, item: V4LiveFixture, trial: int, turn: int, path: str, label: str, expected: V4HostSurfaceExpectations, task_root: str | None) -> V4PromptMaterial:
         tools = ",".join(expected.allowed_tool_names) or "none"
-        text = "\n".join(
-            (
+        lines = [
                 "Hermes v4 clean-room synthetic fixture instruction.",
                 f"Fixture root: {item['fixture_id']}", f"Row: {item.row_key}",
                 f"Mechanism: {item['mechanism_class']}; path: {path}; trial: {trial}; turn: {turn}; label: {label}.",
@@ -284,8 +313,12 @@ class V4FixtureMaterializer:
                 f"Exercise the bounded {item['turn_recipe']} recipe and expose: {','.join(expected.required_observations)}.",
                 f"Approval choice is {expected.approval_choice}; expected child count is {expected.expected_child_count}.",
                 "Keep any approval denial and safe local recovery in this one parent turn; preserve one parent call.",
-            )
-        )
+        ]
+        if task_root is not None and expected.fixture_tool_args is not None:
+            count, digest = expected.fixture_tool_args
+            sequence = "record (host denial expected), then check (safe recovery)" if expected.approval_sequence == ("deny", "safe_recovery") else "record (host denial expected)"
+            lines.append(f"Fixture tool sequence: {sequence}; task_root={task_root}; item_count={count}; item_hash={digest}.")
+        text = "\n".join(lines)
         encoded = text.encode("utf-8")
         return V4PromptMaterial(text, len(encoded), hashlib.sha256(encoded).hexdigest())
 
@@ -296,9 +329,9 @@ class V4FixtureMaterializer:
         )
 
 
-def materialize_v4_fixture(fixture: str | V4LiveFixture | Mapping[str, Any] | None = None, *, row_key: str | None = None, trial_index: int, turn_index: int, path: str = "positive", root: str | None = None, materializer: V4FixtureMaterializer | None = None) -> V4FixtureMaterialization:
+def materialize_v4_fixture(fixture: str | V4LiveFixture | Mapping[str, Any] | None = None, *, row_key: str | None = None, trial_index: int, turn_index: int, path: str = "positive", root: str | None = None, task_root: str | Path | None = None, materializer: V4FixtureMaterializer | None = None) -> V4FixtureMaterialization:
     """Materialize one validated fixture through the provider-free seam."""
-    return (materializer or V4FixtureMaterializer()).materialize(fixture, row_key=row_key, trial_index=trial_index, turn_index=turn_index, path=path, root=root)
+    return (materializer or V4FixtureMaterializer()).materialize(fixture, row_key=row_key, trial_index=trial_index, turn_index=turn_index, path=path, root=root, task_root=task_root)
 
 
 V4PromptBytes = V4PromptMaterial
