@@ -33,6 +33,13 @@ _TERMINAL_STATUS_MAP = {
 _SAFE_KIND = re.compile(r"^[A-Za-z0-9_.:/-]{1,96}$")
 _NATIVE_TYPES = frozenset({"agent", "agent_tool", "tool_use", "tool_result", "server_tool_use", "server_tool_result"})
 _NATIVE_NAMES = frozenset({"agent", "bash", "read", "write", "edit", "web"})
+# Hermes emits these concrete delegation progress events from ``delegate_task``.
+# They contain the word "agent" but are not Claude SDK native tool events; keep
+# the admission set exact so lookalikes and future provider events stay closed.
+_HERMES_SUBAGENT_LIFECYCLE = frozenset({"subagent.spawn_requested", "subagent.start", "subagent.complete"})
+_HERMES_SUBAGENT_PROGRESS = frozenset({"subagent.text", "subagent.thinking", "subagent.tool", "subagent.progress"})
+_HERMES_SUBAGENT_EVENTS = _HERMES_SUBAGENT_LIFECYCLE | _HERMES_SUBAGENT_PROGRESS
+_TURN_TERMINAL_TYPES = frozenset({"terminal", "message.complete", "session.complete", "run.complete", "task.complete", "turn.complete"})
 _STOP = object()
 class GatewayError(RuntimeError): pass
 class GatewayNotStarted(GatewayError): pass
@@ -101,15 +108,16 @@ def _host_inventory(value: object, prefix: str = "") -> frozenset[str]:
     tools = frozenset(value)
     if any(not isinstance(name, str) or _SAFE_KIND.fullmatch(name) is None or prefix and (name == prefix or not name.startswith(prefix)) or not prefix and name.casefold() in _NATIVE_NAMES for name in tools): raise ValueError("tool inventory contains an invalid or native name")
     return tools
-def _tool_check(value: object, prefix: str, hosts: frozenset[str] = HOST_TOOLS, mcps: frozenset[str] = MCP_TOOLS, *, depth: int = 0, toolish: bool = False) -> None:
+def _tool_check(value: object, prefix: str, hosts: frozenset[str] = HOST_TOOLS, mcps: frozenset[str] = MCP_TOOLS, *, depth: int = 0, toolish: bool = False, hermes_event_type: str | None = None) -> None:
     if depth > 5: return
     if isinstance(value, Mapping):
         typ, local = value.get("type"), toolish
         if isinstance(typ, str):
             lowered = typ.casefold()
             names = [value.get(key) for key in ("name", "tool_name", "tool")]
-            if "agent" in lowered or lowered in _NATIVE_TYPES: raise NativeToolEvent("native tool or agent event is not admitted")
-            local = local or "tool" in lowered or "agent" in lowered
+            is_hermes_event = depth == 0 and typ == hermes_event_type and typ in _HERMES_SUBAGENT_EVENTS
+            if not is_hermes_event and ("agent" in lowered or lowered in _NATIVE_TYPES): raise NativeToolEvent("native tool or agent event is not admitted")
+            local = local or "tool" in lowered or ("agent" in lowered and not is_hermes_event)
         for key in ("name", "tool_name", "tool"):
             name = value.get(key)
             if isinstance(name, str) and name:
@@ -123,13 +131,14 @@ def _tool_check(value: object, prefix: str, hosts: frozenset[str] = HOST_TOOLS, 
 def _event_projection(frame: Mapping[str, Any], encoded: bytes, prefix: str = TOOL_PREFIX, hosts: frozenset[str] = HOST_TOOLS, mcps: frozenset[str] = MCP_TOOLS) -> "EventProjection":
     params, event_type = _params(frame), _kind(_params(frame).get("type"))
     lowered = event_type.casefold()
-    _tool_check(params, prefix, hosts, mcps)
+    _tool_check(params, prefix, hosts, mcps, hermes_event_type=event_type)
     body = params.get("payload")
     body = body if isinstance(body, Mapping) else {}
     names = (params.get("name"), params.get("tool_name"), params.get("tool"), body.get("name"), body.get("tool_name"), body.get("tool"))
-    if "tool" in lowered and not any(isinstance(name, str) and name in (hosts if lowered in {"tool.start", "tool.complete"} else mcps) for name in names): raise NativeToolEvent("tool request is outside the Hermes MCP namespace")
-    terminalish = "tool" not in lowered and (lowered in {"terminal", "message.complete", "session.complete", "run.complete", "task.complete"} or lowered.endswith((".terminal", ".finished", ".done")))
-    candidate = body.get("terminal_outcome") if "tool" not in lowered else None
+    is_hermes_event = event_type in _HERMES_SUBAGENT_EVENTS
+    if "tool" in lowered and not is_hermes_event and not any(isinstance(name, str) and name in (hosts if lowered in {"tool.start", "tool.complete"} else mcps) for name in names): raise NativeToolEvent("tool request is outside the Hermes MCP namespace")
+    terminalish = lowered in _TURN_TERMINAL_TYPES
+    candidate = body.get("terminal_outcome") if terminalish else None
     terminal: str | None = None
     if candidate is not None:
         if not isinstance(candidate, str) or candidate not in TERMINAL_STATUSES: raise EventAccumulatorError("terminal outcome is unsupported")

@@ -63,6 +63,53 @@ def test_accumulator_projects_and_rejects_native_duplicate_and_trailing_events()
     for name in ("Agent", "Bash", "Read", "Write", "Edit", "Web"):
         with pytest.raises(NativeToolEvent): EventAccumulator().add(_event("tool.start", {"name": name}))
 
+def test_accumulator_accepts_only_exact_hermes_subagent_events() -> None:
+    accumulator = EventAccumulator()
+    admitted = ("subagent.spawn_requested", "subagent.start", "subagent.complete", "subagent.text", "subagent.thinking", "subagent.tool", "subagent.progress")
+    for kind in admitted:
+        payload = {"task_index": 0, "task_count": 1, "child_session_id": "synthetic-child"}
+        if kind == "subagent.tool": payload["tool_name"] = "terminal"
+        accumulator.add(_event(kind, payload))
+    accumulator.add(_event("message.complete", {"status": "completed"}))
+    projection = accumulator.finish()
+    assert projection["event_kinds"] == {kind: 1 for kind in admitted} | {"message.complete": 1}
+
+    for kind in ("subagent.start.lookalike", "subagent.spawn_requestedly", "subagent.unknown"):
+        with pytest.raises(NativeToolEvent): EventAccumulator().add(_event(kind, {"task_index": 0, "task_count": 1}))
+    with pytest.raises(NativeToolEvent): EventAccumulator().add(_event("subagent.start", {"content": [{"type": "Agent"}]}))
+    with pytest.raises(NativeToolEvent): EventAccumulator().add(_event("subagent.tool", {"tool_name": "Agent"}))
+
+def test_subagent_completion_does_not_end_parent_turn() -> None:
+    accumulator = EventAccumulator()
+    accumulator.add(_event("subagent.start", {"task_index": 0, "task_count": 1}))
+    child = accumulator.add(_event("subagent.complete", {"status": "completed", "terminal_outcome": "completed"}))
+    assert child.terminal_status is None
+    progress = accumulator.add(_event("subagent.progress", {"task_index": 0, "task_count": 1}))
+    assert progress.terminal_status is None
+    terminal = accumulator.add(_event("message.complete", {"status": "completed"}))
+    assert terminal.terminal_status == "completed"
+    projection = accumulator.finish()
+    assert projection["terminal_status"] == "completed" and projection["terminal_count"] == 1
+
+def test_gateway_accepts_hermes_subagent_lifecycle_from_fake_transport() -> None:
+    transport = _Transport()
+    transport.frames = deque([
+        _event("gateway.ready"),
+        _event("subagent.spawn_requested", {"task_index": 0, "task_count": 1}),
+        _event("subagent.start", {"task_index": 0, "task_count": 1}),
+        _event("subagent.complete", {"task_index": 0, "task_count": 1, "status": "completed"}),
+        _event("subagent.text", {"task_index": 0, "task_count": 1}),
+        _event("subagent.thinking", {"task_index": 0, "task_count": 1}),
+        _event("subagent.tool", {"task_index": 0, "task_count": 1, "tool_name": "terminal"}),
+        _event("subagent.progress", {"task_index": 0, "task_count": 1}),
+    ])
+    gateway = Gateway(python=Path("/explicit/python"), cwd=Path("/tmp/hermes"), env={"PATH": "/bin"}, transport=transport)
+    gateway.start()
+    assert [gateway.next_event().event_type for _ in range(7)] == [
+        "subagent.spawn_requested", "subagent.start", "subagent.complete", "subagent.text", "subagent.thinking", "subagent.tool", "subagent.progress"
+    ]
+    gateway.close()
+
 @pytest.mark.parametrize(
     ("status", "expected"),
     (("complete", "completed"), ("error", "failed"), ("interrupted", "cancelled")),
