@@ -155,6 +155,9 @@ def run_v4_background_delivery_receipt(row_key: str, trial_index: int, path: str
     parent: Any = None
     db: Any = None
     manager: Any = None
+    override: Any = None
+    plugins_mod: Any = None
+    AIAgent: Any = None
     with tempfile.TemporaryDirectory(prefix="v4-background-", dir=str(root)) as scratch:
         scratch_path = Path(scratch)
         home, bundled = scratch_path / "hermes-home", scratch_path / "empty-bundled"
@@ -169,39 +172,39 @@ def run_v4_background_delivery_receipt(row_key: str, trial_index: int, path: str
             "auxiliary:\n  title_generation:\n    enabled: false\n",
             encoding="utf-8",
         )
-        os.environ.update({"HERMES_HOME": str(home), "HERMES_BUNDLED_PLUGINS": str(bundled), "HERMES_INTERACTIVE": "0"})
-        host_root = Path(host_value).resolve()
-        if str(host_root) not in sys.path:
-            sys.path.insert(0, str(host_root))
-        from gateway.wake import persist_delegation_delivery
-        from hermes_cli import plugins as plugins_mod
-        from hermes_cli.plugins import PluginManager
-        from hermes_constants import (
-            hermes_home_key,
-            reset_hermes_home_override,
-            set_hermes_home_override,
-        )
-        from hermes_state import SessionDB
-        from run_agent import AIAgent
-        from tools.process_registry import process_registry
-
-        override = set_hermes_home_override(home)
-        old_manager = plugins_mod._plugin_manager
-        manager = PluginManager(scope_key=hermes_home_key(home))
-        manager._scan_entry_points = list  # type: ignore[method-assign]
-        plugins_mod._plugin_manager = manager
-        manager.discover_and_load()
-        db = SessionDB(home / "state.db")
-        parent_id = "v4-background-parent-" + _hash({"row": row_key, "trial": trial_index, "path": path})[:16]
-        old_create = AIAgent._create_openai_client
-        calls: list[int] = []
-
-        def forbidden_client(self: Any, *args: Any, **kwargs: Any) -> None:
-            calls.append(1)
-            raise V4BackgroundDeliveryViolation("provider client construction was attempted")
-
-        AIAgent._create_openai_client = forbidden_client
         try:
+            os.environ.update({"HERMES_HOME": str(home), "HERMES_BUNDLED_PLUGINS": str(bundled), "HERMES_INTERACTIVE": "0"})
+            host_root = Path(host_value).resolve()
+            if str(host_root) not in sys.path:
+                sys.path.insert(0, str(host_root))
+            from gateway.wake import persist_delegation_delivery
+            from hermes_cli import plugins as plugins_mod
+            from hermes_cli.plugins import PluginManager
+            from hermes_constants import (
+                hermes_home_key,
+                reset_hermes_home_override,
+                set_hermes_home_override,
+            )
+            from hermes_state import SessionDB
+            from run_agent import AIAgent
+            from tools.process_registry import process_registry
+
+            override = set_hermes_home_override(home)
+            old_manager = plugins_mod._plugin_manager
+            manager = PluginManager(scope_key=hermes_home_key(home))
+            manager._scan_entry_points = list  # type: ignore[method-assign]
+            plugins_mod._plugin_manager = manager
+            manager.discover_and_load()
+            db = SessionDB(home / "state.db")
+            parent_id = "v4-background-parent-" + _hash({"row": row_key, "trial": trial_index, "path": path})[:16]
+            old_create = AIAgent._create_openai_client
+            calls: list[int] = []
+
+            def forbidden_client(self: Any, *args: Any, **kwargs: Any) -> None:
+                calls.append(1)
+                raise V4BackgroundDeliveryViolation("provider client construction was attempted")
+
+            AIAgent._create_openai_client = forbidden_client
             parent = AIAgent(
                 provider=plugin.PROVIDER_ID, model=plugin.MODEL_ID, api_mode=plugin.API_MODE,
                 session_id=parent_id, enabled_toolsets=["delegation"], skip_context_files=True,
@@ -291,9 +294,12 @@ def run_v4_background_delivery_receipt(row_key: str, trial_index: int, path: str
                 db.close()
             if manager is not None:
                 manager.unload(plugin.PLUGIN_ID)
-            AIAgent._create_openai_client = old_create
-            reset_hermes_home_override(override)
-            plugins_mod._plugin_manager = old_manager
+            if AIAgent is not None and old_create is not None:
+                AIAgent._create_openai_client = old_create
+            if override is not None:
+                reset_hermes_home_override(override)
+            if plugins_mod is not None:
+                plugins_mod._plugin_manager = old_manager
             sys.path[:] = old_path
             for key, value in old_env.items():
                 if value is None:

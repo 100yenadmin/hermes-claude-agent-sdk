@@ -117,6 +117,7 @@ def _has_exact_tool_surface(request: Any) -> bool:
     operation = properties.get("operation") if hasattr(properties, "get") else None
     return (
         name == TOOL_NAME
+        and hasattr(parameters, "get")
         and set(parameters) == {"type", "properties", "required", "additionalProperties"}
         and parameters.get("type") == "object"
         and tuple(parameters.get("required", ())) == ("operation",)
