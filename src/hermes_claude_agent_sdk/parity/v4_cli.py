@@ -10,8 +10,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import stat
 import sys
-import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -218,39 +218,94 @@ def _paths_overlap(output: Path, inputs: Sequence[Path]) -> bool:
     return False
 
 
-def _write_json(path: Path, value: Mapping[str, Any]) -> None:
-    path.write_text(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+def _open_output_directory(output: Path) -> int:
+    if not output.is_absolute() or not hasattr(os, "O_DIRECTORY") or not hasattr(os, "O_NOFOLLOW"):
+        raise V4CLIError("safe descriptor-relative output is unavailable")
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+    descriptor = os.open(output.anchor, flags)
+    try:
+        for component in output.parts[1:]:
+            if component in {"", ".", ".."}:
+                raise V4CLIError("output path contains an unsafe component")
+            try:
+                child = os.open(component, flags, dir_fd=descriptor)
+            except FileNotFoundError:
+                os.mkdir(component, dir_fd=descriptor)
+                child = os.open(component, flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _json_bytes(value: Mapping[str, Any]) -> bytes:
+    return (json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
+
+
+def _read_bounded(descriptor: int, limit: int) -> bytes:
+    chunks: list[bytes] = []
+    remaining = limit + 1
+    while remaining:
+        chunk = os.read(descriptor, remaining)
+        if not chunk:
+            break
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    return b"".join(chunks)
 
 
 def _persist(output: Path, documents: Mapping[str, Mapping[str, Any]]) -> None:
-    if output.exists() and output.is_symlink():
-        raise V4CLIError("output must not be a symlink")
-    output.parent.mkdir(parents=True, exist_ok=True)
+    output_descriptor: int | None = None
+    temporary_names: set[str] = set()
     try:
-        with tempfile.TemporaryDirectory(prefix=f".{output.name}.", dir=str(output.parent)) as staging_name:
-            staging = Path(staging_name)
-            for name, document in sorted(documents.items()):
-                _write_json(staging / name, document)
-            output.mkdir(exist_ok=True)
-            if not output.is_dir():
-                raise V4CLIError("output must be a directory")
-            for name in sorted(documents):
-                target = output / name
-                staged = staging / name
-                if target.exists() and (
-                    target.is_symlink()
-                    or not target.is_file()
-                    or target.read_bytes() != staged.read_bytes()
-                ):
+        output_descriptor = _open_output_directory(output)
+        payloads = {name: _json_bytes(document) for name, document in sorted(documents.items())}
+        missing: list[str] = []
+        read_flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_CLOEXEC", 0)
+        for name, payload in payloads.items():
+            if Path(name).name != name or name in {".", ".."}:
+                raise V4CLIError("output document names must be plain filenames")
+            try:
+                existing = os.open(name, read_flags, dir_fd=output_descriptor)
+            except FileNotFoundError:
+                missing.append(name)
+                continue
+            try:
+                if not stat.S_ISREG(os.fstat(existing).st_mode) or _read_bounded(existing, len(payload)) != payload:
                     raise V4CLIError(f"refusing to replace pre-existing output {name}")
-            for name in sorted(documents):
-                target = output / name
-                staged = staging / name
-                if target.exists():
-                    continue
-                os.replace(staged, target)
+            finally:
+                os.close(existing)
+        write_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+        for index, name in enumerate(missing):
+            payload = payloads[name]
+            temporary = f".{name}.{os.getpid()}.{index}.tmp"
+            temporary_names.add(temporary)
+            staged = os.open(temporary, write_flags, 0o600, dir_fd=output_descriptor)
+            try:
+                view = memoryview(payload)
+                while view:
+                    written = os.write(staged, view)
+                    if written <= 0:
+                        raise OSError("short output write")
+                    view = view[written:]
+                os.fsync(staged)
+            finally:
+                os.close(staged)
+            os.replace(temporary, name, src_dir_fd=output_descriptor, dst_dir_fd=output_descriptor)
+            temporary_names.remove(temporary)
+        os.fsync(output_descriptor)
     except OSError as exc:
         raise V4CLIError("output could not be persisted atomically") from exc
+    finally:
+        if output_descriptor is not None:
+            for temporary in temporary_names:
+                try:
+                    os.unlink(temporary, dir_fd=output_descriptor)
+                except OSError:
+                    pass
+            os.close(output_descriptor)
 
 
 def bind_and_grade(*, contract_path: str | Path, v3_packets: str | Path, ownership_receipts: str | Path, output: str | Path, lane: str = "rc") -> tuple[dict[str, Any], int]:
@@ -270,7 +325,7 @@ def bind_and_grade(*, contract_path: str | Path, v3_packets: str | Path, ownersh
     contract_source = contract_input.resolve()
     packets_source = packets_input.resolve()
     receipts_source = receipts_input.resolve()
-    output_path = output_input.resolve()
+    output_path = Path(os.path.abspath(output_input))
     if lane not in {"rc", "runtime"}:
         raise V4CLIError("grade lane must be rc or runtime")
     if _paths_overlap(output_path, (packets_source, receipts_source)):

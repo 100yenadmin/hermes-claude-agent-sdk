@@ -32,7 +32,7 @@ identifier needed to resume that SDK conversation.
 ## Compatibility target
 
 The Revision 4 candidate is checked against the Hermes host at exact commit
-`340cf556c5d18a1833e5fe8d46e2a6436c2bf327`. The standalone plugin identity is
+`15039e4f2d096b06f56369fbd78be09f3be73065`. The standalone plugin identity is
 the exact source commit and wheel digest recorded in the v4 result manifest;
 an unbound or zero digest cannot prove a candidate. The dependency target is
 `claude-agent-sdk` `0.2.151`, whose bundled Claude Code-derived CLI is

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from hermes_claude_agent_sdk.parity import v4_cli
 from hermes_claude_agent_sdk.parity.hashing import sha256_value
 from hermes_claude_agent_sdk.parity.results import ResultPacket
 from hermes_claude_agent_sdk.parity.trace import normalized_path_events
@@ -109,3 +110,21 @@ def test_bind_grade_cli_rejects_symlinked_lexical_ancestor_before_resolution(tmp
     assert not (tmp_path / "input-out").exists()
     assert _run(contract, packets, receipts, ancestor / "missing-parent" / "out") == 2
     assert not (tmp_path / "missing-parent").exists()
+
+
+def test_bind_grade_cli_contains_output_during_symlink_swap(tmp_path: Path, monkeypatch) -> None:
+    contract, packets, receipts = _inputs(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    output_parent = tmp_path / "swapped"
+    output = output_parent / "out"
+    original = v4_cli._reject_symlinked_components
+
+    def swap_after_check(path: Path, field: str) -> None:
+        original(path, field)
+        if field == "output":
+            output_parent.symlink_to(outside, target_is_directory=True)
+
+    monkeypatch.setattr(v4_cli, "_reject_symlinked_components", swap_after_check)
+    assert _run(contract, packets, receipts, output) == 2
+    assert list(outside.iterdir()) == []

@@ -20,7 +20,7 @@ _FIXTURE = _ROOT / "tests" / "fixtures" / "v4_local_runtime_plugin"
 _MAP_SHA256 = "85583a44b797a58e6a3f6fcc9f4f5234b445b49c5ab6bf38b153e872473a16ff"
 _HOST_FILE_SHA256 = {
     "agent/runtime_api.py": "0b230d2ea4ab074bd52cd2cfcb34c53cab64ebd0edb3ef8ff2874454b320e604",
-    "agent/runtime_dispatch.py": "562686e13b1bd63fc037b186c622681ef6b90a8317274da83deb5e5670837285",
+    "agent/runtime_dispatch.py": "896240c77103010caf03a99fd355492e2fd985eded9c20851ce968c8de03a15b",
 }
 _STATE = ".v4_local_runtime_fixture_state.json"
 _TOOL = "v2_non_soak/TOOL-02"
