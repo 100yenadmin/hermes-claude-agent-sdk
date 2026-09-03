@@ -28,6 +28,10 @@ _ATTEMPT = frozenset("identity candidate classification terminal_status event_co
 _EVENT = frozenset({"kind", "byte_length", "sha256", "terminal_status", "projection"})
 _HOST = frozenset({"schema_version", "status", "runtime", "invariant_violations", "expected_turn_count", "transcript", "runtime_state", "runtime_usage"})
 _LOCAL = frozenset({"schema_version", "status", "path", "host_local", "provider_calls", "terminal_status", "events", "observation", "proof_hashes"})
+_DELEGATION = frozenset({"count", "background_count", "lifecycle", "parent_link_sha256"})
+_TRACE = frozenset({"schema_version", "row_key", "predecessor_execution_id", "path", "trial_index", "events"})
+_TRACE_EVENT = frozenset({"kind", "byte_length", "sha256", "terminal_status", "evidence"})
+_TRACE_EVIDENCE = frozenset({"source", "attempt_index", "source_sha256"})
 _TERMINALS = frozenset({"completed", "denied", "failed", "cancelled"})
 _CONTENT = frozenset({"message.delta", "message.content", "content", "text", "message.text"})
 class V4LivePacketViolation(ValueError):
@@ -144,6 +148,37 @@ def _events(value: Any, classification: str) -> tuple[tuple[dict[str, Any], ...]
     if mapped["approval_requested"] != mapped["approval_decision"] or mapped["tool_requested"] != mapped["tool_result"]:
         raise V4LivePacketViolation("event request/result pairing is incomplete")
     return tuple(result), counts, tuple(content)
+def _approval(value: Any) -> dict[str, Any]:
+    result = _copy(value, "attempt.approval")
+    fields = {"decision_class", "request_count", "decision_count", "requests", "decisions"}
+    if set(result) != fields or result["decision_class"] not in {"allow", "deny", "other"} or type(result["request_count"]) is not int or type(result["decision_count"]) is not int or result["request_count"] != result["decision_count"] or result["request_count"] < 0 or not isinstance(result["requests"], list) or not isinstance(result["decisions"], list) or len(result["requests"]) != result["request_count"] or len(result["decisions"]) != result["decision_count"]:
+        raise V4LivePacketViolation("approval receipt is not a closed request/respond projection")
+    for request, decision in zip(result["requests"], result["decisions"], strict=True):
+        if set(request) != {"kind", "byte_length", "sha256"} or _id(request["kind"], "approval.request.kind") is None or type(request["byte_length"]) is not int or not 0 <= request["byte_length"] <= 1_048_576:
+            raise V4LivePacketViolation("approval request projection is invalid")
+        _digest(request["sha256"], "approval.request.sha256")
+        if set(decision) != {"decision_class", "ok", "result_kind", "result_bytes", "result_sha256"} or decision["decision_class"] != result["decision_class"] or type(decision["ok"]) is not bool or not isinstance(decision["result_kind"], str) or type(decision["result_bytes"]) is not int or not 0 <= decision["result_bytes"] <= 1_048_576:
+            raise V4LivePacketViolation("approval response projection is invalid")
+        _id(decision["result_kind"], "approval.decision.result_kind"); _digest(decision["result_sha256"], "approval.decision.result_sha256")
+    return result
+def _delegation(value: Any, scenario: V4LiveScenario) -> dict[str, Any]:
+    result = _copy(value, "delegation summary")
+    if set(result) != _DELEGATION:
+        raise V4LivePacketViolation("delegation summary fields are not closed")
+    if type(result["count"]) is not int or not 0 <= result["count"] <= 10_000 or result["count"] != scenario.child_calls:
+        raise V4LivePacketViolation("delegation count is not scenario-bound")
+    if type(result["background_count"]) is not int or not 0 <= result["background_count"] <= result["count"]:
+        raise V4LivePacketViolation("delegation background count is invalid")
+    if result["lifecycle"] not in {"none", "pending", "running", "completed", "failed", "cancelled", "delivered", "dropped"}:
+        raise V4LivePacketViolation("delegation lifecycle is unsupported")
+    parent_hash = result["parent_link_sha256"]
+    if parent_hash is not None:
+        _digest(parent_hash, "delegation.parent_link_sha256")
+    if result["count"] == 0 and (result["lifecycle"] != "none" or parent_hash is not None):
+        raise V4LivePacketViolation("empty delegation summary carries an outcome")
+    if result["count"] > 0 and (result["lifecycle"] == "none" or parent_hash is None):
+        raise V4LivePacketViolation("delegation summary lacks lifecycle or parent-link proof")
+    return result
 def _preflight_hash(value: Any, candidate_hash: str) -> str:
     projections = _copy(value, "preflight_projections")
     if set(projections) != set(OWNERSHIP_PREFLIGHTS):
@@ -158,7 +193,7 @@ def _preflight_hash(value: Any, candidate_hash: str) -> str:
             raise V4LivePacketViolation("preflight projection metadata is incomplete")
         identities[name] = {"candidate_hash": candidate_hash, "status": "PASS", "source_hash": sha256_value(source), "observation_hash": sha256_value(observation)}
     return sha256_value(identities)
-def _attempt(value: Any, scenario: V4LiveScenario, candidate_hash: str, expected_trace: Sequence[str]) -> tuple[dict[str, Any], dict[str, Any], tuple[dict[str, Any], ...], tuple[str, ...]]:
+def _attempt(value: Any, scenario: V4LiveScenario, candidate_hash: str) -> tuple[dict[str, Any], dict[str, Any], tuple[dict[str, Any], ...], tuple[str, ...]]:
     result = _copy(value, "positive attempt")
     if set(result) - _ATTEMPT or set(_ATTEMPT) - set(result) or "turn_index" not in result:
         raise V4LivePacketViolation("positive attempt fields are not closed")
@@ -168,16 +203,52 @@ def _attempt(value: Any, scenario: V4LiveScenario, candidate_hash: str, expected
         raise V4LivePacketViolation("positive attempt identity is not scenario-bound")
     if type(result["turn_index"]) is not int or not 1 <= result["turn_index"] <= scenario.turn_count or result["classification"] != "COMPLETE" or result["terminal_status"] != "completed":
         raise V4LivePacketViolation("positive attempt is not a completed turn")
-    if type(result["control_calls_used"]) is not int or not 0 <= result["control_calls_used"] <= 16 or not isinstance(result["approval"], Mapping) or set(result["approval"]) != {"decision_class", "decision_count"} or result["approval"]["decision_class"] not in {"allow", "deny", "other"} or type(result["approval"]["decision_count"]) is not int or result["approval"]["decision_count"] < 0 or type(result["provider_calls"]) is not int or result["provider_calls"] != 1 or type(result["turns_used"]) is not int or result["turns_used"] != 1:
+    approval = _approval(result["approval"])
+    result["approval"] = approval
+    if type(result["control_calls_used"]) is not int or not 0 <= result["control_calls_used"] <= 16 or type(result["provider_calls"]) is not int or result["provider_calls"] != 1 or type(result["turns_used"]) is not int or result["turns_used"] != 1:
         raise V4LivePacketViolation("positive attempt provider accounting is not one call/turn")
     if type(result["event_count"]) is not int or result["event_count"] != len(result["events"]):
         raise V4LivePacketViolation("positive attempt event count is not exact")
     events, raw_counts, content = _events(result["events"], "COMPLETE")
     if result["event_kinds"] != raw_counts:
         raise V4LivePacketViolation("positive attempt event kinds are not exact")
-    if tuple(event["kind"] for event in events) != tuple(expected_trace):
-        raise V4LivePacketViolation("positive event projection does not match the frozen trace")
+    if approval["decision_count"] != sum(count for kind, count in raw_counts.items() if kind.casefold() not in _CONTENT and _kind(kind) == "approval_requested"):
+        raise V4LivePacketViolation("approval request count does not match event projection")
     return result, candidate, events, content
+def _scenario_trace(value: Any, scenario: V4LiveScenario, expected_trace: Sequence[str], attempts: Sequence[Mapping[str, Any]]) -> tuple[tuple[dict[str, Any], ...], str]:
+    trace = _copy(value, "scenario_trace")
+    if set(trace) != _TRACE or trace["schema_version"] != 1 or trace["row_key"] != scenario.row_key or trace["predecessor_execution_id"] != scenario.predecessor_execution_id or trace["path"] != "positive" or trace["trial_index"] != attempts[0]["identity"]["trial_index"] or not isinstance(trace["events"], list) or len(trace["events"]) != len(expected_trace):
+        raise V4LivePacketViolation("scenario trace envelope is not closed or row-bound")
+    source_events = {(item["turn_index"], event["sha256"]): event for item in attempts for event in item["events"]}
+    output, used, terminal_count = [], set(), 0
+    for ordinal, raw in enumerate(trace["events"], 1):
+        item = _copy(raw, f"scenario_trace.events[{ordinal - 1}]")
+        if set(item) != _TRACE_EVENT:
+            raise V4LivePacketViolation("scenario trace event fields are not closed")
+        kind, digest = _kind(item["kind"]), _digest(item["sha256"], f"scenario_trace.events[{ordinal - 1}].sha256")
+        evidence = _copy(item["evidence"], f"scenario_trace.events[{ordinal - 1}].evidence")
+        if set(evidence) != _TRACE_EVIDENCE or evidence["source"] != "attempt" or type(evidence["attempt_index"]) is not int or not 1 <= evidence["attempt_index"] <= len(attempts) or evidence["source_sha256"] != digest:
+            raise V4LivePacketViolation("scenario trace evidence is not an attempt-bound projection")
+        source = source_events.get((evidence["attempt_index"], digest))
+        if source is None or _kind(source["kind"]) != kind or source["byte_length"] != item["byte_length"] or source["terminal_status"] != item["terminal_status"] or digest in used:
+            raise V4LivePacketViolation("scenario trace component is absent, mismatched, or reused")
+        if type(item["byte_length"]) is not int or not 1 <= item["byte_length"] <= 1_048_576:
+            raise V4LivePacketViolation("scenario trace byte length is invalid")
+        if kind == "terminal":
+            if item["terminal_status"] != "completed":
+                raise V4LivePacketViolation("scenario trace terminal is not completed")
+            terminal_count += 1
+            event = {"sequence": ordinal, "kind": kind, "metadata_hash": digest, "status": "completed", "terminal_outcome": "completed"}
+        elif item["terminal_status"] is not None:
+            raise V4LivePacketViolation("scenario trace non-terminal carries an outcome")
+        else:
+            event = {"sequence": ordinal, "kind": kind, "metadata_hash": digest, "status": "observed"}
+        if kind != expected_trace[ordinal - 1]:
+            raise V4LivePacketViolation("scenario trace does not match the immutable row trace")
+        used.add(digest); output.append(event)
+    if terminal_count != 1:
+        raise V4LivePacketViolation("scenario trace lacks one completed terminal")
+    return tuple(output), sha256_value(trace)
 def _host(value: Any, turn_count: int, provider_calls: int) -> tuple[dict[str, Any], dict[str, str]]:
     host = _copy(value, "host_observation")
     if set(host) != _HOST or host["schema_version"] != 1 or host["status"] != "PASS" or host["runtime"] != V4_SDK_DISTRIBUTION or host["invariant_violations"] != [] or host["expected_turn_count"] != turn_count:
@@ -253,23 +324,29 @@ def build_v4_live_packets(contract: Mapping[str, Any], scenario: V4LiveScenario 
         validate_v4_live_scenario_catalog(catalog, live_map=document, map_path=source)
         chosen_catalog = catalog if isinstance(catalog, V4LiveScenarioCatalog) else build_v4_live_scenario_catalog(document, map_path=source)
         selected = _scenario(scenario, chosen_catalog)
+        rows = [row for row in contract["source_rows"] if f"{row['source_pack']}/{row['source_item_id']}" == selected.row_key]
+        if len(rows) != 1:
+            raise V4LivePacketViolation("scenario has no unique contract row")
+        row = rows[0]
+        if row["predecessor_execution_id"] != selected.predecessor_execution_id or not row["provider_live_required"] or tuple(required_trial_indexes(row)) != tuple(selected.trial_indexes):
+            raise V4LivePacketViolation("scenario row is not bound to the immutable contract")
         receipt = _copy(positive_receipt, "positive_receipt")
-        fields = {"schema_version", "candidate", "preflight_projections", "attempts", "host_observation", "profile_id", "inventory_hash", "stream_projection"}
+        fields = {"schema_version", "candidate", "preflight_projections", "attempts", "host_observation", "profile_id", "inventory_hash", "stream_projection", "scenario_trace", "delegation"}
         if set(receipt) != fields or receipt["schema_version"] != 1:
             raise V4LivePacketViolation("positive receipt fields are not closed")
         candidate, candidate_hash = _candidate(receipt["candidate"])
         if not isinstance(receipt["attempts"], list) or len(receipt["attempts"]) != selected.turn_count:
             raise V4LivePacketViolation("positive receipt does not contain the row turn bundle")
-        attempts, attempt_events, content_hashes, indexes, seen_events = [], [], [], [], set()
+        attempts, content_hashes, indexes, seen_events = [], [], [], set()
         for raw in receipt["attempts"]:
-            attempt, observed_candidate, events, content = _attempt(raw, selected, candidate_hash, next(row["expected_trace"] for row in contract["source_rows"] if f"{row['source_pack']}/{row['source_item_id']}" == selected.row_key))
+            attempt, observed_candidate, events, content = _attempt(raw, selected, candidate_hash)
             if observed_candidate != candidate:
                 raise V4LivePacketViolation("positive attempts use different candidates")
             hashes = {item["sha256"] for item in attempt["events"]}
             if seen_events & hashes:
                 raise V4LivePacketViolation("positive event projections are reused across turns")
             seen_events.update(hashes)
-            attempts.append(attempt); attempt_events.append(events); content_hashes.extend(content); indexes.append(attempt["turn_index"])
+            attempts.append(attempt); content_hashes.extend(content); indexes.append(attempt["turn_index"])
         if indexes != list(range(1, selected.turn_count + 1)):
             raise V4LivePacketViolation("positive turn indexes are not contiguous")
         first_identity = _identity(attempts[0]["identity"], "positive identity")
@@ -279,23 +356,19 @@ def build_v4_live_packets(contract: Mapping[str, Any], scenario: V4LiveScenario 
             raise V4LivePacketViolation("positive preflight identity is not exact")
         _id(receipt["profile_id"], "profile_id"); _digest(receipt["inventory_hash"], "inventory_hash")
         host, host_proofs = _host(receipt["host_observation"], selected.turn_count, selected.turn_count)
+        scenario_events, scenario_trace_hash = _scenario_trace(receipt["scenario_trace"], selected, row["expected_trace"], attempts)
+        delegation = _delegation(receipt["delegation"], selected)
         content_hash = sha256_value(tuple(content_hashes))
         catalog_hash = chosen_catalog.catalog_sha256
-        core = {"schema_version": 1, "row_key": selected.row_key, "predecessor_execution_id": selected.predecessor_execution_id, "trial_index": first_identity["trial_index"], "scenario_catalog_hash": catalog_hash, "live_map_sha256": LIVE_MAP_SHA256, "candidate_hash": candidate_hash, "preflight_hash": first_identity["preflight_hash"], "attempt_hashes": [sha256_value(item) for item in attempts], "host_observation_hash": sha256_value(host), "content_projection_hash": content_hash, "turn_count": selected.turn_count, "provider_calls": selected.turn_count}
+        core = {"schema_version": 1, "row_key": selected.row_key, "predecessor_execution_id": selected.predecessor_execution_id, "trial_index": first_identity["trial_index"], "scenario_catalog_hash": catalog_hash, "live_map_sha256": LIVE_MAP_SHA256, "candidate_hash": candidate_hash, "preflight_hash": first_identity["preflight_hash"], "attempt_hashes": [sha256_value(item) for item in attempts], "approval_projection_hashes": [sha256_value(item["approval"]) for item in attempts], "host_observation_hash": sha256_value(host), "scenario_trace_hash": scenario_trace_hash, "content_projection_hash": content_hash, "delegation_summary": delegation, "delegation_summary_hash": sha256_value(delegation), "turn_count": selected.turn_count, "provider_calls": selected.turn_count}
         scenario_hash = sha256_value(core)
         observations = {} if path_observations is None else dict(path_observations)
         if "positive" in observations or set(observations) - set(selected.mandatory_paths):
             raise V4LivePacketViolation("path observations contain a non-mandatory path")
-        rows = [row for row in contract["source_rows"] if f"{row['source_pack']}/{row['source_item_id']}" == selected.row_key]
-        if len(rows) != 1:
-            raise V4LivePacketViolation("scenario has no unique contract row")
-        row = rows[0]
-        if row["predecessor_execution_id"] != selected.predecessor_execution_id or not row["provider_live_required"] or tuple(required_trial_indexes(row)) != tuple(selected.trial_indexes):
-            raise V4LivePacketViolation("scenario row is not bound to the immutable contract")
         paths, packets, trials = {}, {}, {}
         for path in selected.mandatory_paths:
             if path == "positive":
-                events, proofs, classification, turns = attempt_events[0], host_proofs, "COMPLETE", selected.turn_count
+                events, proofs, classification, turns = scenario_events, host_proofs, "COMPLETE", selected.turn_count
             elif path in observations:
                 events, proofs = _local(observations[path], path, row["expected_trace"])
                 classification, turns = ("EXPECTED_NEGATIVE", 0) if path == "denial" else ("COMPLETE", 0)

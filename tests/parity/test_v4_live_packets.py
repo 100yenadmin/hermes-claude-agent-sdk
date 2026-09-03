@@ -16,12 +16,23 @@ def _preflights(candidate: dict[str, str]) -> dict[str, dict[str, object]]:
 def _preflight_hash(preflights, candidate_hash):
     return sha256_value({name: {"candidate_hash": candidate_hash, "status": "PASS", "source_hash": sha256_value(item["source"]), "observation_hash": sha256_value(item["observation"])} for name, item in preflights.items()})
 def _attempt(scenario, candidate, preflight_hash, turn_index, *, outcome="completed"):
-    expected = next(row["expected_trace"] for row in load_v4_contract(ROOT / "qa/parity-contract-v4.yaml")["source_rows"] if f"{row['source_pack']}/{row['source_item_id']}" == scenario.row_key)
     kinds = {"start": "message.start", "state": "message.state", "usage": "message.usage", "tool_requested": "tool.request", "tool_result": "tool.complete", "approval_requested": "approval.requested", "approval_decision": "approval.responded", "compaction": "compaction", "background": "background", "restart": "restart", "terminal": "message.complete"}
-    events = [{"kind": kinds[name], "byte_length": 10 + index, "sha256": f"{turn_index}{index}".ljust(64, "0"), "terminal_status": outcome if name == "terminal" else None} for index, name in enumerate(expected, 1)]
+    events = [{"kind": kinds[name], "byte_length": 10 + index, "sha256": f"{turn_index}{index}".ljust(64, "0"), "terminal_status": outcome if name == "terminal" else None} for index, name in enumerate(("start", "state", "usage", "restart", "terminal"), 1)]
     events.insert(1, {"kind": "message.delta", "byte_length": 19, "sha256": f"{turn_index}f".ljust(64, "0"), "terminal_status": None})
     candidate_hash = sha256_value(candidate)
-    return {"identity": {"candidate_hash": candidate_hash, "preflight_hash": preflight_hash, "live_map_sha256": LIVE_MAP_SHA256, "row_key": scenario.row_key, "predecessor_execution_id": scenario.predecessor_execution_id, "path": "positive", "trial_index": scenario.trial_indexes[0]}, "candidate": candidate, "classification": "COMPLETE", "terminal_status": outcome, "event_count": len(events), "event_kinds": {event["kind"]: sum(item["kind"] == event["kind"] for item in events) for event in events}, "events": events, "control_calls_used": 1, "provider_calls": 1, "turns_used": 1, "approval": {"decision_class": "deny", "decision_count": 0}, "turn_index": turn_index}
+    return {"identity": {"candidate_hash": candidate_hash, "preflight_hash": preflight_hash, "live_map_sha256": LIVE_MAP_SHA256, "row_key": scenario.row_key, "predecessor_execution_id": scenario.predecessor_execution_id, "path": "positive", "trial_index": scenario.trial_indexes[0]}, "candidate": candidate, "classification": "COMPLETE", "terminal_status": outcome, "event_count": len(events), "event_kinds": {event["kind"]: sum(item["kind"] == event["kind"] for item in events) for event in events}, "events": events, "control_calls_used": 1, "provider_calls": 1, "turns_used": 1, "approval": {"decision_class": "deny", "request_count": 0, "decision_count": 0, "requests": [], "decisions": []}, "turn_index": turn_index}
+def _scenario_trace(contract, scenario, attempts):
+    expected = next(row["expected_trace"] for row in contract["source_rows"] if f"{row['source_pack']}/{row['source_item_id']}" == scenario.row_key)
+    refs = {"openclaw_active/source-docs-discovery-report": [(1, "start"), (2, "terminal")], "openclaw_active/thread-memory-isolation": [(1, "start"), (2, "state"), (4, "terminal")], "openclaw_active/config-restart-capability-flip": [(1, "start"), (2, "restart"), (2, "terminal")], "v2_non_soak/AUTH-01": [(1, "start"), (1, "state"), (1, "usage"), (1, "terminal")], "v2_non_soak/ORCH-01": [(1, "start"), (1, "state"), (1, "terminal")]}[scenario.row_key]
+    raw_kinds = {"start": "message.start", "state": "message.state", "usage": "message.usage", "restart": "restart", "terminal": "message.complete"}
+    events = []
+    for (attempt_index, name), expected_kind in zip(refs, expected, strict=True):
+        event = next(item for attempt in attempts if attempt["turn_index"] == attempt_index for item in attempt["events"] if item["kind"] == raw_kinds[name])
+        events.append({"kind": expected_kind, "byte_length": event["byte_length"], "sha256": event["sha256"], "terminal_status": event["terminal_status"], "evidence": {"source": "attempt", "attempt_index": attempt_index, "source_sha256": event["sha256"]}})
+    return {"schema_version": 1, "row_key": scenario.row_key, "predecessor_execution_id": scenario.predecessor_execution_id, "path": "positive", "trial_index": scenario.trial_indexes[0], "events": events}
+def _delegation(scenario):
+    count = scenario.child_calls
+    return {"count": count, "background_count": 0, "lifecycle": "completed" if count else "none", "parent_link_sha256": "d" * 64 if count else None}
 def _host(turn_count):
     usage = [{"ordinal": index, "sha256": f"{index}".ljust(64, "0"), "provider": "anthropic", "model": "claude-fable-5-1", "selected_model": "claude-fable-5-1", "effective_model": "claude-fable-5-1", "canonical_model": "claude-fable-5-1", "model_resolution": "exact", "billing_mode": "subscription_included", "cost_status": "included", "fallback_used": False, "api_call_count": turn_count, "tokens": {"input_tokens": 1, "output_tokens": 1}} for index in range(1, turn_count + 1)]
     return {"schema_version": 1, "status": "PASS", "runtime": "claude-agent-sdk", "invariant_violations": [], "expected_turn_count": turn_count, "transcript": {"row_count": turn_count * 2, "canonical_rows": {"user": {"count": turn_count}, "assistant": {"count": turn_count}}, "terminal": {"count": turn_count, "persisted": True, "sha256": "a" * 64}}, "runtime_state": {"present": False, "schema_version": None, "sha256": None}, "runtime_usage": {"receipt_count": turn_count, "ordered": usage, "latest": usage[-1]}}
@@ -37,12 +48,14 @@ def _inputs(row_key="openclaw_active/source-docs-discovery-report"):
     pf_hash = _preflight_hash(preflights, v4_hash)
     attempts = [_attempt(scenario, candidate, pf_hash, index) for index in range(1, scenario.turn_count + 1)]
     stream = {"schema_version": 1, "name": "stream", "candidate_hash": v4_hash, "trial_candidate_hash": "f" * 64, "trial_index": scenario.trial_indexes[0], "status": "PASS", "source": {"executable": "pytest", "source_ref": "tests/stream.py", "test_id": "stream:scenario"}, "observation": {"stream_count": 1, "content_hash": "e" * 64}}
-    receipt = {"schema_version": 1, "candidate": candidate, "preflight_projections": preflights, "attempts": attempts, "host_observation": _host(scenario.turn_count), "profile_id": "isolated", "inventory_hash": "5" * 64, "stream_projection": stream}
+    receipt = {"schema_version": 1, "candidate": candidate, "preflight_projections": preflights, "attempts": attempts, "host_observation": _host(scenario.turn_count), "profile_id": "isolated", "inventory_hash": "5" * 64, "stream_projection": stream, "scenario_trace": _scenario_trace(contract, scenario, attempts), "delegation": _delegation(scenario)}
     return contract, live_map, catalog, scenario, receipt
 def test_one_positive_bundle_and_pending_local_paths_without_triple_counting():
     contract, live_map, _, scenario, receipt = _inputs()
     bundle = build_v4_live_packets(contract, scenario, receipt, live_map=live_map, map_path=MAP)
     assert bundle["scenario_receipt"]["provider_accounting"] == {"positive_calls": 2, "denial_calls": 0, "recovery_calls": 0, "total_calls": 2}
+    assert len(bundle["scenario_receipt"]["approval_projection_hashes"]) == 2
+    assert bundle["scenario_receipt"]["delegation_summary_hash"] == sha256_value(receipt["delegation"])
     assert bundle["paths"]["positive"]["trial"].turn_count == 2
     assert bundle["paths"]["positive"]["trial"].classification.value == "COMPLETE"
     assert bundle["paths"]["denial"]["trial"].classification.value == "PENDING"
@@ -67,8 +80,24 @@ def test_completed_as_denial_and_raw_local_data_are_rejected():
     bad = _local("denial", expected, "denied", "e"); bad["observation"]["raw_content"] = "forbidden"
     with pytest.raises(V4LivePacketViolation):
         build_v4_live_packets(contract, scenario, receipt, {"denial": bad}, live_map=live_map, map_path=MAP)
-def test_positive_content_delta_is_hash_bound_but_not_predecessor_trace():
-    contract, live_map, _, scenario, receipt = _inputs("v2_non_soak/AUTH-01")
+def test_scenario_trace_is_required_and_cannot_infer_row_atoms():
+    contract, live_map, _, scenario, receipt = _inputs("openclaw_active/config-restart-capability-flip")
+    receipt.pop("scenario_trace")
+    with pytest.raises(V4LivePacketViolation):
+        build_v4_live_packets(contract, scenario, receipt, live_map=live_map, map_path=MAP)
+    _, _, _, _, receipt = _inputs("openclaw_active/config-restart-capability-flip")
+    receipt["scenario_trace"]["events"][1]["kind"] = "state"
+    with pytest.raises(V4LivePacketViolation):
+        build_v4_live_packets(contract, scenario, receipt, live_map=live_map, map_path=MAP)
+@pytest.mark.parametrize("row_key", ("v2_non_soak/AUTH-01", "openclaw_active/source-docs-discovery-report", "openclaw_active/thread-memory-isolation", "openclaw_active/config-restart-capability-flip"))
+def test_positive_scenario_trace_binds_each_turn_and_content(row_key):
+    contract, live_map, _, scenario, receipt = _inputs(row_key)
     bundle = build_v4_live_packets(contract, scenario, receipt, live_map=live_map, map_path=MAP)
-    assert [event["kind"] for event in bundle["paths"]["positive"]["trial"].normalized_events] == ["start", "state", "usage", "terminal"]
+    expected = next(row["expected_trace"] for row in contract["source_rows"] if f"{row['source_pack']}/{row['source_item_id']}" == scenario.row_key)
+    assert [event["kind"] for event in bundle["paths"]["positive"]["trial"].normalized_events] == expected
+    assert len(bundle["scenario_receipt"]["attempt_hashes"]) == scenario.turn_count
     assert bundle["scenario_receipt"]["content_projection_hash"] != sha256_value(())
+def test_delegation_summary_is_explicit_and_scenario_bound():
+    contract, live_map, _, scenario, receipt = _inputs("v2_non_soak/ORCH-01")
+    with pytest.raises(V4LivePacketViolation):
+        build_v4_live_packets(contract, scenario, {**receipt, "delegation": {"count": 0, "background_count": 0, "lifecycle": "none", "parent_link_sha256": None}}, live_map=live_map, map_path=MAP)
