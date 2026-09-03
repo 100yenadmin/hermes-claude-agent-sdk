@@ -128,3 +128,33 @@ def test_bind_grade_cli_contains_output_during_symlink_swap(tmp_path: Path, monk
     monkeypatch.setattr(v4_cli, "_reject_symlinked_components", swap_after_check)
     assert _run(contract, packets, receipts, output) == 2
     assert list(outside.iterdir()) == []
+
+
+def test_bind_grade_cli_preserves_output_created_during_publication(tmp_path: Path, monkeypatch) -> None:
+    contract, packets, receipts = _inputs(tmp_path)
+    output = tmp_path / "out"
+    original_link = v4_cli.os.link
+
+    def create_destination_before_link(source, destination, *, src_dir_fd, dst_dir_fd, follow_symlinks) -> None:
+        if destination == "trial.json":
+            descriptor = v4_cli.os.open(
+                destination,
+                v4_cli.os.O_WRONLY | v4_cli.os.O_CREAT | v4_cli.os.O_EXCL,
+                0o600,
+                dir_fd=dst_dir_fd,
+            )
+            try:
+                v4_cli.os.write(descriptor, b"caller")
+            finally:
+                v4_cli.os.close(descriptor)
+        original_link(
+            source,
+            destination,
+            src_dir_fd=src_dir_fd,
+            dst_dir_fd=dst_dir_fd,
+            follow_symlinks=follow_symlinks,
+        )
+
+    monkeypatch.setattr(v4_cli.os, "link", create_destination_before_link)
+    assert _run(contract, packets, receipts, output) == 2
+    assert (output / "trial.json").read_bytes() == b"caller"

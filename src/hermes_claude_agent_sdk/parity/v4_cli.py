@@ -293,7 +293,14 @@ def _persist(output: Path, documents: Mapping[str, Mapping[str, Any]]) -> None:
                 os.fsync(staged)
             finally:
                 os.close(staged)
-            os.replace(temporary, name, src_dir_fd=output_descriptor, dst_dir_fd=output_descriptor)
+            os.link(
+                temporary,
+                name,
+                src_dir_fd=output_descriptor,
+                dst_dir_fd=output_descriptor,
+                follow_symlinks=False,
+            )
+            os.unlink(temporary, dir_fd=output_descriptor)
             temporary_names.remove(temporary)
         os.fsync(output_descriptor)
     except OSError as exc:

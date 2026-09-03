@@ -83,6 +83,15 @@ def test_v4_artifacts_are_valid_and_preserve_the_frozen_budget() -> None:
     assert len(ledger["rows"]) == 23
 
 
+def test_v4_contract_copy_uses_repo_owned_v3_predecessor(tmp_path: Path) -> None:
+    copied = tmp_path / "parity-contract-v4.yaml"
+    copied.write_bytes((ROOT / "qa" / "parity-contract-v4.yaml").read_bytes())
+
+    contract = load_v4_contract(copied)
+
+    assert len(contract["source_rows"]) == 124
+
+
 def test_v4_manifest_binds_every_immutable_artifact() -> None:
     manifest = load_v4_manifest(ROOT / "qa/parity-v4-manifest.json")
 

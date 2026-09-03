@@ -128,7 +128,7 @@ def _repo_root(path: Path) -> Path:
     for candidate in (path.parent, *path.parents):
         if (candidate / "qa" / "parity-contract-v3.yaml").is_file():
             return candidate
-    return Path(__file__).resolve().parents[4]
+    return Path(__file__).resolve().parents[3]
 
 
 def _v3_rows(path: Path) -> dict[tuple[str, str], dict[str, Any]]:
