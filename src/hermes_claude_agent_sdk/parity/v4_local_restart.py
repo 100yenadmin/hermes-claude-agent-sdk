@@ -15,7 +15,7 @@ from .v4_gateway import Gateway, GatewayRpcError, OpaqueHandle
 _ROW_KEY = "openclaw_active/config-restart-capability-flip"
 _TRIALS = frozenset({1, 2, 3})
 _PATHS = frozenset({"denial", "recovery"})
-_HOST_ROOT = Path(__file__).resolve().parents[3].parent / "hermes-agent-runtime-plugin-api"
+_HOST_ROOT_ENV = "HERMES_AGENT_HOST_ROOT"
 _SAFE_ENV = {
     "HERMES_MODEL": "claude-fable-5-1",
     "HERMES_TUI_PROVIDER": "claude-agent-sdk",
@@ -165,11 +165,30 @@ def _capture(identities: dict[str, str]):
     return projector
 
 
-def _gateway(env: Mapping[str, str]) -> Gateway:
-    if not _HOST_ROOT.is_dir() or _HOST_ROOT.is_symlink():
+def _host_root() -> Path:
+    value = os.environ.get(_HOST_ROOT_ENV)
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value) > 4096
+    ):
+        raise V4LocalRestartViolation("normal gateway host is not configured")
+    candidate = Path(value)
+    if not candidate.is_absolute() or ".." in candidate.parts or candidate.is_symlink() or not candidate.exists():
         raise V4LocalRestartViolation("normal gateway host is unavailable")
     try:
-        return Gateway(python=sys.executable, cwd=_HOST_ROOT, env=env)
+        resolved = candidate.resolve(strict=True)
+    except (OSError, RuntimeError):
+        raise V4LocalRestartViolation("normal gateway host is unavailable") from None
+    if not resolved.is_dir() or resolved.is_symlink():
+        raise V4LocalRestartViolation("normal gateway host is unavailable")
+    return resolved
+
+
+def _gateway(env: Mapping[str, str]) -> Gateway:
+    host_root = _host_root()
+    try:
+        return Gateway(python=sys.executable, cwd=host_root, env=env)
     except Exception:
         raise V4LocalRestartViolation("normal gateway could not be constructed") from None
 

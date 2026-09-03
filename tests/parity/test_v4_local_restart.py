@@ -11,12 +11,12 @@ from hermes_claude_agent_sdk.parity.v4_live_packets import _local
 ROW = "openclaw_active/config-restart-capability-flip"
 TRACE = ("start", "restart", "terminal")
 
-
 @pytest.mark.parametrize(
     ("path", "terminal"),
     (("denial", "denied"), ("recovery", "completed")),
 )
-def test_actual_task_local_gateway_restart_packet(tmp_path: Path, path: str, terminal: str) -> None:
+def test_actual_task_local_gateway_restart_packet(tmp_path: Path, path: str, terminal: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HERMES_AGENT_HOST_ROOT", str(Path(__file__).resolve().parents[2].parent / "hermes-agent-runtime-plugin-api"))
     packet = restart.run_v4_local_restart(ROW, 1, path, tmp_path)
 
     events, proofs = _local(packet, path, TRACE)
@@ -70,5 +70,12 @@ def test_restart_call_is_sealed_and_admits_only_mapped_trials(tmp_path: Path, mo
         restart.run_v4_local_restart(ROW, 1, "denial", "relative-task-root")
     with pytest.raises(restart.V4LocalRestartViolation):
         restart.run_v4_local_restart(ROW, 1, "denial", Path.home())
+    for value in (None, "relative-host", tmp_path / "missing-host", Path(__file__)):
+        if value is None:
+            monkeypatch.delenv("HERMES_AGENT_HOST_ROOT", raising=False)
+        else:
+            monkeypatch.setenv("HERMES_AGENT_HOST_ROOT", str(value))
+        with pytest.raises(restart.V4LocalRestartViolation):
+            restart.run_v4_local_restart(ROW, 1, "denial", tmp_path)
     with pytest.raises(TypeError):
         restart.run_v4_local_restart(ROW, 1, "denial", tmp_path, expected_trace=TRACE)  # type: ignore[call-arg]
