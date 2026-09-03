@@ -6,7 +6,7 @@ import pytest
 from hermes_claude_agent_sdk.parity.v4_gateway import Gateway, OpaqueHandle
 from hermes_claude_agent_sdk.parity.v4_live_map import load_v4_live_execution_map
 from hermes_claude_agent_sdk.parity.v4_live_session import V4LiveSession, V4LiveSessionViolation
-from .test_v4_host_probe import _db
+from .test_v4_host_probe import _db, _delegation_db
 from .test_v4_live_executor import _candidate, _event, _preflights
 
 ROOT = Path(__file__).parents[2]
@@ -186,3 +186,32 @@ def test_live_session_host_observation_errors_fail_closed_without_raw_identity(t
     assert transport.closed
     with pytest.raises(V4LiveSessionViolation):
         session.collect_host_observation(path, allowed_root=tmp_path, expected_turn_count=1)
+
+
+def test_live_session_collects_durable_delegation_with_private_stored_identity(tmp_path: Path) -> None:
+    path, stored_id, delegation_id = _delegation_db(tmp_path)
+    transport = _SessionTransport(stored_session_id=stored_id)
+    session = _session(transport)
+    with pytest.raises(V4LiveSessionViolation):
+        session.collect_delegation_observation(path, allowed_root=tmp_path, expected_count=1)
+    session.start()
+    observation = session.collect_delegation_observation(
+        path, allowed_root=tmp_path, expected_count=1
+    )
+    assert observation["status"] == "PASS"
+    assert observation["count"] == observation["parent_delivery_count"] == 1
+    assert stored_id not in repr(observation)
+    assert delegation_id not in repr(observation)
+
+
+def test_live_session_delegation_observation_failure_closes_session(tmp_path: Path) -> None:
+    path, stored_id, _ = _delegation_db(tmp_path)
+    transport = _SessionTransport(stored_session_id=stored_id)
+    session = _session(transport)
+    session.start()
+    with pytest.raises(V4LiveSessionViolation) as exc:
+        session.collect_delegation_observation(
+            tmp_path / "missing.db", allowed_root=tmp_path, expected_count=1
+        )
+    assert stored_id not in str(exc.value)
+    assert transport.closed

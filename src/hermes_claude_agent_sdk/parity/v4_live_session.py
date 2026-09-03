@@ -3,7 +3,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
-from .v4_host_probe import collect_v4_host_observation
+from .v4_host_probe import (
+    collect_v4_delegation_observation,
+    collect_v4_host_observation,
+)
 from .v4_gateway import OpaqueHandle
 from .v4_live_executor import (
     V4LiveExecutor,
@@ -305,6 +308,43 @@ class V4LiveSession:
                 except Exception:
                     pass
             raise V4LiveSessionViolation("host observation failed") from None
+    def collect_delegation_observation(
+        self,
+        db_path: str | Path,
+        *,
+        allowed_root: str | Path | None = None,
+        expected_count: int | None = None,
+    ) -> dict[str, Any]:
+        """Collect durable delegation proof using only this session's stored ID."""
+        if (
+            not self._started
+            or self._failed
+            or not isinstance(self._stored_session_id, str)
+            or not self._stored_session_id
+        ):
+            raise V4LiveSessionViolation("session is not valid for delegation observation")
+        if expected_count is not None and (
+            type(expected_count) is not int or not 0 <= expected_count <= 10_000
+        ):
+            raise V4LiveSessionViolation("delegation observation count is invalid")
+        try:
+            observation = collect_v4_delegation_observation(
+                db_path,
+                self._stored_session_id,
+                allowed_root=allowed_root,
+                expected_count=expected_count,
+            )
+            if not isinstance(observation, Mapping) or observation.get("status") != "PASS":
+                raise V4LiveSessionViolation("delegation observation is not a closed PASS")
+            return dict(observation)
+        except Exception:
+            self._failed = True
+            if not self._closed:
+                try:
+                    self.close()
+                except Exception:
+                    pass
+            raise V4LiveSessionViolation("delegation observation failed") from None
     def restart(self, *, gateway: V4LiveGateway, planned_calls: int | None = None, planned_turns: int | None = None) -> "V4LiveSession":
         if self._stored_session_id is None or not self._closed:
             raise V4LiveSessionViolation("session has no stored identity or is still live")
