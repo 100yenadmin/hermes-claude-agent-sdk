@@ -159,31 +159,49 @@ class V4LiveExecutor:
             self._call("approval.respond", params)
             self._approval_count += 1
         return projection
+
+    def _execute_turn(self, prompt: str, *, session_id: str, approval_choice: str) -> dict[str, Any]:
+        terminal: str | None = None; events: list[EventProjection] = []; accumulator = EventAccumulator()
+        decision = approval_choice.casefold(); decision_class = "allow" if decision in {"allow", "approve", "yes"} else "deny" if decision in {"deny", "reject", "no", "cancel"} else "other"
+        submitted_session: list[str] = []
+        def project_submit(raw: object) -> None:
+            if isinstance(raw, Mapping) and isinstance(raw.get("session_id"), str): submitted_session.append(raw["session_id"])
+        submitted = self._call("prompt.submit", {"session_id": session_id, "text": prompt}, project_submit)
+        returned_session = submitted_session[0] if submitted_session else submitted.get("session_id")
+        if isinstance(returned_session, str) and returned_session != session_id: raise V4LiveExecutorViolation("prompt response session identity does not match")
+        while terminal is None:
+            captured: dict[str, Mapping[str, Any]] = {}; projection = self._next(session_id, approval_choice, accumulator, captured); events.append(projection)
+            if projection.terminal_status is not None: terminal = projection.terminal_status
+            if len(events) > MAX_EVENTS: raise V4LiveExecutorViolation("event sequence exceeds the bounded count")
+        try: trailing = self._gateway.next_event(timeout=0.01)
+        except (GatewayClosed, GatewayTimeout, TimeoutError): trailing = None
+        if trailing is not None: raise V4LiveExecutorViolation("event arrived after terminal")
+        classification = {"completed": "COMPLETE", "denied": "EXPECTED_NEGATIVE", "failed": "VERIFIED_FAILURE", "cancelled": "VERIFIED_FAILURE"}.get(terminal)
+        if classification is None: raise V4LiveExecutorViolation("event sequence has no supported terminal")
+        counts = Counter(event.event_type for event in events)
+        return {"identity": self._identity.to_dict(), "candidate": dict(self._candidate), "classification": classification, "terminal_status": terminal, "event_count": len(events), "event_kinds": dict(sorted(counts.items())), "events": [event.to_dict() for event in events], "control_calls_used": self._control_calls, "provider_calls": self._provider_calls, "turns_used": 1, "approval": {"decision_class": decision_class, "decision_count": self._approval_count}}
+
+    def run_on_session(self, prompt: str, *, session_id: str, approval_choice: str = "deny") -> dict[str, Any]:
+        if self._used: raise V4LiveExecutorViolation("attempt is already terminal")
+        self._used = True
+        if not isinstance(prompt, str) or not prompt.strip() or len(prompt.encode()) > 1_048_576: raise V4LiveExecutorViolation("prompt is empty or too large")
+        if not isinstance(approval_choice, str) or not approval_choice.strip() or len(approval_choice) > 64: raise V4LiveExecutorViolation("approval choice is invalid")
+        session_id = _safe_id(session_id, "session_id")
+        return self._execute_turn(prompt, session_id=session_id, approval_choice=approval_choice)
+
     def run(self, prompt: str, *, approval_choice: str = "deny") -> dict[str, Any]:
         if self._used: raise V4LiveExecutorViolation("attempt is already terminal")
         self._used = True
         if not isinstance(prompt, str) or not prompt.strip() or len(prompt.encode()) > 1_048_576: raise V4LiveExecutorViolation("prompt is empty or too large")
         if not isinstance(approval_choice, str) or not approval_choice.strip() or len(approval_choice) > 64: raise V4LiveExecutorViolation("approval choice is invalid")
-        terminal: str | None = None; events: list[EventProjection] = []; accumulator = EventAccumulator(); session_id: str | None = None
-        decision = approval_choice.casefold(); decision_class = "allow" if decision in {"allow", "approve", "yes"} else "deny" if decision in {"deny", "reject", "no", "cancel"} else "other"
+        session_id: str | None = None
         try:
             self._gateway.start(); captured_session: list[str] = []
             def project_session(raw: object) -> None:
                 if isinstance(raw, Mapping) and isinstance(raw.get("session_id"), str): captured_session.append(raw["session_id"])
             created = self._call("session.create", self._session_params, project_session); session_id = captured_session[0] if captured_session else created.get("session_id")
             if not isinstance(session_id, str) or not session_id: raise V4LiveExecutorViolation("session identity was not returned")
-            self._call("prompt.submit", {"session_id": session_id, "text": prompt})
-            while terminal is None:
-                captured: dict[str, Mapping[str, Any]] = {}; projection = self._next(session_id, approval_choice, accumulator, captured); events.append(projection)
-                if projection.terminal_status is not None: terminal = projection.terminal_status
-                if len(events) > MAX_EVENTS: raise V4LiveExecutorViolation("event sequence exceeds the bounded count")
-            try: trailing = self._gateway.next_event(timeout=0.01)
-            except (GatewayClosed, GatewayTimeout, TimeoutError): trailing = None
-            if trailing is not None: raise V4LiveExecutorViolation("event arrived after terminal")
-            classification = {"completed": "COMPLETE", "denied": "EXPECTED_NEGATIVE", "failed": "VERIFIED_FAILURE", "cancelled": "VERIFIED_FAILURE"}.get(terminal)
-            if classification is None: raise V4LiveExecutorViolation("event sequence has no supported terminal")
-            counts = Counter(event.event_type for event in events)
-            return {"identity": self._identity.to_dict(), "candidate": dict(self._candidate), "classification": classification, "terminal_status": terminal, "event_count": len(events), "event_kinds": dict(sorted(counts.items())), "events": [event.to_dict() for event in events], "control_calls_used": self._control_calls, "provider_calls": self._provider_calls, "turns_used": 1, "approval": {"decision_class": decision_class, "decision_count": self._approval_count}}
+            return self._execute_turn(prompt, session_id=session_id, approval_choice=approval_choice)
         finally:
             try: self._gateway.close()
             except Exception: raise V4LiveExecutorViolation("gateway close failed") from None
