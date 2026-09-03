@@ -15,8 +15,7 @@ TRACE = ("start", "restart", "terminal")
     ("path", "terminal"),
     (("denial", "denied"), ("recovery", "completed")),
 )
-def test_actual_task_local_gateway_restart_packet(tmp_path: Path, path: str, terminal: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("HERMES_AGENT_HOST_ROOT", str(Path(__file__).resolve().parents[2].parent / "hermes-agent-runtime-plugin-api"))
+def test_actual_task_local_gateway_restart_packet(tmp_path: Path, path: str, terminal: str) -> None:
     packet = restart.run_v4_local_restart(ROW, 1, path, tmp_path)
 
     events, proofs = _local(packet, path, TRACE)
