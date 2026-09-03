@@ -1,2 +1,3 @@
+recursive-include src/hermes_claude_agent_sdk/parity *.py
 recursive-include qa *.json *.md *.yaml
-recursive-include tests/parity *.py
+recursive-include tests *.py

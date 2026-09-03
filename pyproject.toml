@@ -13,7 +13,6 @@ license-files = ["LICENSE", "NOTICE", "AUTHORS"]
 authors = [{ name = "hermes-claude-agent-sdk contributors" }]
 dependencies = [
   "claude-agent-sdk==0.2.151",
-  "pyyaml==6.0.3",
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -33,13 +32,8 @@ test = [
 [project.entry-points."hermes_agent.plugins"]
 claude-agent-sdk = "hermes_claude_agent_sdk"
 
-[project.entry-points."hermes_claude_agent_sdk.parity_executors"]
-parity = "hermes_claude_agent_sdk.parity.executors:EXECUTORS"
-
 [project.scripts]
 hermes-claude-agent-sdk = "hermes_claude_agent_sdk.__main__:main"
-hermes-claude-agent-sdk-parity = "hermes_claude_agent_sdk.parity.cli:main"
-hermes-claude-agent-sdk-parity-v4 = "hermes_claude_agent_sdk.parity.v4_cli:main"
 
 [project.urls]
 Homepage = "https://github.com/100yenadmin/hermes-claude-agent-sdk"
@@ -48,10 +42,16 @@ Source = "https://github.com/100yenadmin/hermes-claude-agent-sdk"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
+include-package-data = false
 
 [tool.setuptools.packages.find]
 where = ["src"]
+exclude = [
+  "hermes_claude_agent_sdk.parity",
+  "hermes_claude_agent_sdk.parity.*",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
+pythonpath = ["src"]

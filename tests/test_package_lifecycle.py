@@ -19,6 +19,11 @@ from pathlib import Path
 import pytest
 
 
+ROOT = Path(__file__).resolve().parents[1]
+PACKAGE_SOURCE_ROOT = ROOT / "src" / "hermes_claude_agent_sdk"
+PARITY_SOURCE_ROOT = PACKAGE_SOURCE_ROOT / "parity"
+
+
 def _run(
     command: list[str],
     *,
@@ -70,6 +75,18 @@ REQUIRED_PARITY_TESTS = {
     "tests/parity/test_v4_contract.py",
     "tests/parity/test_v4_runner.py",
 }
+RUNTIME_PACKAGE_FILES = {
+    str(path.relative_to(ROOT / "src")).replace(os.sep, "/")
+    for path in PACKAGE_SOURCE_ROOT.glob("*.py")
+}
+PARITY_SOURCE_FILES = {
+    str(path.relative_to(ROOT)).replace(os.sep, "/")
+    for path in PARITY_SOURCE_ROOT.glob("*.py")
+}
+PARITY_TEST_FILES = {
+    str(path.relative_to(ROOT)).replace(os.sep, "/")
+    for path in (ROOT / "tests" / "parity").glob("**/*.py")
+}
 
 
 def test_built_package_lifecycle(tmp_path: Path) -> None:
@@ -96,11 +113,37 @@ def test_built_package_lifecycle(tmp_path: Path) -> None:
     with zipfile.ZipFile(wheel) as archive:
         wheel_paths = set(archive.namelist())
         wheel_notices = {Path(name).name for name in wheel_paths}
+        wheel_package_paths = {
+            name
+            for name in wheel_paths
+            if name.startswith("hermes_claude_agent_sdk/")
+        }
+        entry_points_members = [
+            name for name in wheel_paths if name.endswith("/entry_points.txt")
+        ]
+        assert len(entry_points_members) == 1
+        wheel_entry_points = archive.read(entry_points_members[0]).decode(
+            "utf-8"
+        )
+        metadata_members = [name for name in wheel_paths if name.endswith("/METADATA")]
+        assert len(metadata_members) == 1
+        wheel_metadata = archive.read(metadata_members[0]).decode("utf-8")
     with tarfile.open(sdist, mode="r:gz") as archive:
         sdist_archive_paths = set(archive.getnames())
         sdist_notices = {Path(name).name for name in sdist_archive_paths}
     assert required_notices <= wheel_notices
     assert required_notices <= sdist_notices
+    assert wheel_package_paths == RUNTIME_PACKAGE_FILES
+    assert wheel_entry_points == (
+        "[console_scripts]\n"
+        "hermes-claude-agent-sdk = hermes_claude_agent_sdk.__main__:main\n"
+        "\n"
+        "[hermes_agent.plugins]\n"
+        "claude-agent-sdk = hermes_claude_agent_sdk\n"
+    )
+    metadata_lines = set(wheel_metadata.splitlines())
+    assert "Requires-Dist: pyyaml==6.0.3" not in metadata_lines
+    assert 'Requires-Dist: pyyaml==6.0.3; extra == "test"' in metadata_lines
     assert not any(
         Path(name).parts and Path(name).parts[0] == "claude_agent_sdk"
         for name in wheel_paths
@@ -118,6 +161,14 @@ def test_built_package_lifecycle(tmp_path: Path) -> None:
                 stream = archive.extractfile(name)
                 assert stream is not None
                 sdist_hashes[relative_name] = hashlib.sha256(stream.read()).hexdigest()
+    assert {
+        path for path in sdist_paths if path.startswith("src/hermes_claude_agent_sdk/parity/")
+    } == PARITY_SOURCE_FILES
+    assert {
+        path
+        for path in sdist_paths
+        if path.startswith("tests/parity/") and path.endswith(".py")
+    } == PARITY_TEST_FILES
     assert set(IMMUTABLE_SDIST_HASHES) | REQUIRED_PARITY_TESTS <= sdist_paths
     assert sdist_hashes == IMMUTABLE_SDIST_HASHES
 
@@ -151,6 +202,18 @@ import importlib.util
 import sys
 
 assert importlib.util.find_spec("claude_agent_sdk") is None
+assert importlib.util.find_spec("hermes_claude_agent_sdk.parity") is None
+for module_name in (
+    "hermes_claude_agent_sdk.parity.active_suite",
+    "hermes_claude_agent_sdk.parity.native_suite",
+    "hermes_claude_agent_sdk.parity.runtime_suite",
+    "hermes_claude_agent_sdk.parity.native_sandbox",
+):
+    try:
+        module_spec = importlib.util.find_spec(module_name)
+    except ModuleNotFoundError:
+        module_spec = None
+    assert module_spec is None, module_name
 
 class RejectSDKImport:
     def find_spec(self, fullname, path=None, target=None):
@@ -170,23 +233,18 @@ assert len(matches) == 1
 entry_point = next(iter(matches))
 assert entry_point.value == "hermes_claude_agent_sdk"
 assert entry_point.load() is plugin
-parity_scripts = importlib.metadata.entry_points(
-    group="console_scripts", name="hermes-claude-agent-sdk-parity"
-)
-assert len(parity_scripts) == 1
-assert next(iter(parity_scripts)).value == "hermes_claude_agent_sdk.parity.cli:main"
+assert "yaml" not in sys.modules
+for script_name in (
+    "hermes-claude-agent-sdk-parity",
+    "hermes-claude-agent-sdk-parity-v4",
+):
+    assert not importlib.metadata.entry_points(
+        group="console_scripts", name=script_name
+    )
 parity_executors = importlib.metadata.entry_points(
     group="hermes_claude_agent_sdk.parity_executors",
-    name="parity",
 )
-assert len(parity_executors) == 1
-assert next(iter(parity_executors)).value == (
-    "hermes_claude_agent_sdk.parity.executors:EXECUTORS"
-)
-assert not importlib.metadata.entry_points(
-    group="hermes_claude_agent_sdk.parity_executors",
-    name="v3",
-)
+assert not parity_executors
 assert "claude_agent_sdk" not in sys.modules
 print("installed import passed")
 """

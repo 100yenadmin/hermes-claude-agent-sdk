@@ -64,13 +64,15 @@ MCP inventory, canonical transcript/stream ownership, `delegate_task`, and
 host-owned background delivery. The v3 contract and its evidence remain
 historical only; they are not a current support or release claim.
 
-The installed `hermes-claude-agent-sdk-parity` console script remains the
-historical v3 inventory/run/grade surface in this pinned source. Do not use it
-as a v4 pass claim: it expects the v3 profile policy. Revision 4's closed
-contract is validated by the repository's v4 contract/runner modules and the
-exact candidate evidence harness; see [`qa/README.md`](qa/README.md). Any v4
-executor must fail closed unless SDK `0.2.151`, bundled CLI `2.1.258`, direct
-model `claude-fable-5-1`, and the exact plugin/host SHAs are bound.
+The historical v3/v4 parity modules and their executors remain available from
+the source checkout and source distribution for repository QA, but are
+intentionally excluded from the installed wheel. The wheel exposes only the
+Hermes plugin entry point and the offline doctor CLI. Revision 4's closed
+contract is validated by the repository's source-level v4 contract/runner
+modules and the exact candidate evidence harness; see
+[`qa/README.md`](qa/README.md). Any v4 executor must fail closed unless SDK
+`0.2.151`, bundled CLI `2.1.258`, direct model `claude-fable-5-1`, and the
+exact plugin/host SHAs are bound.
 
 The contract's runtime-soak row is a separate bounded evidence lane; neither a
 source map, deterministic test, nor local parity packet proves an upstream

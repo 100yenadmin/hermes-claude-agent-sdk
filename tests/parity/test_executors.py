@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
+import tomllib
 
 from hermes_claude_agent_sdk.parity import executors
 from hermes_claude_agent_sdk.parity.results import ExecutionClassification
@@ -53,12 +55,18 @@ def test_approval_preflight_rejects_bundled_cli_drift_before_host_call(
     } == {"bundled_cli_version_unsupported"}
 
 
-def test_entry_point_does_not_label_executor_v3_only() -> None:
-    from pathlib import Path
-
-    project = (Path(__file__).resolve().parents[2] / "pyproject.toml").read_text(
-        encoding="utf-8"
+def test_source_executor_mapping_is_not_published_as_entry_point() -> None:
+    assert (
+        executors.EXECUTORS["active-approval-turn-tool-followthrough"]
+        is executors.approval_followthrough
     )
-
-    assert "parity = \"hermes_claude_agent_sdk.parity.executors:EXECUTORS\"" in project
-    assert "\nv3 = \"hermes_claude_agent_sdk.parity.executors:EXECUTORS\"" not in project
+    project = tomllib.loads(
+        (Path(__file__).resolve().parents[2] / "pyproject.toml").read_text(
+            encoding="utf-8"
+        )
+    )
+    entry_points = project["project"].get("entry-points", {})
+    scripts = project["project"].get("scripts", {})
+    assert "hermes_claude_agent_sdk.parity_executors" not in entry_points
+    assert "hermes-claude-agent-sdk-parity" not in scripts
+    assert "hermes-claude-agent-sdk-parity-v4" not in scripts
