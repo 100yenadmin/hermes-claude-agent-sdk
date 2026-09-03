@@ -39,7 +39,8 @@ _NATIVE_NAMES = frozenset({"agent", "bash", "read", "write", "edit", "web"})
 _HERMES_SUBAGENT_LIFECYCLE = frozenset({"subagent.spawn_requested", "subagent.start", "subagent.complete"})
 _HERMES_SUBAGENT_PROGRESS = frozenset({"subagent.text", "subagent.thinking", "subagent.tool", "subagent.progress"})
 _HERMES_SUBAGENT_EVENTS = _HERMES_SUBAGENT_LIFECYCLE | _HERMES_SUBAGENT_PROGRESS
-_TURN_TERMINAL_TYPES = frozenset({"terminal", "message.complete", "session.complete", "run.complete", "task.complete", "turn.complete"})
+TURN_TERMINAL_TYPES = frozenset({"terminal", "message.complete", "session.complete", "run.complete", "task.complete", "turn.complete"})
+_TURN_TERMINAL_TYPES = TURN_TERMINAL_TYPES
 _STOP = object()
 class GatewayError(RuntimeError): pass
 class GatewayNotStarted(GatewayError): pass
@@ -232,8 +233,10 @@ class Gateway:
     def _pump_stdio(self) -> None:
         assert self._process is not None and self._process.stdout is not None
         try:
-            for line in self._process.stdout:
-                if self._stop.is_set(): break
+            while not self._stop.is_set():
+                line = self._process.stdout.readline(MAX_FRAME_BYTES + 1)
+                if not line:
+                    break
                 if len(line) > MAX_FRAME_BYTES:
                     self._reader_error = GatewayProtocolError("gateway frame exceeds the bounded size"); break
                 self._enqueue(line)

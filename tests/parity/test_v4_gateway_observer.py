@@ -71,6 +71,21 @@ def test_observer_accepts_two_child_lifecycles_and_rejects_duplicates() -> None:
 def test_observer_pairs_same_name_tools_by_id() -> None:
     observer = V4GatewayObserver(_FakeGateway([_event("tool.start", {"name": "fixture_tool", "tool_call_id": "a"}), _event("tool.start", {"name": "fixture_tool", "tool_call_id": "b"}), _event("tool.complete", {"name": "fixture_tool", "tool_call_id": "b"}), _event("tool.complete", {"name": "fixture_tool", "tool_call_id": "a"}), _event("message.complete", {"status": "completed"})]), allowed_tool_names={"fixture_tool"}); observer.start(); [observer.next_event() for _ in range(5)]
     assert observer.snapshot()["tools"] == {"started": ["fixture_tool", "fixture_tool"], "completed": ["fixture_tool", "fixture_tool"]}
+
+
+def test_turn_complete_is_terminal_and_rejects_trailing_events() -> None:
+    observer = V4GatewayObserver(
+        _FakeGateway([
+            _event("turn.complete", {"status": "completed"}),
+            _event("message.delta"),
+        ])
+    )
+    observer.start()
+    observer.next_event()
+    assert observer.snapshot()["terminal_status"] == "completed"
+    with pytest.raises(V4GatewayObserverViolation, match="after terminal"):
+        observer.next_event()
+
 def test_fixture_snapshot_is_bounded_and_sanitized(tmp_path: Path) -> None:
     state = tmp_path / ".hermes_v4_fixture_state.json"
     state.write_text(json.dumps({"schema_version": 1, "record_count": 2, "item_count": 1, "item_hash": "a" * 64, "operation_hash": "b" * 64}), encoding="utf-8")
