@@ -275,14 +275,6 @@ def build_ownership_receipt(
     return receipt
 
 
-def write_ownership_receipt(receipt: Mapping[str, Any], output: str | Path) -> None:
-    """Persist an already-built receipt without replacing an existing file."""
-
-    normalized = _mapping(receipt, "ownership receipt")
-    _reject_raw(normalized, "ownership receipt")
-    _write_create_only(normalized, output)
-
-
 build_v4_ownership_receipt = build_ownership_receipt
 OwnershipReceiptError = OwnershipReceiptViolation
 V4ReceiptViolation = OwnershipReceiptViolation
@@ -294,5 +286,4 @@ __all__ = [
     "V4ReceiptViolation",
     "build_ownership_receipt",
     "build_v4_ownership_receipt",
-    "write_ownership_receipt",
 ]
