@@ -221,9 +221,16 @@ def _persist(output: Path, documents: Mapping[str, Mapping[str, Any]]) -> None:
             for name in sorted(documents):
                 target = output / name
                 staged = staging / name
+                if target.exists() and (
+                    target.is_symlink()
+                    or not target.is_file()
+                    or target.read_bytes() != staged.read_bytes()
+                ):
+                    raise V4CLIError(f"refusing to replace pre-existing output {name}")
+            for name in sorted(documents):
+                target = output / name
+                staged = staging / name
                 if target.exists():
-                    if target.is_symlink() or not target.is_file() or target.read_bytes() != staged.read_bytes():
-                        raise V4CLIError(f"refusing to replace pre-existing output {name}")
                     continue
                 os.replace(staged, target)
     except OSError as exc:

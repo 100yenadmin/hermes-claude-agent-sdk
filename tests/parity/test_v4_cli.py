@@ -72,3 +72,12 @@ def test_bind_grade_cli_rejects_mixed_candidate_before_output(tmp_path: Path) ->
     (packets / "second.json").write_text(json.dumps(second.to_dict()), encoding="utf-8")
     (receipts / "second.json").write_text(json.dumps(_receipt(second)), encoding="utf-8")
     assert _run(contract, packets, receipts, tmp_path / "out") == 2
+
+
+def test_bind_grade_cli_rejects_conflicting_output_before_partial_persistence(tmp_path: Path) -> None:
+    contract, packets, receipts = _inputs(tmp_path)
+    output = tmp_path / "out"
+    output.mkdir()
+    (output / "trial.json").write_text("conflict", encoding="utf-8")
+    assert _run(contract, packets, receipts, output) == 2
+    assert not (output / "grade-rc.json").exists()
