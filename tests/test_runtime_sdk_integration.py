@@ -1189,7 +1189,10 @@ def test_cancellation_is_polled_during_sustained_projection_stream() -> None:
                     if event.kind.value == "content":
                         host.projection_count += 1
 
-            await asyncio.wait_for(collect(), timeout=0.5)
+            # Outer deadlock guard only. Cancellation is asserted from the
+            # projection count and terminal event below, so loaded CI runner
+            # scheduling must not become an unrelated sub-second requirement.
+            await asyncio.wait_for(collect(), timeout=2.0)
         finally:
             await runtime.close()
         return events, host, clients[0]
