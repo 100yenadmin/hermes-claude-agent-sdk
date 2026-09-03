@@ -33,7 +33,10 @@ creates exactly one in-process MCP server named `hermes-tools`, enables only
 the exact `mcp__hermes-tools__<tool>` names present in that inventory, and sets
 `strict_mcp_config=true`. Unknown aliases, extra MCP servers, disabled tools,
 and a second discovery pass are rejected. Each handler calls the Hermes host
-execution and approval funnel.
+execution and approval funnel once, passing its validated SDK/MCP request ID to
+the public keyword-only `execute_tool(name, arguments, *, request_id=None)`
+seam. The `host_tool_request_id_v1` capability gates this contract before SDK
+or runtime work; the adapter has no fallback to a legacy two-argument host.
 
 `permission_mode="bypassPermissions"` is an SDK subprocess setting. It avoids
 an SDK-side permission prompt; it does not bypass Hermes permissions,

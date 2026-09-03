@@ -10,6 +10,10 @@ import hermes_claude_agent_sdk.compatibility as compatibility
 _RESOURCE = "claude_agent_sdk/_bundled/claude"
 
 
+def test_required_capabilities_include_provider_neutral_tool_request_ids() -> None:
+    assert "host_tool_request_id_v1" in compatibility.REQUIRED_HOST_CAPABILITIES
+
+
 class FakeDistribution:
     def __init__(self, files: list[str], located: object) -> None:
         self.files = files

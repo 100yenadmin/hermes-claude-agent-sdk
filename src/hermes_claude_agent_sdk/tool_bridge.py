@@ -37,7 +37,13 @@ _SAFE_IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9_.:-]+$")
 class RuntimeHostServices(Protocol):
     """The dependency-free subset of the public host facade used here."""
 
-    async def execute_tool(self, name: str, arguments: Mapping[str, Any]) -> Any: ...
+    async def execute_tool(
+        self,
+        name: str,
+        arguments: Mapping[str, Any],
+        *,
+        request_id: str | None = None,
+    ) -> Any: ...
 
     def cancellation_requested(self) -> bool: ...
 
@@ -669,7 +675,11 @@ class HostToolBridge:
         execute = self._host.execute_tool
         try:
             self._host_execution_count += 1
-            result = execute(name, copied_arguments)
+            result = execute(
+                name,
+                copied_arguments,
+                request_id=safe_request_id,
+            )
             if not inspect.isawaitable(result):
                 return ToolCallResult(
                     safe_request_id,

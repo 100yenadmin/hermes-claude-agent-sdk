@@ -19,13 +19,19 @@ from hermes_claude_agent_sdk.tool_bridge import (
 class RecordingHost:
     def __init__(self, result: Any = "ok") -> None:
         self.result = result
-        self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.calls: list[tuple[str, dict[str, Any], str | None]] = []
         self.cancelled = False
         self.raise_error: BaseException | None = None
         self.cancellation_error: BaseException | None = None
 
-    async def execute_tool(self, name: str, arguments: dict[str, Any]) -> Any:
-        self.calls.append((name, arguments))
+    async def execute_tool(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        *,
+        request_id: str | None = None,
+    ) -> Any:
+        self.calls.append((name, arguments, request_id))
         if self.raise_error is not None:
             raise self.raise_error
         return self.result
@@ -73,7 +79,9 @@ def test_direct_call_delegates_once_and_preserves_correlation_and_name() -> None
         )
     )
 
-    assert host.calls == [("mcp__hermes__pwd", {"path": "."})]
+    assert host.calls == [
+        ("mcp__hermes__pwd", {"path": "."}, "sdk-call-42")
+    ]
     assert bridge.host_execution_count == 1
     assert result.request_id == "sdk-call-42"
     assert result.correlation_id == "turn-synthetic"
@@ -127,7 +135,7 @@ def test_anthropic_schema_maps_without_stripping_canonical_mcp_prefix() -> None:
 
     assert bridge.tool_names == ("mcp__server__tool",)
     _run(bridge.handle_tool_call("request-1", "mcp__server__tool", {}))
-    assert host.calls == [("mcp__server__tool", {})]
+    assert host.calls == [("mcp__server__tool", {}, "request-1")]
 
 
 def test_runtime_frozen_mappingproxy_schemas_and_arguments_are_supported() -> None:
@@ -162,7 +170,7 @@ def test_runtime_frozen_mappingproxy_schemas_and_arguments_are_supported() -> No
             MappingProxyType({"path": "."}),
         )
     )
-    assert host.calls == [("pwd", {"path": "."})]
+    assert host.calls == [("pwd", {"path": "."}, "request")]
 
 
 def test_unknown_duplicate_and_excluded_names_fail_before_host_call() -> None:
@@ -256,8 +264,8 @@ def test_host_schema_defaults_and_anyof_are_supported_and_enforced() -> None:
         _run(bridge.handle_tool_call("three", "terminal", {"command": 7}))
 
     assert host.calls == [
-        ("terminal", {"command": "pwd"}),
-        ("terminal", {"command": ["pwd"], "timeout": 10}),
+        ("terminal", {"command": "pwd"}, "one"),
+        ("terminal", {"command": ["pwd"], "timeout": 10}, "two"),
     ]
 
 
@@ -362,7 +370,7 @@ def test_sdk_adapter_is_lazy_and_handler_only_calls_host(monkeypatch: pytest.Mon
         "content": [{"type": "text", "text": "synthetic result"}],
         "is_error": False,
     }
-    assert host.calls == [("a_tool", {"path": "."})]
+    assert host.calls == [("a_tool", {"path": "."}, "sdk:sdk-call-0001")]
 
 
 def test_sdk_adapter_does_not_approve_or_execute_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -389,4 +397,4 @@ def test_sdk_adapter_does_not_approve_or_execute_fallback(monkeypatch: pytest.Mo
     bridge = HostToolBridge(host, [_openai()])
     bridge.build_sdk_mcp_server()
     _run(registered[0].handler({"path": "."}))
-    assert host.calls == [("pwd", {"path": "."})]
+    assert host.calls == [("pwd", {"path": "."}, "sdk:sdk-call-0001")]

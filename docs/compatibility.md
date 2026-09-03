@@ -24,10 +24,13 @@ fallback and watchdog. This is exact-candidate behavior, not future-version
 compatibility proof.
 
 The required capability set includes the host's tool, approval, content,
-cancellation, state, usage, and compaction facades. Hermes owns all visible
-behavior and effects, including background delivery. One bound parent retains
-one SDK client/reader; opaque provider session identifiers are resume state
-only and never routing metadata.
+cancellation, state, usage, and compaction facades. The tool facade must expose
+the provider-neutral public method
+`execute_tool(name, arguments, *, request_id=None)` under
+`host_tool_request_id_v1`; the plugin passes each validated SDK/MCP request ID
+through exactly once. Hermes owns all visible behavior and effects, including
+background delivery. One bound parent retains one SDK client/reader; opaque
+provider session identifiers are resume state only and never routing metadata.
 
 The candidate also requires `runtime_model_provenance_v1` so Hermes can retain
 selected/effective/canonical model evidence without rewriting its legacy

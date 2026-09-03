@@ -48,6 +48,7 @@ REQUIRED_HOST_CAPABILITIES = frozenset(
         "host_content_stream_v1",
         "host_status_v1",
         "host_tool_execution_v1",
+        "host_tool_request_id_v1",
         "provider_profile_registration_v1",
         "runtime_model_provenance_v1",
         "runtime_state_v1",
