@@ -22,23 +22,16 @@ from .v4_live_map import load_v4_live_execution_map, validate_v4_live_execution_
 from .v4_live_packets import LIVE_MAP_SHA256, build_v4_live_packets
 from .v4_live_scenarios import build_v4_live_scenario_catalog
 from .v4_live_session import V4LiveSession
-
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 _SAFE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@/+#\-]{0,255}$")
 _CANONICAL = {"message.start": "start", "session.start": "start", "run.start": "start", "message.state": "state", "session.state": "state", "message.usage": "usage", "tool.request": "tool_requested", "tool.requested": "tool_requested", "tool.complete": "tool_result", "tool.completed": "tool_result", "approval.request": "approval_requested", "approval.requested": "approval_requested", "approval.responded": "approval_decision", "approval.decision": "approval_decision", "compaction": "compaction", "background": "background", "restart": "restart", "message.complete": "terminal", "session.complete": "terminal", "run.complete": "terminal", "task.complete": "terminal", "terminal": "terminal"}
 _STRIP = frozenset({"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GLM_API_KEY", "ZAI_API_KEY", "EXTRA_USAGE", "CLAUDE_CODE_EXTRA_USAGE", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX"})
-
-
 class V4NormalGatewayRunnerViolation(ValueError):
     """Admission, observation, or packet composition failed closed."""
-
-
 class V4SealedLocalObservation(Protocol):
     """Future sealed host-transition input; no implementation is accepted yet."""
 
     def read(self, *, row_key: str, trial_index: int, expected_trace: tuple[str, ...]) -> Mapping[str, Any]: ...
-
-
 @dataclass(frozen=True, slots=True)
 class V4NormalGatewayAdmission:
     candidate_hash: str
@@ -195,28 +188,37 @@ def _trace(contract: Mapping[str, Any], scenario: Any, attempts: list[Mapping[st
     return {"schema_version": 1, "row_key": scenario.row_key, "predecessor_execution_id": scenario.predecessor_execution_id, "path": "positive", "trial_index": attempts[0]["identity"]["trial_index"], "events": [{"kind": event["kind"], "byte_length": event["byte_length"], "sha256": event["sha256"], "terminal_status": event["terminal_status"], "evidence": {"source": "attempt", "attempt_index": turn, "source_sha256": event["sha256"]}} for turn, _, event, _ in chosen]}
 
 
+def _packet_attempt(attempt: Mapping[str, Any]) -> dict[str, Any]:
+    events = [event for event in attempt["events"] if not str(event.get("kind", "")).startswith("subagent.")]
+    return {**attempt, "event_count": len(events), "event_kinds": {kind: sum(event.get("kind") == kind for event in events) for kind in {event.get("kind") for event in events}}, "events": events}
+
+
 def _delegation(scenario: Any, trial_index: int, snapshots: tuple[Mapping[str, Any], ...], durable: Mapping[str, Any]) -> dict[str, Any]:
     bindings = tuple(binding for binding in scenario.child_bindings if binding[1] == trial_index and binding[4] == "positive")
     count = len(bindings)
-    if not isinstance(durable, Mapping) or durable.get("status") != "PASS" or durable.get("count") != count or durable.get("invariant_violations") != []:
+    batch_count = 1 if scenario.mechanism_class == "host_background" and count else 0
+    if not isinstance(durable, Mapping) or durable.get("status") != "PASS" or durable.get("count") != batch_count or durable.get("background_count") != batch_count or durable.get("invariant_violations") != []:
         raise V4NormalGatewayRunnerViolation("durable delegation observation is missing or mismatched")
-    parent_link = _digest(durable.get("parent_link_sha256"), "delegation parent link") if count else durable.get("parent_link_sha256")
     if count == 0:
+        if any(snapshot.get("subagents") for snapshot in snapshots) or any(event.get("kind") == "background" for snapshot in snapshots for event in snapshot.get("events", ())):
+            raise V4NormalGatewayRunnerViolation("unexpected child or background lifecycle was observed")
         return {"count": 0, "background_count": 0, "lifecycle": "none", "parent_link_sha256": None}
     children = [child for snapshot in snapshots for child in snapshot.get("subagents", ())]
     groups = {index: [child for child in children if child.get("task_index") == index] for index in range(count)}
-    if set(groups) != set(range(count)) or any(len(items) != 3 or any(item.get("task_count") != count for item in items) or tuple(item.get("phase") for item in items) != ("spawn_requested", "start", "complete") for items in groups.values()):
+    if len(children) != count * 3 or set(groups) != set(range(count)) or any(len(items) != 3 or any(item.get("task_count") != count for item in items) or tuple(item.get("phase") for item in items) != ("spawn_requested", "start", "complete") for items in groups.values()):
         raise V4NormalGatewayRunnerViolation("observed child lifecycle does not match the immutable map")
     if tuple(sorted(binding[2] for binding in bindings)) != tuple(range(1, count + 1)):
         raise V4NormalGatewayRunnerViolation("immutable child ordinals are not contiguous")
     parents = {child.get("parent_id_sha256") for child in children if child.get("parent_id_sha256") is not None}
-    if len(parents) != 1 or parent_link is None:
+    if len(parents) != 1:
         raise V4NormalGatewayRunnerViolation("observed child parent linkage is incomplete")
-    background_count = sum(1 for snapshot in snapshots for event in snapshot.get("events", ()) if "background" in str(event.get("kind", "")).casefold())
-    expected_background = count if scenario.mechanism_class == "host_background" else 0
-    if background_count != expected_background:
+    observed_background = sum(1 for snapshot in snapshots for event in snapshot.get("events", ()) if event.get("kind") == "background")
+    if observed_background not in (0, batch_count):
         raise V4NormalGatewayRunnerViolation("observed background child count is not map-bound")
-    return {"count": count, "background_count": background_count, "lifecycle": durable["lifecycle"], "parent_link_sha256": parent_link}
+    lifecycle = durable.get("lifecycle") if batch_count else snapshots[-1].get("terminal_status")
+    if lifecycle not in {"pending", "running", "completed", "failed", "cancelled", "delivered", "dropped"}:
+        raise V4NormalGatewayRunnerViolation("child lifecycle observation is incomplete")
+    return {"count": count, "background_count": batch_count, "lifecycle": lifecycle, "parent_link_sha256": next(iter(parents))}
 
 
 class V4NormalGatewayRunner:
@@ -292,8 +294,6 @@ class V4NormalGatewayRunner:
             scenario = self._admit(row_key, trial_index) if self._admission is None else next(item for item in self._catalog.scenarios if item.row_key == row_key)
             if sealed_local_observation is not None:
                 raise V4NormalGatewayRunnerViolation("sealed local observation interface is reserved for a future host-transition fixture")
-            if scenario.child_calls:
-                raise V4NormalGatewayRunnerViolation("normal Gateway event grammar cannot carry the required subagent lifecycle projection")
             self._home.mkdir(parents=True, exist_ok=True)
             if self._task_root != self._home:
                 self._task_root.mkdir(parents=True, exist_ok=True)
@@ -317,19 +317,18 @@ class V4NormalGatewayRunner:
                 host = session.collect_host_observation(database, allowed_root=self._home, expected_turn_count=scenario.turn_count)
             finally:
                 session.close()
-            durable = session.collect_delegation_observation(database, allowed_root=self._home, expected_count=scenario.child_calls)
+            expected_batches = 1 if scenario.mechanism_class == "host_background" and scenario.child_calls else 0
+            durable = session.collect_delegation_observation(database, allowed_root=self._home, expected_count=expected_batches)
             trace = _trace(self._contract, scenario, attempts, observed_gateway.snapshots)
             delegation = _delegation(scenario, trial_index, observed_gateway.snapshots, durable)
-            receipt = {"schema_version": 1, "candidate": self._candidate, "preflight_projections": self._preflights, "attempts": attempts, "host_observation": host, "profile_id": self._profile_id, "inventory_hash": self._inventory_hash, "stream_projection": {"schema_version": 1, "name": "stream", "candidate_hash": self._candidate_hash, "trial_candidate_hash": attempts[0]["identity"]["candidate_hash"], "trial_index": trial_index, "status": "PASS", "source": {"executable": "normal_gateway", "source_ref": "v4_gateway_observer", "test_id": "positive_turn"}, "observation": {"event_count": sum(item["event_count"] for item in attempts), "provider_calls": scenario.turn_count}}, "scenario_trace": trace, "delegation": delegation}
+            packet_attempts = [_packet_attempt(attempt) for attempt in attempts]
+            receipt = {"schema_version": 1, "candidate": self._candidate, "preflight_projections": self._preflights, "attempts": packet_attempts, "host_observation": host, "profile_id": self._profile_id, "inventory_hash": self._inventory_hash, "stream_projection": {"schema_version": 1, "name": "stream", "candidate_hash": self._candidate_hash, "trial_candidate_hash": attempts[0]["identity"]["candidate_hash"], "trial_index": trial_index, "status": "PASS", "source": {"executable": "normal_gateway", "source_ref": "v4_gateway_observer", "test_id": "positive_turn"}, "observation": {"event_count": sum(item["event_count"] for item in attempts), "provider_calls": scenario.turn_count}}, "scenario_trace": trace, "delegation": delegation}
             return build_v4_live_packets(self._contract, scenario, receipt, None, live_map=self._map, map_path=self._map_path, scenario_catalog=self._catalog)
         except V4NormalGatewayRunnerViolation:
             raise
         except Exception as exc:
             raise V4NormalGatewayRunnerViolation("v4 normal Gateway execution failed closed") from exc
-
     run = execute
-
-
 run_v4_normal_gateway = V4NormalGatewayRunner
 NormalGatewayRunner = V4NormalGatewayRunner
 __all__ = ["NormalGatewayRunner", "V4NormalGatewayAdmission", "V4NormalGatewayRunner", "V4NormalGatewayRunnerViolation", "V4SealedLocalObservation", "run_v4_normal_gateway"]

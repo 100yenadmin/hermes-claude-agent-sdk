@@ -22,14 +22,21 @@ class _Transport:
     def close(self): pass
 def _runner(home, factory, row="v2_non_soak/AUTH-01"):
     return V4NormalGatewayRunner(candidate=_candidate(), preflight_projections=_preflights(_candidate()), profile_id="isolated", inventory_hash="5" * 64, hermes_home=home, contract=ROOT / "qa/parity-contract-v4.yaml", live_map=ROOT / "qa/parity-v4-live-execution-map.yaml", fixture_manifest=ROOT / "qa/parity-v4-live-fixtures.yaml", gateway_factory=factory, row_key=row, trial_index=1)
-def _events(): return [_event("message.start"), _event("message.state"), _event("message.usage"), _event("message.complete", {"status": "completed"})]
+def _events(extra=()): return [_event("message.start"), _event("message.state"), *extra, _event("message.usage"), _event("message.complete", {"status": "completed"})]
+def _children(transport, count, background=False):
+    parent, events = "p" + format(id(transport), "x"), []
+    for index in range(count):
+        child = "c" + format(id(transport), "x") + str(index); payload = {"task_index": index, "task_count": count, "parent_id": parent, "child_id": child, "delegation_id": child}
+        events.extend([_event("subagent.spawn_requested", payload), _event("subagent.start", payload), _event("subagent.complete", payload)])
+    if background: events.append(_event("background"))
+    return events
 def test_construction_is_inert_and_incompatible_identity_precedes_start(tmp_path):
     calls = []; runner = _runner(tmp_path / "home", lambda **_: calls.append(True)); assert calls == [] and not (tmp_path / "home").exists(); assert runner.admission.turn_count == 1
     bad = _candidate(); bad["sdk_version"] = "bad"
     with pytest.raises(V4NormalGatewayRunnerViolation): V4NormalGatewayRunner(candidate=bad, preflight_projections=_preflights(bad), profile_id="isolated", inventory_hash="5" * 64, hermes_home=tmp_path / "bad")
 def test_fake_normal_gateway_positive_packet_and_safe_env(tmp_path, monkeypatch):
     monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(1))
-    monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 0, "invariant_violations": [], "parent_link_sha256": None, "lifecycle": "none"})
+    monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": [], "parent_link_sha256": None, "lifecycle": "none"})
     monkeypatch.setenv("HOME", "transient-home"); monkeypatch.setenv("CLAUDE_CONFIG_DIR", "transient-config"); monkeypatch.setenv("ANTHROPIC_API_KEY", "redacted"); monkeypatch.setenv("GLM_API_KEY", "redacted"); monkeypatch.setenv("EXTRA_USAGE", "redacted")
     transport, seen = _Transport(_events()), {}
     def factory(**kwargs): seen.update(kwargs); return Gateway(python="fake", cwd=ROOT, env=kwargs["env"], transport=transport, host_tools=kwargs["host_tools"], mcp_tools=kwargs["mcp_tools"])
@@ -41,8 +48,17 @@ def test_missing_host_observation_fails_closed_without_path_fabrication(tmp_path
     transport = _Transport(_events())
     with pytest.raises(V4NormalGatewayRunnerViolation): _runner(tmp_path / "home", lambda **kwargs: Gateway(python="fake", cwd=ROOT, env=kwargs["env"], transport=transport, host_tools=kwargs["host_tools"], mcp_tools=kwargs["mcp_tools"])).execute()
     assert transport.calls.count("prompt.submit") == 1
-def test_child_rows_fail_before_gateway_when_event_grammar_cannot_observe_lifecycle(tmp_path):
-    calls = []
-    with pytest.raises(V4NormalGatewayRunnerViolation, match="event grammar"):
-        _runner(tmp_path / "home", lambda **_: calls.append(True), "v2_non_soak/ORCH-05").execute()
-    assert calls == [] and not (tmp_path / "home").exists()
+def test_sync_child_uses_observed_lifecycle_not_durable_batch_count(tmp_path, monkeypatch):
+    monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(1)); monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": [], "parent_link_sha256": None, "lifecycle": "none"})
+    transport = _Transport(_events(_children(None, 1)))
+    result = _runner(tmp_path / "home", lambda **k: Gateway(python="fake", cwd=ROOT, env=k["env"], transport=transport, host_tools=k["host_tools"], mcp_tools=k["mcp_tools"]), "v2_non_soak/ORCH-01").execute()
+    assert result["scenario_receipt"]["delegation_summary"]["count"] == 1 and result["scenario_receipt"]["delegation_summary"]["background_count"] == 0
+def test_two_child_fanout_uses_observed_ordinals(tmp_path, monkeypatch):
+    monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(1)); monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": [], "parent_link_sha256": None, "lifecycle": "none"})
+    transport = _Transport(_events(_children(None, 2)))
+    result = _runner(tmp_path / "home", lambda **k: Gateway(python="fake", cwd=ROOT, env=k["env"], transport=transport, host_tools=k["host_tools"], mcp_tools=k["mcp_tools"]), "v2_non_soak/ORCH-05").execute()
+    assert result["scenario_receipt"]["delegation_summary"]["count"] == 2
+def test_background_batch_count_mismatch_fails_closed(tmp_path, monkeypatch):
+    monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(1)); monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 2, "background_count": 2, "invariant_violations": [], "parent_link_sha256": "a" * 64, "lifecycle": "completed"})
+    transport = _Transport(_events(_children(None, 1, True)))
+    with pytest.raises(V4NormalGatewayRunnerViolation): _runner(tmp_path / "home", lambda **k: Gateway(python="fake", cwd=ROOT, env=k["env"], transport=transport, host_tools=k["host_tools"], mcp_tools=k["mcp_tools"]), "v2_non_soak/BG-01").execute()
