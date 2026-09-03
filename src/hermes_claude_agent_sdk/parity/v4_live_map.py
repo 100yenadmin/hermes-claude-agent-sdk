@@ -18,11 +18,38 @@ LIVE_ROW_COUNT, LIVE_MANDATORY_PATH_COUNT, LIVE_TRIAL_PACKET_COUNT = 70, 158, 24
 PARENT_CALL_COUNT, CHILD_CALL_COUNT, TOTAL_CALL_COUNT = 120, 16, 136
 TURN_BUDGET, RESERVE_CALL_COUNT, EFFECTIVE_PROVIDER = 180, 44, "fable"
 _HEX64, _SHA1, _SAFE = re.compile(r"^[0-9a-f]{64}$"), re.compile(r"^[0-9a-f]{40}$"), re.compile(r"^[A-Za-z0-9_.:/-]{1,240}$")
-_FEATURES = {"F0": ("route/preflight", "parent_text", 14, 0), "F1": ("parent/input/state", "parent_state", 10, 0), "F2": ("tools/approval/memory", "host_tool_pdr", 22, 3), "F3": ("delegation/handoff", "host_delegate", 13, 11), "F4": ("background/restart", "host_background", 8, 2), "F5": ("memory/session", "memory_session", 18, 0), "F6": ("docs/skills", "docs_skills", 10, 0), "F7": ("browser/cross-surface", "local_cross_surface", 18, 0), "F8": ("adversarial/composite", "adversarial_local", 7, 0)}
+_FEATURES = {"F0": ("route/preflight", "parent_text", 13, 0), "F1": ("parent/input/state", "parent_state", 8, 0), "F2": ("tools/approval/memory", "host_tool_pdr", 18, 3), "F3": ("delegation/handoff", "host_delegate", 14, 11), "F4": ("background/restart", "host_background", 9, 2), "F5": ("memory/session", "memory_session", 22, 0), "F6": ("docs/skills", "docs_skills", 9, 0), "F7": ("browser/cross-surface", "local_cross_surface", 9, 0), "F8": ("adversarial/composite", "adversarial_local", 18, 0)}
 _PACKS = {"v2_non_soak": {"rows": 26, "mandatory_paths": 26, "required_trial_packets": 38}, "openclaw_active": {"rows": 8, "mandatory_paths": 24, "required_trial_packets": 36}, "clawprobench_native": {"rows": 36, "mandatory_paths": 108, "required_trial_packets": 168}}
 _EXTERNAL = frozenset({"v2_non_soak/OPS-02", "clawprobench_native/constraints_22_message_audience_boundary_live", "clawprobench_native/constraints_23_external_approval_boundary_live", "clawprobench_native/error_recovery_20_browser_cron_message_orchestration_live", "clawprobench_native/synthesis_24_browser_message_reschedule_live", "clawprobench_native/synthesis_28_browser_internal_external_split_live"})
 _ALIASES = {"codex-luna": ("openai-codex/gpt-5.6-luna", {"v2_non_soak/AUTH-02", "v2_non_soak/ORCH-03", "v2_non_soak/ORCH-05"}), "codex-sol": ("openai-codex/gpt-5.6-sol", {"v2_non_soak/AUTH-03", "v2_non_soak/ORCH-04", "v2_non_soak/ORCH-05"}), "opencode-free": ("opencode-free", {"v2_non_soak/AUTH-04"})}
 _PROOF = ["provider_free_map_construction_and_validation_only", "map_validation_used_zero_provider_auth_gateway_calls", "normal_hermes_gateway_execution_required_for_live_calls", "no_browser_or_external_recipient_delivery", "no_installed_runtime_release_fleet_or_customer_proof"]
+_SPECIAL_PARENT_CALLS = {"openclaw_active/source-docs-discovery-report": 2, "openclaw_active/memory-recall": 2, "openclaw_active/thread-memory-isolation": 12, "openclaw_active/config-restart-capability-flip": 6}
+_SPECIAL_SESSION_BOUNDARIES = {"openclaw_active/source-docs-discovery-report": "same_session_source_then_docs", "openclaw_active/memory-recall": "same_session_store_then_recall", "openclaw_active/thread-memory-isolation": "four_turns_per_isolated_trial", "openclaw_active/config-restart-capability-flip": "before_after_restart_per_trial"}
+_CHILD_BINDINGS = (
+    ("F2-C01", "F2", "v2_non_soak/TOOL-05", "positive", 1, 1, 1, "parent_child"),
+    ("F2-C02", "F2", "v2_non_soak/TOOL-05", "positive", 2, 1, 1, "parent_child"),
+    ("F2-C03", "F2", "v2_non_soak/TOOL-05", "positive", 3, 1, 1, "parent_child"),
+    ("F3-C01", "F3", "v2_non_soak/ORCH-01", "positive", 1, 1, 1, "parent_child"),
+    ("F3-C02", "F3", "v2_non_soak/ORCH-02", "positive", 1, 1, 1, "parent_child"),
+    ("F3-C03", "F3", "v2_non_soak/ORCH-03", "positive", 1, 1, 1, "parent_child"),
+    ("F3-C04", "F3", "v2_non_soak/ORCH-04", "positive", 1, 1, 1, "parent_child"),
+    ("F3-C05", "F3", "v2_non_soak/ORCH-05", "positive", 1, 1, 2, "parent_two_children"),
+    ("F3-C06", "F3", "v2_non_soak/ORCH-05", "positive", 1, 2, 2, "parent_two_children"),
+    ("F3-C07", "F3", "v2_non_soak/ORCH-06", "positive", 1, 1, 1, "parent_child"),
+    ("F3-C08", "F3", "v2_non_soak/ORCH-07", "positive", 1, 1, 1, "parent_child"),
+    ("F3-C09", "F3", "openclaw_active/subagent-handoff", "positive", 1, 1, 1, "parent_child"),
+    ("F3-C10", "F3", "openclaw_active/subagent-fanout-synthesis", "positive", 1, 1, 2, "parent_two_children"),
+    ("F3-C11", "F3", "openclaw_active/subagent-fanout-synthesis", "positive", 1, 2, 2, "parent_two_children"),
+    ("F4-C01", "F4", "v2_non_soak/BG-01", "positive", 1, 1, 1, "background_one_entry_batch_join"),
+    ("F4-C02", "F4", "v2_non_soak/BG-03", "positive", 1, 1, 1, "background_child_cancel_restart"),
+)
+_CHILD_ROW_SESSION_BOUNDARIES = {binding[2]: binding[7] for binding in _CHILD_BINDINGS}
+_EXPECTED_CHILD_COUNTS = Counter(binding[2] for binding in _CHILD_BINDINGS)
+_ROW_BUNDLE_MODES = {key: "parent_only" for key in _EXPECTED_CHILD_COUNTS}
+_ROW_BUNDLE_MODES.update({
+    key: ("background_one_entry_batch_join" if key == "v2_non_soak/BG-01" else "background_child_cancel_restart" if key == "v2_non_soak/BG-03" else "parent_two_children" if sum(1 for binding in _CHILD_BINDINGS if binding[2] == key and binding[6] == 2) else "parent_child")
+    for key in _EXPECTED_CHILD_COUNTS
+})
 
 
 class V4LiveMapViolation(ValueError):
@@ -77,7 +104,7 @@ def _rows(raw_rows: Sequence[Any], contract: Mapping[str, Any], feature_ids: set
     live = [row for row in contract["source_rows"] if row["provider_live_required"]]
     if len(raw_rows) != LIVE_ROW_COUNT or len(live) != LIVE_ROW_COUNT:
         raise V4LiveMapViolation("live map must contain exactly 70 immutable provider-live rows")
-    fields = {"source_pack", "source_item_id", "predecessor_execution_id", "ownership_mode", "mandatory_paths", "required_trial_indexes", "feature_id", "mechanism_class", "semantic_aliases", "delivery_mode"}
+    fields = {"source_pack", "source_item_id", "predecessor_execution_id", "ownership_mode", "mandatory_paths", "required_trial_indexes", "feature_id", "mechanism_class", "semantic_aliases", "delivery_mode", "parent_calls", "child_calls", "bundle_mode", "session_boundary"}
     rows, order = {}, []
     for index, (raw, frozen) in enumerate(zip(raw_rows, live, strict=True)):
         item = _m(raw, f"rows[{index}]"); _closed(item, fields, f"rows[{index}]")
@@ -89,6 +116,17 @@ def _rows(raw_rows: Sequence[Any], contract: Mapping[str, Any], feature_ids: set
         expected_delivery = "host_denial_local_recovery" if key in _EXTERNAL else "local_fixture_only"
         if item["delivery_mode"] != expected_delivery:
             raise V4LiveMapViolation(f"{key} delivery policy is unsafe")
+        expected_parent_calls = _SPECIAL_PARENT_CALLS.get(key, len(item["required_trial_indexes"]))
+        if type(item["parent_calls"]) is not int or item["parent_calls"] != expected_parent_calls:
+            raise V4LiveMapViolation(f"{key} parent call ledger does not match its trial bundle")
+        expected_child_calls = _EXPECTED_CHILD_COUNTS.get(key, 0)
+        if type(item["child_calls"]) is not int or item["child_calls"] != expected_child_calls:
+            raise V4LiveMapViolation(f"{key} child call ledger does not match its bound children")
+        if item["bundle_mode"] != _ROW_BUNDLE_MODES.get(key, "parent_only"):
+            raise V4LiveMapViolation(f"{key} bundle mode does not match its parent/child ledger")
+        expected_boundary = _SPECIAL_SESSION_BOUNDARIES.get(key, _CHILD_ROW_SESSION_BOUNDARIES.get(key, "isolated_trial"))
+        if item["session_boundary"] != expected_boundary or _SAFE.fullmatch(item["session_boundary"]) is None:
+            raise V4LiveMapViolation(f"{key} session boundary is not an approved executable bundle")
         rows[key], order = item, order + [key]
     return rows, order
 
@@ -105,6 +143,8 @@ def _features(raw_features: Sequence[Any], rows: Mapping[str, Mapping[str, Any]]
         keys = item["row_keys"]
         if not isinstance(keys, list) or any(not isinstance(key, str) for key in keys) or len(keys) != len(set(keys)) or any(key not in rows for key in keys):
             raise V4LiveMapViolation(f"{fid} has an invalid row partition")
+        if sum(rows[key]["parent_calls"] for key in keys) != item["parent_calls"] or sum(rows[key]["child_calls"] for key in keys) != item["child_calls"]:
+            raise V4LiveMapViolation(f"{fid} feature budget does not equal its row ledger")
         result[fid], assigned = item, assigned + keys
     if set(result) != set(_FEATURES) or len(assigned) != len(set(assigned)) or set(assigned) != set(rows) or any(key not in result[row["feature_id"]]["row_keys"] for key, row in rows.items()):
         raise V4LiveMapViolation("features do not partition all 70 live rows exactly once")
@@ -114,13 +154,19 @@ def _features(raw_features: Sequence[Any], rows: Mapping[str, Mapping[str, Any]]
 def _children(raw_calls: Sequence[Any], rows: Mapping[str, Mapping[str, Any]], features: Mapping[str, Mapping[str, Any]]) -> None:
     if len(raw_calls) != CHILD_CALL_COUNT:
         raise V4LiveMapViolation("child call budget must contain exactly 16 entries")
-    fields = {"call_id", "feature_id", "row_key", "path", "max_iterations", "child_tools", "retry", "delivery", "local_only"}; seen, bindings, counts = set(), set(), Counter()
+    fields = {"call_id", "feature_id", "row_key", "path", "trial_index", "child_ordinal", "child_count", "effective_provider", "max_iterations", "child_tools", "retry", "delivery", "local_only", "session_boundary"}; seen, bindings, counts = set(), set(), Counter()
+    expected = {binding[0]: binding for binding in _CHILD_BINDINGS}
     for raw in raw_calls:
-        item = _m(raw, "child call"); _closed(item, fields, "child call"); call, fid, key, path = _s(item["call_id"], "child call ID"), item["feature_id"], item["row_key"], item["path"]
-        if call in seen or not isinstance(fid, str) or fid not in {"F2", "F3", "F4"} or fid not in features or not isinstance(key, str) or not isinstance(path, str) or key not in rows or rows[key]["feature_id"] != fid or path not in rows[key]["mandatory_paths"] or (key, path) in bindings or item["max_iterations"] != 1 or item["child_tools"] != [] or item["retry"] is not False or item["delivery"] is not False or item["local_only"] is not True:
+        item = _m(raw, "child call"); _closed(item, fields, "child call"); call = _s(item["call_id"], "child call ID")
+        expected_binding = expected.get(call)
+        actual_binding = (call, item["feature_id"], item["row_key"], item["path"], item["trial_index"], item["child_ordinal"], item["child_count"], item["session_boundary"])
+        if expected_binding is None or actual_binding != expected_binding:
+            raise V4LiveMapViolation(f"{call} is not bound to its exact row trial and child ordinal")
+        _, fid, key, path, trial_index, child_ordinal, child_count, boundary = expected_binding
+        if call in seen or fid not in features or key not in rows or rows[key]["feature_id"] != fid or path not in rows[key]["mandatory_paths"] or type(trial_index) is not int or type(child_ordinal) is not int or type(child_count) is not int or trial_index not in rows[key]["required_trial_indexes"] or child_count < 1 or not 1 <= child_ordinal <= child_count or item["effective_provider"] != EFFECTIVE_PROVIDER or item["max_iterations"] != 1 or item["child_tools"] != [] or item["retry"] is not False or item["delivery"] is not False or item["local_only"] is not True or item["session_boundary"] != boundary:
             raise V4LiveMapViolation(f"{call} is not one local no-tool no-retry child call")
-        seen.add(call); bindings.add((key, path)); counts[fid] += 1
-    if dict(counts) != {fid: spec[3] for fid, spec in _FEATURES.items() if spec[3]}:
+        seen.add(call); bindings.add((key, path, trial_index, child_ordinal)); counts[fid] += 1
+    if seen != set(expected) or dict(counts) != {fid: spec[3] for fid, spec in _FEATURES.items() if spec[3]} or Counter(key for _, _, key, _, _, _, _, _ in _CHILD_BINDINGS) != Counter({key: rows[key]["child_calls"] for key in rows if rows[key]["child_calls"]}):
         raise V4LiveMapViolation("child call feature budgets drifted")
 
 
