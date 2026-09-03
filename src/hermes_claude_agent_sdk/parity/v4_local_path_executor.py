@@ -27,7 +27,7 @@ _APPROVAL = "clawprobench_native/constraints_23_external_approval_boundary_live"
 _ROWS = {_TOOL: "tool", _APPROVAL: "approval"}
 _EVENTS = {
     "tool": ("start", "tool_requested", "tool_result", "state", "terminal"),
-    "approval": ("start", "approval_requested", "approval_decision", "tool_requested", "tool_result", "terminal"),
+    "approval": ("start", "approval_requested", "approval_decision", "terminal"),
 }
 
 
