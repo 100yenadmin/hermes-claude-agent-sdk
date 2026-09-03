@@ -1,4 +1,9 @@
-"""AgentRuntime v1 composition over the public Claude Agent SDK adapter."""
+"""Hermes AgentRuntime v1 adapter for Claude subscription transport.
+
+Hermes owns the whole turn, visible events, and effects.  The Claude Agent SDK
+is limited to subscription transport, stream reading, and opaque session
+continuity through this adapter.
+"""
 
 from __future__ import annotations
 
@@ -88,7 +93,7 @@ def _resume_id(request: Any) -> tuple[str | None, bool]:
 
 
 class ClaudeAgentSDKRuntime:
-    """Small provider-local runtime with injected offline seams for tests."""
+    """Hermes-owned turn adapter with injected offline SDK seams for tests."""
 
     def __init__(
         self,

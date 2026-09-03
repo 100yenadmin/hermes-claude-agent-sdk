@@ -570,7 +570,7 @@ def _request(
 ):
     return build_runtime_turn_request(
         provider="claude-agent-sdk",
-        model="claude-fable-5",
+        model="claude-fable-5-1",
         api_mode="agent_runtime",
         messages=messages,
         prompt_snapshot=prompt_snapshot,
@@ -625,7 +625,7 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
             "included",
             "synthetic-correlation",
         )
-        assert receipt.selected_model == "claude-fable-5"
+        assert receipt.selected_model == "claude-fable-5-1"
         assert receipt.effective_model == "claude-fable-synthetic"
         assert receipt.canonical_model is None
         assert receipt.model_resolution == "mismatch"
@@ -641,7 +641,7 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
         assert terminal_result["api_calls"] == 1
         assert terminal_result["provider"] == "anthropic"
         assert terminal_result["model"] == "claude-fable-synthetic"
-        assert terminal_result["selected_model"] == "claude-fable-5"
+        assert terminal_result["selected_model"] == "claude-fable-5-1"
         assert terminal_result["effective_model"] == "claude-fable-synthetic"
         assert terminal_result["canonical_model"] == "unknown"
         assert terminal_result["model_resolution"] == "mismatch"
@@ -730,7 +730,7 @@ def test_runtime_preserves_canonical_sdk_model_in_usage_and_terminal_result() ->
 
         receipt = next(event.receipt for event in events if event.kind.value == "usage")
         assert receipt.model == "claude-fable-5-1"
-        assert receipt.selected_model == "claude-fable-5"
+        assert receipt.selected_model == "claude-fable-5-1"
         assert receipt.effective_model == "claude-fable-5"
         assert receipt.canonical_model == "claude-fable-5-1"
         assert receipt.model_resolution == "canonicalized"
@@ -738,7 +738,7 @@ def test_runtime_preserves_canonical_sdk_model_in_usage_and_terminal_result() ->
             event.result for event in events if event.kind.value == "completed"
         )
         assert terminal_result["model"] == "claude-fable-5-1"
-        assert terminal_result["selected_model"] == "claude-fable-5"
+        assert terminal_result["selected_model"] == "claude-fable-5-1"
         assert terminal_result["effective_model"] == "claude-fable-5"
         assert terminal_result["canonical_model"] == "claude-fable-5-1"
         assert terminal_result["model_resolution"] == "canonicalized"
@@ -755,7 +755,7 @@ def test_runtime_does_not_use_selected_model_when_sdk_reports_no_model() -> None
 
         receipt = next(event.receipt for event in events if event.kind.value == "usage")
         assert receipt.model == "unknown"
-        assert receipt.selected_model == "claude-fable-5"
+        assert receipt.selected_model == "claude-fable-5-1"
         assert receipt.effective_model is None
         assert receipt.canonical_model is None
         assert receipt.model_resolution == "unknown"
@@ -763,7 +763,7 @@ def test_runtime_does_not_use_selected_model_when_sdk_reports_no_model() -> None
             event.result for event in events if event.kind.value == "completed"
         )
         assert terminal_result["model"] == "unknown"
-        assert terminal_result["selected_model"] == "claude-fable-5"
+        assert terminal_result["selected_model"] == "claude-fable-5-1"
         assert terminal_result["effective_model"] == "unknown"
         assert terminal_result["canonical_model"] == "unknown"
         assert terminal_result["model_resolution"] == "unknown"
@@ -780,7 +780,7 @@ def test_runtime_erases_model_identity_for_ambiguous_shared_canonical() -> None:
 
         receipt = next(event.receipt for event in events if event.kind.value == "usage")
         assert receipt.model == "unknown"
-        assert receipt.selected_model == "claude-fable-5"
+        assert receipt.selected_model == "claude-fable-5-1"
         assert receipt.effective_model is None
         assert receipt.canonical_model is None
         assert receipt.model_resolution == "ambiguous"
@@ -788,7 +788,7 @@ def test_runtime_erases_model_identity_for_ambiguous_shared_canonical() -> None:
             event.result for event in events if event.kind.value == "completed"
         )
         assert terminal_result["model"] == "unknown"
-        assert terminal_result["selected_model"] == "claude-fable-5"
+        assert terminal_result["selected_model"] == "claude-fable-5-1"
         assert terminal_result["effective_model"] == "unknown"
         assert terminal_result["canonical_model"] == "unknown"
         assert terminal_result["model_resolution"] == "ambiguous"
@@ -822,10 +822,10 @@ def test_runtime_persists_init_model_and_resets_turn_usage_state() -> None:
         event.receipt for event in second_events if event.kind.value == "usage"
     )
     assert second_receipt.model == "claude-fable-5"
-    assert second_receipt.selected_model == "claude-fable-5"
+    assert second_receipt.selected_model == "claude-fable-5-1"
     assert second_receipt.effective_model == "claude-fable-5"
     assert second_receipt.canonical_model is None
-    assert second_receipt.model_resolution == "exact"
+    assert second_receipt.model_resolution == "mismatch"
     assert second_receipt.correlation_id == "synthetic-second-turn"
 
     second_terminal = next(
@@ -833,7 +833,7 @@ def test_runtime_persists_init_model_and_resets_turn_usage_state() -> None:
     )
     assert second_terminal["model"] == "claude-fable-5"
     assert second_terminal["effective_model"] == "claude-fable-5"
-    assert second_terminal["model_resolution"] == "exact"
+    assert second_terminal["model_resolution"] == "mismatch"
 
 
 def test_native_image_turn_uses_the_public_sdk_streaming_input() -> None:
@@ -1295,7 +1295,7 @@ def test_successful_turn_then_cancelled_turn_reuses_current_resume_on_replacemen
         event.receipt for event in first_events if event.kind.value == "usage"
     )
     assert first_receipt.effective_model == "claude-fable-5"
-    assert first_receipt.model_resolution == "exact"
+    assert first_receipt.model_resolution == "mismatch"
     assert [event.kind.value for event in second_events] == [
         "content",
         "cancelled",
@@ -1430,7 +1430,7 @@ def test_runtime_rejects_prompt_or_tool_contract_change_before_second_query() ->
     asyncio.run(scenario())
 
 
-def test_model_switch_requires_a_new_runtime_and_preserves_tool_schema() -> None:
+def test_unsupported_model_switch_fails_before_client_or_query() -> None:
     async def scenario():
         first_clients: list[_Client] = []
         first_runtime = _runtime("success", first_clients)
@@ -1440,7 +1440,7 @@ def test_model_switch_requires_a_new_runtime_and_preserves_tool_schema() -> None
         first = await _collect(first_runtime, _request(tools=schemas), host)
         switched_request = build_runtime_turn_request(
             provider="claude-agent-sdk",
-            model="claude-fable-synthetic-switched",
+            model="claude-fable-5",
             api_mode="agent_runtime",
             messages=({"role": "user", "content": "hello runtime"},),
             prompt_snapshot="stable system prompt",
@@ -1457,20 +1457,15 @@ def test_model_switch_requires_a_new_runtime_and_preserves_tool_schema() -> None
 
         assert first[-1].kind.value == "completed"
         assert [event.kind.value for event in fenced] == ["failed"]
-        assert fenced[0].failure.code == "claude_runtime_session_contract_changed"
-        assert recovered[-1].kind.value == "completed"
+        assert fenced[0].failure.code == "claude_runtime_selection_unsupported"
+        assert [event.kind.value for event in recovered] == ["failed"]
+        assert recovered[0].failure.code == "claude_runtime_selection_unsupported"
         assert first_clients[0].queries == ["hello runtime"]
-        assert second_clients[0].queries == ["hello runtime"]
-        assert first_clients[0].options.fields["model"] == "claude-fable-5"
-        assert (
-            second_clients[0].options.fields["model"]
-            == "claude-fable-synthetic-switched"
-        )
-        assert (
-            first_clients[0].options.fields["allowed_tools"]
-            == second_clients[0].options.fields["allowed_tools"]
-            == ["mcp__hermes-tools__pwd"]
-        )
+        assert first_clients[0].options.fields["model"] == "claude-fable-5-1"
+        assert first_clients[0].options.fields["allowed_tools"] == [
+            "mcp__hermes-tools__pwd"
+        ]
+        assert second_clients == []
 
     asyncio.run(scenario())
 

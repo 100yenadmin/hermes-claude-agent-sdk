@@ -37,7 +37,7 @@ class _Host:
 def _request():
     return build_runtime_turn_request(
         provider="claude-agent-sdk",
-        model="claude-fable-5",
+        model="claude-fable-5-1",
         api_mode="agent_runtime",
         messages=({"role": "user", "content": "hello"},),
         prompt_snapshot="stable prompt",
@@ -62,7 +62,7 @@ def test_register_uses_public_descriptor_and_retains_zero_argument_factory(monke
     assert "provider_profile_registration_v1" in descriptor.required_host_capabilities
     assert "runtime_model_provenance_v1" in descriptor.required_host_capabilities
     assert context.provider_profile.name == "claude-agent-sdk"
-    assert "claude-fable-5".startswith(descriptor.model_prefixes[0])
+    assert "claude-fable-5-1".startswith(descriptor.model_prefixes[0])
     assert factory is plugin.create_runtime
     assert "claude_agent_sdk" not in sys.modules
 
@@ -81,7 +81,7 @@ def test_factory_and_preflight_reject_incompatible_selection_before_sdk_import(
     runtime = plugin.create_runtime()
     request = build_runtime_turn_request(
         provider="claude-agent-sdk",
-        model="claude-fable-5",
+        model="claude-fable-5-1",
         api_mode="anthropic_messages",
         messages=(),
         prompt_snapshot="stable prompt",
@@ -194,24 +194,68 @@ def test_fable_5_1_exact_successor_is_accepted_without_sdk_import(monkeypatch):
     assert "claude_agent_sdk" not in sys.modules
 
 
-def test_fable_5_stays_eligible_on_frozen_sdk(monkeypatch):
-    monkeypatch.setattr(
-        compatibility_module,
-        "_sdk_metadata",
-        lambda: {
-            "distribution": "claude-agent-sdk",
-            "installed_version": "0.2.144",
-            "bundled_cli_version": "2.1.239",
-            "metadata_status": "compatible",
-        },
-    )
-    runtime = runtime_module.ClaudeAgentSDKRuntime(
-        auth_probe=lambda: type(
-            "AuthResult", (), {"allowed": True, "category": "subscription_oauth"}
-        )()
-    )
+@pytest.mark.parametrize(
+    "model",
+    ("claude-fable-5", "claude-fable-5-2", "claude-sonnet-4-5"),
+)
+def test_legacy_and_other_claude_models_are_rejected_before_sdk_auth_or_factory(
+    monkeypatch, model
+):
+    monkeypatch.delitem(sys.modules, "claude_agent_sdk", raising=False)
+    imports = []
+    auth_calls = []
+    metadata_calls = []
+    factory_calls = []
 
-    assert runtime.preflight(_request()) is None
+    def forbidden_import(name, *args, **kwargs):
+        if name == "claude_agent_sdk" or name.startswith("claude_agent_sdk."):
+            imports.append(name)
+            raise AssertionError("unsupported model must not import the SDK")
+        return original_import(name, *args, **kwargs)
+
+    def forbidden_metadata():
+        metadata_calls.append(True)
+        raise AssertionError("unsupported model must not inspect SDK metadata")
+
+    original_import = runtime_module.importlib.import_module
+    monkeypatch.setattr(runtime_module.importlib, "import_module", forbidden_import)
+    monkeypatch.setattr(compatibility_module, "_sdk_metadata", forbidden_metadata)
+    runtime = runtime_module.ClaudeAgentSDKRuntime(
+        auth_probe=lambda: auth_calls.append(True),
+        client_factory=lambda *args, **kwargs: factory_calls.append(True),
+    )
+    request = _request()
+    request = replace(request, selection=replace(request.selection, model=model))
+
+    failure = runtime.preflight(request)
+
+    assert failure is not None
+    assert failure.code == "claude_runtime_selection_unsupported"
+    assert auth_calls == []
+    assert metadata_calls == []
+    assert factory_calls == []
+    assert imports == []
+    assert "claude_agent_sdk" not in sys.modules
+
+    async def collect():
+        return [event async for event in runtime.run_turn(request, _Host())]
+
+    events = asyncio.run(collect())
+    assert [event.kind.value for event in events] == ["failed"]
+    assert events[0].failure.code == "claude_runtime_selection_unsupported"
+    assert auth_calls == []
+    assert metadata_calls == []
+    assert factory_calls == []
+    assert imports == []
+    assert "claude_agent_sdk" not in sys.modules
+
+
+def test_model_compatibility_fails_closed_for_every_non_exact_model():
+    decision = compatibility_module.check_model_compatibility("claude-fable-5")
+
+    assert decision["compatible"] is False
+    assert decision["status"] == "incompatible"
+    assert decision["reason"] == "model_unsupported"
 
 
 @pytest.mark.parametrize(

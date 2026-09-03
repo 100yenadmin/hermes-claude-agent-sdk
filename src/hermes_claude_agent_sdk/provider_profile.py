@@ -46,8 +46,8 @@ def register_provider_profile() -> Any | None:
             aliases=PROFILE_ALIASES,
             display_name="Claude (Agent SDK / subscription)",
             description=(
-                "Claude Agent SDK whole-turn runtime using the local operator "
-                "subscription."
+                "Hermes AgentRuntime adapter using Claude Agent SDK subscription "
+                "transport."
             ),
             api_mode="agent_runtime",
             env_vars=PROFILE_ENV_VARS,

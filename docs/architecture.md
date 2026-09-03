@@ -11,9 +11,9 @@ Hermes owns every visible behavior and side effect: request selection, the
 prompt and context snapshot, transcript content, tool inventory, permissions,
 approvals, tool execution, delegation, background delivery, status, usage
 receipts, persistence, cancellation, replay, and lifecycle. The plugin is an
-adapter around the public Claude Agent SDK only. The SDK's role is limited to
-subscription transport, stream reading, cancellation, opaque external-session
-continuity, and native-compaction mapping.
+Hermes AgentRuntime adapter around the public Claude Agent SDK. The SDK's role
+is limited to subscription transport, stream reading, cancellation, opaque
+external-session continuity, and native-compaction mapping.
 
 The host passes an immutable `RuntimeTurnRequest` and a host-services facade.
 The plugin never receives `AIAgent`, `SessionDB`, a gateway route, or a private
@@ -55,9 +55,10 @@ visible surface and is never projected into Hermes transcript content.
 
 Revision 4 exposes no supported Claude-native `Agent`, `Task`, or background
 route. A delegated operation is the Hermes `delegate_task` tool through the
-strict MCP bridge. Detached completion is submitted to the host's existing
-background-delivery rail; the plugin does not choose a parent route, perform a
-latest-session lookup, or maintain a provider-specific queue.
+strict MCP bridge, and Hermes owns its parent dispatch and detached result
+delivery on the host's existing background-delivery rail. The plugin does not
+choose a parent route, perform a latest-session lookup, or maintain a
+provider-specific queue.
 
 Native compaction is the one SDK lifecycle mapping retained by the adapter.
 The public `PreCompact` hook and the bundled CLI's observed

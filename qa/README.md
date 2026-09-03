@@ -26,8 +26,10 @@ identities. The v3 source packs and ledgers are historical accounting only;
 they are not current execution or pass authority. The v4 contract/runner path
 verifies the bound hashes and full source-to-catalog bijection before accepting
 evidence.
-The pinned console script is still the historical v3 interface; the v4
-contract/runner modules are the current source-level evidence boundary.
+The pinned console script and `qa/runtime-release-ready-receipt.schema.json`
+are legacy-only v3 interfaces; they cannot certify Revision 4. The v3 runtime
+suite is also legacy-only. The v4 contract/runner modules are the current
+source-level evidence boundary.
 
 ## Dynamic tool inventory
 

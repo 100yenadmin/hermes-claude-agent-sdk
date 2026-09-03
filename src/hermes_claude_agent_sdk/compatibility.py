@@ -57,22 +57,17 @@ REQUIRED_HOST_CAPABILITIES = frozenset(
 )
 
 # The provider id is owned by this independently packaged runtime.  It is
-# intentionally distinct from the host's ``anthropic`` Messages provider: the
-# SDK owns a whole-turn agent loop, so routing must use the provider-neutral
-# runtime mode rather than a transport-specific Messages mode.
+# intentionally distinct from the host's ``anthropic`` Messages provider:
+# Hermes owns the whole-turn AgentRuntime loop while the SDK supplies only
+# subscription transport, stream reading, and opaque session continuity.
 PROVIDER_IDS = frozenset({"claude-agent-sdk"})
 API_MODES = frozenset({"agent_runtime"})
 MODEL_PREFIXES = ("claude-",)
-_DIRECT_MODEL_ID = re.compile(r"^claude-[A-Za-z0-9][A-Za-z0-9_.:-]*$")
 
 
 def is_supported_model_id(model: Any) -> bool:
-    """Accept only bounded direct Claude ids, never provider-route slugs."""
-    return (
-        isinstance(model, str)
-        and len(model) <= 128
-        and _DIRECT_MODEL_ID.fullmatch(model) is not None
-    )
+    """Admit only the exact Revision 4 direct subscription model."""
+    return type(model) is str and model == FABLE_51_MODEL_ID
 
 
 def build_runtime_descriptor() -> "RuntimeDescriptor":
@@ -326,17 +321,16 @@ def check_model_compatibility(
 
     result: dict[str, Any] = {
         "model": model if isinstance(model, str) else "unknown",
-        "compatible": True,
-        "status": "not_required",
-        "reason": None,
+        "compatible": False,
+        "status": "incompatible",
+        "reason": "model_unsupported",
         "required_sdk": FABLE_51_MIN_SDK_VERSION,
         "required_bundled_cli": FABLE_51_MIN_CLI_VERSION,
     }
     if model != FABLE_51_MODEL_ID:
         return result
 
-    result["status"] = "incompatible"
-    result["compatible"] = False
+    result["reason"] = None
     report = sdk_metadata if sdk_metadata is not None else _sdk_metadata()
     if not isinstance(report, Mapping):
         result["compatible"] = False

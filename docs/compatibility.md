@@ -37,9 +37,11 @@ selected/effective/canonical model evidence without rewriting its legacy
 receipt identity. An older host without this additive shape is rejected before
 runtime activation.
 
-The descriptor accepts only provider id `claude-agent-sdk`, API mode
-`agent_runtime`, and bounded direct `claude-*` identifiers. Provider-qualified
-slugs are rejected before auth or SDK startup. The host's `anthropic` Messages
+The descriptor routes provider id `claude-agent-sdk` and API mode
+`agent_runtime`; runtime preflight then admits only the exact direct model
+`claude-fable-5-1`. Legacy `claude-fable-5`, other `claude-*` values, and
+provider-qualified slugs are rejected before SDK metadata, auth, client
+construction, subprocess startup, or query. The host's `anthropic` Messages
 transport remains separate and is not redirected here.
 
 The selection provider remains `claude-agent-sdk` because it identifies the
@@ -79,12 +81,13 @@ fail-closed as `ambiguous`; a turn with no session or SDK evidence remains
 
 ## Fable model identifier
 
-The supported Revision 4 target is direct `claude-fable-5-1`. The descriptor
-accepts it without importing the SDK, then preflight requires the exact SDK/CLI
-identity above and passes the model through unchanged. The dotted
+The supported Revision 4 target is exactly direct `claude-fable-5-1`. The
+descriptor routes the plugin without importing the SDK, then preflight applies
+the exact model check and requires the exact SDK/CLI identity above before
+passing the model through unchanged. The dotted
 `anthropic/claude-fable-5.1` OpenRouter/Nous slug is a different route and is
 not evidence for the subscription path. Billing and end-user subscription
-proof remain separate; prefix matching never proves either.
+proof remain separate; descriptor routing metadata never proves either.
 
 Compatibility outside this exact plugin/host/SDK/CLI/model tuple is not
 claimed.
