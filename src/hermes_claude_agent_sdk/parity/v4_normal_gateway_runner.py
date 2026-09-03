@@ -12,8 +12,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .results import candidate_hash as result_candidate_hash
 from .v4_background_delivery_receipt import run_v4_background_delivery_receipt
-from .v4_contract import OWNERSHIP_PREFLIGHTS, load_v4_contract, validate_v4_contract
+from .v4_contract import (
+    OWNERSHIP_PREFLIGHTS,
+    V3_RESULT_CATALOG_HASH,
+    load_v4_contract,
+    validate_v4_contract,
+)
 from .v4_fixture_materializer import V4FixtureMaterializer
 from .v4_gateway import HOST_TOOLS, MCP_TOOLS, Gateway
 from .v4_gateway_observer import V4GatewayObserver
@@ -358,7 +364,8 @@ class V4NormalGatewayRunner:
             trace = _trace(self._contract, scenario, attempts, observed_gateway.snapshots)
             delegation = _delegation(scenario, trial_index, observed_gateway.snapshots, durable)
             packet_attempts = [_packet_attempt(attempt) for attempt in attempts]
-            receipt = {"schema_version": 1, "candidate": self._candidate, "preflight_projections": self._preflights, "attempts": packet_attempts, "host_observation": host, "profile_id": self._profile_id, "inventory_hash": self._inventory_hash, "stream_projection": {"schema_version": 1, "name": "stream", "candidate_hash": self._candidate_hash, "trial_candidate_hash": attempts[0]["identity"]["candidate_hash"], "trial_index": trial_index, "status": "PASS", "source": {"executable": "normal_gateway", "source_ref": "v4_gateway_observer", "test_id": "positive_turn"}, "observation": {"event_count": sum(item["event_count"] for item in attempts), "provider_calls": scenario.turn_count}}, "scenario_trace": trace, "delegation": delegation}
+            trial_candidate_hash = result_candidate_hash(catalog_hash=V3_RESULT_CATALOG_HASH, plugin_sha=self._candidate["plugin_sha"], host_sha=self._candidate["host_sha"], sdk_version=self._candidate["sdk_version"], profile_hash=self._candidate["profile_sha256"], runner_version=self._candidate["runner_version"], inventory_hash=self._inventory_hash)
+            receipt = {"schema_version": 1, "candidate": self._candidate, "preflight_projections": self._preflights, "attempts": packet_attempts, "host_observation": host, "profile_id": self._profile_id, "inventory_hash": self._inventory_hash, "stream_projection": {"schema_version": 1, "name": "stream", "candidate_hash": self._candidate_hash, "trial_candidate_hash": trial_candidate_hash, "trial_index": trial_index, "status": "PASS", "source": {"executable": "normal_gateway", "source_ref": "v4_gateway_observer", "test_id": "positive_turn"}, "observation": {"event_count": sum(item["event_count"] for item in attempts), "provider_calls": scenario.turn_count}}, "scenario_trace": trace, "delegation": delegation}
             local_observations = _local_observations(scenario, trial_index, self._task_root)
             return build_v4_live_packets(self._contract, scenario, receipt, local_observations, live_map=self._map, map_path=self._map_path, scenario_catalog=self._catalog)
         except V4NormalGatewayRunnerViolation:
