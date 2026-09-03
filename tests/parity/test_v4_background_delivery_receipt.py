@@ -42,6 +42,17 @@ def test_one_child_delivery_denial_is_pending_and_local_compatible(tmp_path: Pat
     assert events[-1]["terminal_outcome"] == "denied"
 
 
+def test_one_child_positive_delivery_is_completed(tmp_path: Path) -> None:
+    value = _receipt(tmp_path, "openclaw_active/subagent-handoff", "positive")
+    assert value["terminal_status"] == "completed"
+    assert value["observation"]["delivery"] == {
+        "state": "delivered", "attempts": 1, "parent_rows": 1,
+        "transitions": [{"phase": "delivery", "state": "delivered", "attempts": 1, "parent_rows": 1}],
+    }
+    events, _ = _local(value, "positive", ("start", "background", "terminal"))
+    assert events[-1]["terminal_outcome"] == "completed"
+
+
 def test_fanout_recovery_is_one_batch_and_one_parent_delivery(tmp_path: Path) -> None:
     value = _receipt(tmp_path, "openclaw_active/subagent-fanout-synthesis", "recovery")
     assert value["terminal_status"] == "completed"

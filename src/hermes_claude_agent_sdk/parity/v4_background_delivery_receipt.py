@@ -58,29 +58,40 @@ def _validate(row_key: Any, trial_index: Any, path: Any, task_root: Any) -> tupl
     return row_key, trial_index, path, root.resolve(), _ROWS[row_key]
 
 
-def _await_event(registry: Any, parent_id: str, count: int) -> dict[str, Any]:
+def _await_event(registry: Any, parent_id: str, count: int, model: str) -> dict[str, Any]:
     deadline = time.monotonic() + 30
     held: list[dict[str, Any]] = []
     found: dict[str, Any] | None = None
-    while time.monotonic() < deadline:
-        try:
-            event = registry.completion_queue.get(timeout=0.25)
-        except queue.Empty:
-            continue
-        if event.get("type") != "async_delegation" or event.get("parent_session_id") != parent_id:
-            held.append(event)
-            continue
-        if event.get("is_batch") is not True or len(event.get("results") or []) != count:
-            raise V4BackgroundDeliveryViolation("observed completion is not the admitted batch")
-        if any(item.get("status") != "completed" or item.get("api_calls") != 0 for item in event["results"]):
-            raise V4BackgroundDeliveryViolation("provider-free child completion is incomplete")
-        found = event
-        break
-    for event in held:
-        registry.completion_queue.put(event)
-    if found is None:
-        raise V4BackgroundDeliveryViolation("provider-free batch completion was not observed")
-    return found
+    try:
+        while time.monotonic() < deadline:
+            try:
+                event = registry.completion_queue.get(timeout=0.25)
+            except queue.Empty:
+                continue
+            if event.get("type") != "async_delegation" or event.get("parent_session_id") != parent_id:
+                held.append(event)
+                continue
+            results = event.get("results")
+            if (event.get("status") != "completed" or event.get("is_batch") is not True
+                    or not isinstance(results, list) or len(results) != count):
+                raise V4BackgroundDeliveryViolation("observed completion is not the admitted batch")
+            if any(
+                not isinstance(item, dict)
+                or item.get("status") != "completed"
+                or item.get("api_calls") != 0
+                or item.get("model") != model
+                or item.get("summary") != "v4 fixture child completed"
+                for item in results
+            ):
+                raise V4BackgroundDeliveryViolation("provider-free child completion is incomplete")
+            found = event
+            break
+        if found is None:
+            raise V4BackgroundDeliveryViolation("provider-free batch completion was not observed")
+        return found
+    finally:
+        for event in held:
+            registry.completion_queue.put(event)
 
 
 def _state(db_path: Path, delegation_id: str, parent_id: str) -> dict[str, Any]:
@@ -197,7 +208,7 @@ def run_v4_background_delivery_receipt(row_key: str, trial_index: int, path: str
             provider_calls = result.get("api_calls")
             if result.get("completed") is not True or provider_calls != 0 or calls:
                 raise V4BackgroundDeliveryViolation("provider-free parent execution did not complete")
-            event = _await_event(process_registry, parent_id, child_count)
+            event = _await_event(process_registry, parent_id, child_count, plugin.MODEL_ID)
             delegation_id = str(event.get("delegation_id") or "")
             if not delegation_id:
                 raise V4BackgroundDeliveryViolation("batch completion has no durable identity")
@@ -229,7 +240,12 @@ def run_v4_background_delivery_receipt(row_key: str, trial_index: int, path: str
                 if not claim:
                     raise V4BackgroundDeliveryViolation("delivery recovery could not reclaim the same event")
                 adapter = type("LocalAdapter", (), {"_ensure_session_db": lambda self: db})()
-                asyncio.run(persist_delegation_delivery(adapter, text="v4 synthetic background completion", session_id=parent_id, evt=event))
+                asyncio.run(persist_delegation_delivery(
+                    adapter,
+                    text="[IMPORTANT: Provider-free async delegation completion observed.]",
+                    session_id=parent_id,
+                    evt=event,
+                ))
                 complete_event_delivery(event, claim)
                 after = _state(home / "state.db", delegation_id, parent_id)
                 expected_attempts = 1 if path == "positive" else 2
