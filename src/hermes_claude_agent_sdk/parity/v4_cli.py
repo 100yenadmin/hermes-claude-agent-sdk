@@ -66,7 +66,22 @@ def _reject_raw(value: Any, location: str = "input") -> None:
             _reject_raw(child, f"{location}[{index}]")
 
 
+def _reject_symlinked_components(path: Path, field: str) -> None:
+    """Reject a direct symlink or any existing lexical symlink ancestor."""
+
+    lexical = path if path.is_absolute() else Path.cwd() / path
+    current = Path(lexical.anchor)
+    try:
+        for component in lexical.parts[1:]:
+            current /= component
+            if current.is_symlink():
+                raise V4CLIError(f"{field} must not contain symlinked path components")
+    except OSError as exc:
+        raise V4CLIError(f"{field} path components cannot be inspected safely") from exc
+
+
 def _regular_file(path: Path, field: str) -> Path:
+    _reject_symlinked_components(path, field)
     try:
         bounded = path.is_symlink() or not path.is_file() or path.stat().st_size > _MAX_STRUCTURED_BYTES
     except OSError as exc:
@@ -77,6 +92,7 @@ def _regular_file(path: Path, field: str) -> Path:
 
 
 def _json_files(directory: Path, field: str) -> list[Path]:
+    _reject_symlinked_components(directory, field)
     if directory.is_symlink() or not directory.is_dir():
         raise V4CLIError(f"{field} must be an existing directory")
     try:
@@ -244,8 +260,13 @@ def bind_and_grade(*, contract_path: str | Path, v3_packets: str | Path, ownersh
     packets_input = Path(v3_packets).expanduser()
     receipts_input = Path(ownership_receipts).expanduser()
     output_input = Path(output).expanduser()
-    if any(path.is_symlink() for path in (contract_input, packets_input, receipts_input, output_input)):
-        raise V4CLIError("input and output paths must not be symlinks")
+    for path, field in (
+        (contract_input, "contract"),
+        (packets_input, "v3 packet directory"),
+        (receipts_input, "ownership receipts"),
+        (output_input, "output"),
+    ):
+        _reject_symlinked_components(path, field)
     contract_source = contract_input.resolve()
     packets_source = packets_input.resolve()
     receipts_source = receipts_input.resolve()

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import copy
 from pathlib import Path
 import pytest
 from hermes_claude_agent_sdk.parity.hashing import sha256_value
@@ -40,9 +41,10 @@ def _host(turn_count, *, assistant_count=None):
     usage = [{"ordinal": index, "sha256": f"{index}".ljust(64, "0"), "provider": "anthropic", "model": "claude-fable-5-1", "selected_model": "claude-fable-5-1", "effective_model": "claude-fable-5-1", "canonical_model": "claude-fable-5-1", "model_resolution": "exact", "billing_mode": "subscription_included", "cost_status": "included", "fallback_used": False, "api_call_count": turn_count, "tokens": {"input_tokens": 1, "output_tokens": 1}} for index in range(1, turn_count + 1)]
     assistant_count = turn_count if assistant_count is None else assistant_count
     return {"schema_version": 1, "status": "PASS", "runtime": "claude-agent-sdk", "invariant_violations": [], "expected_turn_count": turn_count, "transcript": {"row_count": turn_count + assistant_count, "canonical_rows": {"user": {"count": turn_count}, "assistant": {"count": assistant_count}}, "terminal": {"count": turn_count, "persisted": True, "sha256": "a" * 64}}, "runtime_state": {"present": False, "schema_version": None, "sha256": None}, "runtime_usage": {"receipt_count": turn_count, "ordered": usage, "latest": usage[-1]}}
-def _local(path, expected, terminal, prefix):
+def _local(path, expected, terminal, prefix, row_key, trial_index):
     events = [{"kind": {"start": "message.start", "state": "message.state", "terminal": "message.complete"}[name], "byte_length": 12 + index, "sha256": f"{prefix}{index}".ljust(64, "0"), "terminal_status": terminal if name == "terminal" else None} for index, name in enumerate(expected, 1)]
-    return {"schema_version": 1, "status": "PASS", "path": path, "host_local": True, "provider_calls": 0, "terminal_status": terminal, "events": events, "observation": {"surface": "host_local", "observation_count": 1}, "proof_hashes": {"primary": f"{prefix}".ljust(64, "0"), "secondary": f"{prefix}f".ljust(64, "0")}}
+    observation = {"identity": {"row_key": row_key, "path": path, "trial_index": trial_index}, "surface": "host_local", "observation_count": 1}
+    return {"schema_version": 1, "status": "PASS", "path": path, "host_local": True, "provider_calls": 0, "terminal_status": terminal, "events": events, "observation": observation, "proof_hashes": {"primary": sha256_value(observation), "secondary": sha256_value({"identity": observation["identity"], "events": events})}}
 def _inputs(row_key="openclaw_active/source-docs-discovery-report"):
     contract = load_v4_contract(ROOT / "qa/parity-contract-v4.yaml")
     live_map = load_v4_live_execution_map(MAP)
@@ -86,7 +88,7 @@ def test_host_projection_accepts_extra_assistant_rows_with_valid_terminal_invari
 def test_explicit_denial_recovery_are_zero_turn_host_local_paths():
     contract, live_map, _, scenario, receipt = _inputs()
     expected = next(row["expected_trace"] for row in contract["source_rows"] if f"{row['source_pack']}/{row['source_item_id']}" == scenario.row_key)
-    bundle = build_v4_live_packets(contract, scenario, receipt, {"denial": _local("denial", expected, "denied", "b"), "recovery": _local("recovery", expected, "completed", "c")}, live_map=live_map, map_path=MAP)
+    bundle = build_v4_live_packets(contract, scenario, receipt, {"denial": _local("denial", expected, "denied", "b", scenario.row_key, scenario.trial_indexes[0]), "recovery": _local("recovery", expected, "completed", "c", scenario.row_key, scenario.trial_indexes[0])}, live_map=live_map, map_path=MAP)
     assert bundle["paths"]["denial"]["trial"].turn_count == bundle["paths"]["recovery"]["trial"].turn_count == 0
     assert bundle["paths"]["denial"]["packet"]["classification"] == "EXPECTED_NEGATIVE"
     assert bundle["paths"]["recovery"]["packet"]["classification"] == "COMPLETE"
@@ -94,11 +96,30 @@ def test_explicit_denial_recovery_are_zero_turn_host_local_paths():
 def test_completed_as_denial_and_raw_local_data_are_rejected():
     contract, live_map, _, scenario, receipt = _inputs()
     expected = next(row["expected_trace"] for row in contract["source_rows"] if f"{row['source_pack']}/{row['source_item_id']}" == scenario.row_key)
-    bad = _local("denial", expected, "completed", "d")
+    bad = _local("denial", expected, "completed", "d", scenario.row_key, scenario.trial_indexes[0])
     with pytest.raises(V4LivePacketViolation):
         build_v4_live_packets(contract, scenario, receipt, {"denial": bad}, live_map=live_map, map_path=MAP)
-    bad = _local("denial", expected, "denied", "e"); bad["observation"]["raw_content"] = "forbidden"
+    bad = _local("denial", expected, "denied", "e", scenario.row_key, scenario.trial_indexes[0]); bad["observation"]["raw_content"] = "forbidden"
     with pytest.raises(V4LivePacketViolation):
+        build_v4_live_packets(contract, scenario, receipt, {"denial": bad}, live_map=live_map, map_path=MAP)
+
+
+@pytest.mark.parametrize("mutation", ("absent", "row", "path", "trial", "proof"))
+def test_local_packet_identity_and_proofs_cannot_be_relabelled(mutation):
+    contract, live_map, _, scenario, receipt = _inputs()
+    expected = next(row["expected_trace"] for row in contract["source_rows"] if f"{row['source_pack']}/{row['source_item_id']}" == scenario.row_key)
+    bad = copy.deepcopy(_local("denial", expected, "denied", "f", scenario.row_key, scenario.trial_indexes[0]))
+    if mutation == "absent":
+        bad["observation"].pop("identity")
+    elif mutation == "row":
+        bad["observation"]["identity"]["row_key"] = "v2_non_soak/TOOL-02"
+    elif mutation == "path":
+        bad["observation"]["identity"]["path"] = "recovery"
+    elif mutation == "trial":
+        bad["observation"]["identity"]["trial_index"] = 2
+    else:
+        bad["proof_hashes"]["primary"] = "0" * 64
+    with pytest.raises(V4LivePacketViolation, match="identity|proof"):
         build_v4_live_packets(contract, scenario, receipt, {"denial": bad}, live_map=live_map, map_path=MAP)
 def test_scenario_trace_is_required_and_cannot_infer_row_atoms():
     contract, live_map, _, scenario, receipt = _inputs("openclaw_active/config-restart-capability-flip")

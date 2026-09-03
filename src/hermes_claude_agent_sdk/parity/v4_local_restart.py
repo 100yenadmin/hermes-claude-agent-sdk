@@ -260,7 +260,6 @@ def _run(row_key: str, trial_index: int, path: str, task_root: str | Path) -> di
             _event("restart", restart_value, None),
             _event("terminal", terminal_value, terminal_status),
         ]
-        proofs_input = {"identity": observation["identity"], "handles": handles, "operations": observation["operations"], "terminal": terminal_status}
         return {
             "schema_version": 1,
             "status": "PASS",
@@ -271,8 +270,8 @@ def _run(row_key: str, trial_index: int, path: str, task_root: str | Path) -> di
             "events": events,
             "observation": observation,
             "proof_hashes": {
-                "primary": sha256_value(proofs_input),
-                "secondary": sha256_value({"identity": observation["identity"], "events": events, "methods": methods}),
+                "primary": sha256_value(observation),
+                "secondary": sha256_value({"identity": observation["identity"], "events": events}),
             },
         }
     finally:

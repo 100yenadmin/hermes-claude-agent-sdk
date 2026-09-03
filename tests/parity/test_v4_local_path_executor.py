@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 
 import pytest
 
 from hermes_claude_agent_sdk.parity.hashing import sha256_file
 from hermes_claude_agent_sdk.parity.v4_contract import load_v4_contract
-from hermes_claude_agent_sdk.parity.v4_live_packets import _local
+from hermes_claude_agent_sdk.parity.v4_live_packets import V4LivePacketViolation, _local
 from hermes_claude_agent_sdk.parity.v4_local_path_executor import (
     V4LocalPathExecutorViolation,
     execute_v4_local_path,
@@ -25,15 +26,20 @@ def _expected_trace(row_key: str) -> tuple[str, ...]:
     return tuple(row["expected_trace"])
 
 
-def _assert_local(packet: dict, path: str, trace: tuple[str, ...]) -> None:
+def _assert_local(packet: dict, row: str, path: str, trace: tuple[str, ...]) -> None:
     assert set(packet) == {"schema_version", "status", "path", "host_local", "provider_calls", "terminal_status", "events", "observation", "proof_hashes"}
-    _local(packet, path, trace)
+    _local(packet, path, trace, expected_row_key=row, expected_trial_index=1)
     assert packet["host_local"] is True and packet["provider_calls"] == 0
+    assert packet["observation"]["identity"] == {
+        "row_key": row,
+        "path": path,
+        "trial_index": 1,
+    }
 
 
 def test_tool_path_observes_real_host_request_and_result(tmp_path: Path) -> None:
     packet = _run(tmp_path, "v2_non_soak/TOOL-02")
-    _assert_local(packet, "positive", _expected_trace("v2_non_soak/TOOL-02"))
+    _assert_local(packet, "v2_non_soak/TOOL-02", "positive", _expected_trace("v2_non_soak/TOOL-02"))
     assert packet["observation"]["tool"] == {"request_count": 1, "result_count": 1}
     assert "v4 local runtime fixture" not in repr(packet)
     assert "v4-local-record-1" not in repr(packet)
@@ -41,7 +47,7 @@ def test_tool_path_observes_real_host_request_and_result(tmp_path: Path) -> None
 
 def test_approval_denial_is_negative_and_does_not_write(tmp_path: Path) -> None:
     packet = _run(tmp_path, "clawprobench_native/constraints_23_external_approval_boundary_live", "denial")
-    _assert_local(packet, "denial", _expected_trace("clawprobench_native/constraints_23_external_approval_boundary_live"))
+    _assert_local(packet, "clawprobench_native/constraints_23_external_approval_boundary_live", "denial", _expected_trace("clawprobench_native/constraints_23_external_approval_boundary_live"))
     assert packet["terminal_status"] == "denied"
     assert packet["observation"]["tool"] == {"request_count": 1, "result_count": 1}
     assert packet["observation"]["approval"]["decisions"] == ["deny"]
@@ -50,11 +56,23 @@ def test_approval_denial_is_negative_and_does_not_write(tmp_path: Path) -> None:
 
 def test_approval_recovery_retains_denial_then_writes_once(tmp_path: Path) -> None:
     packet = _run(tmp_path, "clawprobench_native/constraints_23_external_approval_boundary_live", "recovery")
-    _assert_local(packet, "recovery", _expected_trace("clawprobench_native/constraints_23_external_approval_boundary_live"))
+    _assert_local(packet, "clawprobench_native/constraints_23_external_approval_boundary_live", "recovery", _expected_trace("clawprobench_native/constraints_23_external_approval_boundary_live"))
     assert packet["observation"]["prior_denial"] == {"observed": True, "no_write": True}
     assert packet["observation"]["single_write_on_recovery"] is True
     assert packet["observation"]["approval"]["decisions"] == ["deny", "once"]
     assert packet["observation"]["tool"] == {"request_count": 2, "result_count": 2}
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (("row_key", "v2_non_soak/TOOL-02"), ("path", "positive"), ("trial_index", 2)),
+)
+def test_local_packet_cannot_be_relabelled(tmp_path: Path, field: str, value: object) -> None:
+    row = "clawprobench_native/constraints_23_external_approval_boundary_live"
+    packet = copy.deepcopy(_run(tmp_path, row, "denial"))
+    packet["observation"]["identity"][field] = value
+    with pytest.raises(V4LivePacketViolation, match="identity|proof"):
+        _local(packet, "denial", _expected_trace(row), expected_row_key=row, expected_trial_index=1)
 
 
 def test_host_binding_is_required_and_source_bound(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

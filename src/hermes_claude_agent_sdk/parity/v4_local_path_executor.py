@@ -267,9 +267,7 @@ def execute_v4_local_path(*, row_key: str, trial_index: int, path: str, task_roo
         terminal = "denied" if path == "denial" else "completed"
         if path == "recovery":
             denied = {"present": False, "size": 0, "sha256": None}
-        observation = {"surface": "host_runtime_dispatch", "runtime": plugin.RUNTIME_ID, "lifecycle": {"start": all(item["events"][0] == "RuntimeStatusEvent" for item in attempts), "terminal": terminal}, "attempt_count": len(attempts), "tool": {"request_count": sum(item["execute_calls"] for item in attempts), "result_count": sum(item["result_count"] for item in attempts)}, "approval": {"request_count": len(decisions), "decision_count": len(decisions), "decisions": list(decisions)}, "state_before": before, "state_after": after, "prior_denial": {"observed": path == "recovery" and attempts[0]["terminal"] == "denied", "no_write": path == "recovery" and not denied["present"]}, "no_write_on_denial": path in {"denial", "recovery"} and (not after["present"] if path == "denial" else not denied["present"]), "single_write_on_recovery": path == "recovery" and not denied["present"] and after["present"], "provider_calls": 0}
-        proof_primary = sha256_value({"source": "host_runtime_dispatch", "attempts": attempts})
-        proof_secondary = sha256_value({"source": "fixture_state_snapshot", "before": before, "after": after})
+        observation = {"identity": {"row_key": row_key, "path": path, "trial_index": trial_index}, "surface": "host_runtime_dispatch", "runtime": plugin.RUNTIME_ID, "lifecycle": {"start": all(item["events"][0] == "RuntimeStatusEvent" for item in attempts), "terminal": terminal}, "attempt_count": len(attempts), "tool": {"request_count": sum(item["execute_calls"] for item in attempts), "result_count": sum(item["result_count"] for item in attempts)}, "approval": {"request_count": len(decisions), "decision_count": len(decisions), "decisions": list(decisions)}, "state_before": before, "state_after": after, "prior_denial": {"observed": path == "recovery" and attempts[0]["terminal"] == "denied", "no_write": path == "recovery" and not denied["present"]}, "no_write_on_denial": path in {"denial", "recovery"} and (not after["present"] if path == "denial" else not denied["present"]), "single_write_on_recovery": path == "recovery" and not denied["present"] and after["present"], "provider_calls": 0}
         events = []
         for ordinal, kind in enumerate(_EVENTS[category], 1):
             facts = {"attempts": len(attempts)}
@@ -279,6 +277,8 @@ def execute_v4_local_path(*, row_key: str, trial_index: int, path: str, task_roo
             elif kind == "approval_requested": facts["request_count"] = len(decisions)
             elif kind == "approval_decision": facts.update({"decision_count": len(decisions), "decisions": list(decisions)})
             events.append(_event(kind, ordinal, path, facts, terminal if kind == "terminal" else None))
+        proof_primary = sha256_value(observation)
+        proof_secondary = sha256_value({"identity": observation["identity"], "events": events})
         return {"schema_version": 1, "status": "PASS", "path": path, "host_local": True, "provider_calls": 0, "terminal_status": terminal, "events": events, "observation": observation, "proof_hashes": {"primary": proof_primary, "secondary": proof_secondary}}
     finally:
         if manager is not None:

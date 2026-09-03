@@ -34,7 +34,6 @@ _TRACE_EVENT = frozenset({"kind", "byte_length", "sha256", "terminal_status", "e
 _TRACE_EVIDENCE = frozenset({"source", "attempt_index", "source_sha256"})
 _TERMINALS = frozenset({"completed", "denied", "failed", "cancelled"})
 _CONTENT = frozenset({"message.delta", "message.content", "content", "text", "message.text"})
-_LOCAL_RESTART_ROW_KEY = "openclaw_active/config-restart-capability-flip"
 class V4LivePacketViolation(ValueError):
     """A scenario bundle cannot form a safe immutable packet set."""
 def _raw(value: Any, location: str = "value") -> None:
@@ -274,24 +273,18 @@ def _host(value: Any, turn_count: int, provider_calls: int) -> tuple[dict[str, A
     elif state != {"present": False, "schema_version": None, "sha256": None}:
         raise V4LivePacketViolation("runtime state evidence is malformed")
     return host, {"primary": terminal["sha256"], "secondary": ordered[-1]["sha256"]}
-def _local(value: Any, path: str, expected_trace: Sequence[str], *, expected_row_key: str | None = None, expected_trial_index: int | None = None) -> tuple[tuple[dict[str, Any], ...], dict[str, str]]:
+def _local(value: Any, path: str, expected_trace: Sequence[str], *, expected_row_key: str, expected_trial_index: int) -> tuple[tuple[dict[str, Any], ...], dict[str, str]]:
     item = _copy(value, f"{path} observation")
     if set(item) != {"schema_version", "status", "path", "host_local", "provider_calls", "terminal_status", "events", "observation", "proof_hashes"} or item["schema_version"] != 1 or item["status"] != "PASS" or item["path"] != path or item["host_local"] is not True or item["provider_calls"] != 0 or item["terminal_status"] not in _TERMINALS or not _copy(item["observation"], f"{path}.observation"):
         raise V4LivePacketViolation(f"{path} host-local observation is incomplete")
     observation = _copy(item["observation"], f"{path}.observation")
-    identity_value = observation.get("identity")
-    if identity_value is not None or expected_row_key is not None or expected_trial_index is not None:
-        identity = _copy(identity_value, f"{path}.observation.identity")
-        if set(identity) != {"row_key", "path", "trial_index"} or not _id(identity["row_key"], f"{path}.observation.identity.row_key") or identity["path"] != path or type(identity["trial_index"]) is not int or identity["trial_index"] < 1:
-            raise V4LivePacketViolation(f"{path} local observation identity is incomplete")
-        if identity["row_key"] != _LOCAL_RESTART_ROW_KEY:
-            raise V4LivePacketViolation(f"{path} local observation identity is not a restart row")
-        if expected_row_key is not None and identity["row_key"] != expected_row_key:
-            raise V4LivePacketViolation(f"{path} local observation identity is not row-bound")
-        if expected_trial_index is not None and identity["trial_index"] != expected_trial_index:
-            raise V4LivePacketViolation(f"{path} local observation identity is not trial-bound")
-    else:
-        identity = None
+    identity = _copy(observation.get("identity"), f"{path}.observation.identity")
+    if set(identity) != {"row_key", "path", "trial_index"} or not _id(identity["row_key"], f"{path}.observation.identity.row_key") or identity["path"] != path or type(identity["trial_index"]) is not int or identity["trial_index"] < 1:
+        raise V4LivePacketViolation(f"{path} local observation identity is incomplete")
+    if identity["row_key"] != expected_row_key:
+        raise V4LivePacketViolation(f"{path} local observation identity is not row-bound")
+    if identity["trial_index"] != expected_trial_index:
+        raise V4LivePacketViolation(f"{path} local observation identity is not trial-bound")
     classification = "EXPECTED_NEGATIVE" if path == "denial" else "COMPLETE"
     events, _, _ = _events(item["events"], classification)
     if tuple(event["kind"] for event in events) != tuple(expected_trace):
@@ -302,16 +295,10 @@ def _local(value: Any, path: str, expected_trace: Sequence[str], *, expected_row
     if set(proofs) != {"primary", "secondary"}:
         raise V4LivePacketViolation(f"{path} proof hashes are incomplete")
     _digest(proofs["primary"], f"{path} primary proof"); _digest(proofs["secondary"], f"{path} secondary proof")
-    if identity is not None:
-        state = _copy(observation.get("state"), f"{path}.observation.state")
-        operations = _copy(observation.get("operations"), f"{path}.observation.operations")
-        methods = observation.get("rpc_methods")
-        if not isinstance(methods, list) or any(not isinstance(method, str) for method in methods):
-            raise V4LivePacketViolation(f"{path} local RPC method projection is malformed")
-        expected_primary = sha256_value({"identity": identity, "handles": state.get("handles"), "operations": operations, "terminal": item["terminal_status"]})
-        expected_secondary = sha256_value({"identity": identity, "events": item["events"], "methods": methods})
-        if proofs != {"primary": expected_primary, "secondary": expected_secondary}:
-            raise V4LivePacketViolation(f"{path} local proof hashes do not match identity-bound evidence")
+    expected_primary = sha256_value(observation)
+    expected_secondary = sha256_value({"identity": identity, "events": item["events"]})
+    if proofs != {"primary": expected_primary, "secondary": expected_secondary}:
+        raise V4LivePacketViolation(f"{path} local proof hashes do not match identity-bound evidence")
     return events, {"primary": proofs["primary"], "secondary": proofs["secondary"]}
 def _map(value: Mapping[str, Any] | str | Path | None, map_path: str | Path | None) -> tuple[dict[str, Any], Path]:
     source = Path(map_path).expanduser().resolve() if map_path is not None else Path(value).expanduser().resolve() if isinstance(value, (str, Path)) else Path(__file__).resolve().parents[3] / "qa" / "parity-v4-live-execution-map.yaml"
@@ -398,8 +385,7 @@ def build_v4_live_packets(contract: Mapping[str, Any], scenario: V4LiveScenario 
             if path == "positive":
                 events, proofs, classification, turns = scenario_events, host_proofs, "COMPLETE", selected.turn_count
             elif path in observations:
-                strict_identity = selected.row_key == "openclaw_active/config-restart-capability-flip"
-                events, proofs = _local(observations[path], path, row["expected_trace"], expected_row_key=selected.row_key if strict_identity else None, expected_trial_index=first_identity["trial_index"] if strict_identity else None)
+                events, proofs = _local(observations[path], path, row["expected_trace"], expected_row_key=selected.row_key, expected_trial_index=first_identity["trial_index"])
                 classification, turns = ("EXPECTED_NEGATIVE", 0) if path == "denial" else ("COMPLETE", 0)
             else:
                 events, proofs, classification, turns = (), host_proofs, "PENDING", 0

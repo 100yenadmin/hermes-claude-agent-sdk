@@ -18,7 +18,7 @@ TRACE = ("start", "restart", "terminal")
 def test_actual_task_local_gateway_restart_packet(tmp_path: Path, path: str, terminal: str) -> None:
     packet = restart.run_v4_local_restart(ROW, 1, path, tmp_path)
 
-    events, proofs = _local(packet, path, TRACE)
+    events, proofs = _local(packet, path, TRACE, expected_row_key=ROW, expected_trial_index=1)
     assert packet["status"] == "PASS"
     assert packet["host_local"] is True
     assert packet["provider_calls"] == 0
@@ -79,12 +79,12 @@ def test_local_validator_rejects_identity_or_proof_drift() -> None:
     packet = _synthetic_local_packet()
     packet["observation"]["identity"]["path"] = "recovery"  # type: ignore[index]
     with pytest.raises(V4LivePacketViolation, match="identity"):
-        _local(packet, "denial", TRACE)
+        _local(packet, "denial", TRACE, expected_row_key=ROW, expected_trial_index=1)
 
     packet = _synthetic_local_packet()
     packet["proof_hashes"]["primary"] = "1" * 64  # type: ignore[index]
     with pytest.raises(V4LivePacketViolation, match="proof"):
-        _local(packet, "denial", TRACE)
+        _local(packet, "denial", TRACE, expected_row_key=ROW, expected_trial_index=1)
 
 
 def test_restart_call_is_sealed_and_admits_only_mapped_trials(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

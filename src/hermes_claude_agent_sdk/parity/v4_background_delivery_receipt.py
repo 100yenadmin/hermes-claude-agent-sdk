@@ -270,6 +270,7 @@ def run_v4_background_delivery_receipt(row_key: str, trial_index: int, path: str
                     raise V4BackgroundDeliveryViolation("late completion changed delivered state")
                 transitions.append({"phase": "delivery", "state": after["delivery_state"], "attempts": after["delivery_attempts"], "parent_rows": 1})
             observed = {
+                "identity": {"row_key": row_key, "path": path, "trial_index": trial_index},
                 "batch": {"durable_rows": after["durable_rows"], "child_count": child_count, "is_batch": event.get("is_batch") is True},
                 "producer": {"state": before["state"], "child_count": child_count},
                 "delivery": {"state": after["delivery_state"], "attempts": after["delivery_attempts"], "parent_rows": after["parent_delivery_rows"], "transitions": transitions},
@@ -285,7 +286,7 @@ def run_v4_background_delivery_receipt(row_key: str, trial_index: int, path: str
                 "schema_version": 1, "status": "PASS", "path": path, "host_local": True,
                 "provider_calls": provider_calls, "terminal_status": terminal, "events": events,
                 "observation": observed,
-                "proof_hashes": {"primary": _hash(observed), "secondary": _hash({"row": row_key, "trial": trial_index, "path": path, "events": events})},
+                "proof_hashes": {"primary": _hash(observed), "secondary": _hash({"identity": observed["identity"], "events": events})},
             }
         finally:
             if parent is not None:

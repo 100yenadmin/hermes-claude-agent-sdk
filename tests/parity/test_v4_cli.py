@@ -99,3 +99,13 @@ def test_bind_grade_cli_rejects_symlinked_output_before_resolution(tmp_path: Pat
     output_link.symlink_to(target, target_is_directory=True)
     assert _run(contract, packets, receipts, output_link) == 2
     assert list(target.iterdir()) == []
+
+
+def test_bind_grade_cli_rejects_symlinked_lexical_ancestor_before_resolution(tmp_path: Path) -> None:
+    contract, packets, receipts = _inputs(tmp_path)
+    ancestor = tmp_path / "linked"
+    ancestor.symlink_to(tmp_path, target_is_directory=True)
+    assert _run(contract, ancestor / packets.name, receipts, tmp_path / "input-out") == 2
+    assert not (tmp_path / "input-out").exists()
+    assert _run(contract, packets, receipts, ancestor / "missing-parent" / "out") == 2
+    assert not (tmp_path / "missing-parent").exists()

@@ -1,6 +1,7 @@
 """Provider-free denial/recovery receipts over Hermes async delegation."""
 from __future__ import annotations
 
+import copy
 import json
 import os
 import builtins
@@ -13,7 +14,7 @@ from hermes_claude_agent_sdk.parity.v4_background_delivery_receipt import (
     V4BackgroundDeliveryViolation,
     run_v4_background_delivery_receipt,
 )
-from hermes_claude_agent_sdk.parity.v4_live_packets import _local
+from hermes_claude_agent_sdk.parity.v4_live_packets import V4LivePacketViolation, _local
 
 if not os.environ.get("HERMES_AGENT_HOST_ROOT") or not Path(os.environ["HERMES_AGENT_HOST_ROOT"]).is_dir():
     pytest.skip("HERMES_AGENT_HOST_ROOT is not configured", allow_module_level=True)
@@ -29,6 +30,7 @@ def _receipt(tmp_path: Path, row: str, path: str) -> dict:
     assert [event["kind"] for event in value["events"]] == ["start", "background", "terminal"]
     assert all(len(event["sha256"]) == 64 for event in value["events"])
     assert all(len(value["proof_hashes"][key]) == 64 for key in ("primary", "secondary"))
+    assert value["observation"]["identity"] == {"row_key": row, "path": path, "trial_index": 1}
     return value
 
 
@@ -36,11 +38,12 @@ def test_one_child_delivery_denial_is_pending_and_local_compatible(tmp_path: Pat
     value = _receipt(tmp_path, "openclaw_active/subagent-handoff", "denial")
     assert value["terminal_status"] == "denied"
     assert value["observation"] == {
+        "identity": {"row_key": "openclaw_active/subagent-handoff", "path": "denial", "trial_index": 1},
         "batch": {"durable_rows": 1, "child_count": 1, "is_batch": True},
         "producer": {"state": "completed", "child_count": 1},
         "delivery": {"state": "pending", "attempts": 1, "parent_rows": 0, "transitions": [{"phase": "denial", "state": "pending", "attempts": 1}]},
     }
-    events, _ = _local(value, "denial", ("start", "background", "terminal"))
+    events, _ = _local(value, "denial", ("start", "background", "terminal"), expected_row_key="openclaw_active/subagent-handoff", expected_trial_index=1)
     assert events[-1]["terminal_outcome"] == "denied"
 
 
@@ -51,7 +54,7 @@ def test_one_child_positive_delivery_is_completed(tmp_path: Path) -> None:
         "state": "delivered", "attempts": 1, "parent_rows": 1,
         "transitions": [{"phase": "delivery", "state": "delivered", "attempts": 1, "parent_rows": 1}],
     }
-    events, _ = _local(value, "positive", ("start", "background", "terminal"))
+    events, _ = _local(value, "positive", ("start", "background", "terminal"), expected_row_key="openclaw_active/subagent-handoff", expected_trial_index=1)
     assert events[-1]["terminal_outcome"] == "completed"
 
 
@@ -95,8 +98,20 @@ def test_fanout_recovery_is_one_batch_and_one_parent_delivery(tmp_path: Path) ->
     assert batch == {"durable_rows": 1, "child_count": 2, "is_batch": True}
     assert delivery["state"] == "delivered" and delivery["attempts"] == 2 and delivery["parent_rows"] == 1
     assert [step["phase"] for step in delivery["transitions"]] == ["denial", "delivery"]
-    events, _ = _local(value, "recovery", ("start", "background", "terminal"))
+    events, _ = _local(value, "recovery", ("start", "background", "terminal"), expected_row_key="openclaw_active/subagent-fanout-synthesis", expected_trial_index=1)
     assert events[-1]["terminal_outcome"] == "completed"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (("row_key", "openclaw_active/subagent-fanout-synthesis"), ("path", "recovery"), ("trial_index", 2)),
+)
+def test_background_receipt_cannot_be_relabelled(tmp_path: Path, field: str, value: object) -> None:
+    row = "openclaw_active/subagent-handoff"
+    value_packet = copy.deepcopy(_receipt(tmp_path, row, "denial"))
+    value_packet["observation"]["identity"][field] = value
+    with pytest.raises(V4LivePacketViolation, match="identity|proof"):
+        _local(value_packet, "denial", ("start", "background", "terminal"), expected_row_key=row, expected_trial_index=1)
 
 
 @pytest.mark.parametrize(
