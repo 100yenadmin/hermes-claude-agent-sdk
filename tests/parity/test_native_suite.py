@@ -45,7 +45,7 @@ def test_native_no_fallback_check_rejects_unproven_model_resolution(
 ) -> None:
     assert _is_silent_model_fallback(
         {
-            "provider": "claude-agent-sdk",
+            "provider": "anthropic",
             "model": "claude-fable-5-1",
             "selected_model": "claude-fable-5",
             "effective_model": "claude-fable-5",
@@ -59,7 +59,7 @@ def test_native_no_fallback_check_rejects_unproven_model_resolution(
 def test_native_no_fallback_check_accepts_selected_effective_canonicalized_model() -> None:
     assert _is_silent_model_fallback(
         {
-            "provider": "claude-agent-sdk",
+            "provider": "anthropic",
             "model": "claude-fable-5-1",
             "selected_model": "claude-fable-5",
             "effective_model": "claude-fable-5",
@@ -83,7 +83,7 @@ def test_native_no_fallback_check_rejects_unapproved_canonicalized_model(
 ) -> None:
     assert _is_silent_model_fallback(
         {
-            "provider": "claude-agent-sdk",
+            "provider": "anthropic",
             "model": canonical_model,
             "selected_model": requested_model,
             "effective_model": requested_model,
@@ -96,7 +96,7 @@ def test_native_no_fallback_check_rejects_unapproved_canonicalized_model(
 
 def test_native_no_fallback_check_accepts_canonicalized_receipt_provenance() -> None:
     receipt = SimpleNamespace(
-        provider="claude-agent-sdk",
+        provider="anthropic",
         model="claude-fable-5-1",
         selected_model="claude-fable-5",
         effective_model="claude-fable-5",
@@ -113,7 +113,7 @@ def test_native_no_fallback_check_accepts_canonicalized_receipt_provenance() -> 
 def test_native_no_fallback_check_rejects_wrong_billing_model_provenance() -> None:
     assert _is_silent_model_fallback(
         {
-            "provider": "claude-agent-sdk",
+            "provider": "anthropic",
             "model": "claude-fable-5",
             "selected_model": "claude-fable-5",
             "effective_model": "claude-fable-5",
@@ -135,7 +135,7 @@ def _usage_receipt(
 ) -> SimpleNamespace:
     return SimpleNamespace(
         runtime_id="hermes-claude-agent-sdk",
-        provider="claude-agent-sdk",
+        provider="anthropic",
         model=model,
         selected_model="claude-fable-5",
         effective_model="claude-fable-5",
@@ -183,7 +183,7 @@ def test_native_receipt_projection_matches_active_suite_provenance_shape() -> No
     assert projected == (
         {
             "runtime_id": "hermes-claude-agent-sdk",
-            "provider": "claude-agent-sdk",
+            "provider": "anthropic",
             "model": "claude-fable-5-1",
             "selected_model": "claude-fable-5",
             "effective_model": "claude-fable-5",

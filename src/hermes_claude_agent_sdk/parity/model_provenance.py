@@ -23,7 +23,7 @@ def is_silent_model_fallback(result: Mapping[str, Any], *, model: str) -> bool:
     legacy billing identity to equal the selected model.
     """
     if (
-        result.get("provider") != "claude-agent-sdk"
+        result.get("provider") != "anthropic"
         or result.get("selected_model") != model
         or result.get("effective_model") != model
     ):

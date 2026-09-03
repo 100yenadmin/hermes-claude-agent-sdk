@@ -22,6 +22,7 @@ from .tool_bridge import HostToolBridge
 from .turn_input import TurnInputValidationError, build_sdk_turn_input
 
 _MCP_SERVER_NAME = "hermes-tools"
+_UPSTREAM_PROVIDER = "anthropic"
 _MAX_TURN_TOOL_OBSERVATIONS = 64
 _MAX_TOOL_OBSERVATION_NAME_CHARS = 128
 _SAFE_TOOL_OBSERVATION_NAME = re.compile(r"^[A-Za-z0-9_.:-]+$")
@@ -323,7 +324,11 @@ class ClaudeAgentSDKRuntime:
             def new_projector() -> Any:
                 return ClaudeSdkEventProjector(
                     runtime_id=RUNTIME_ID,
-                    provider=request.selection.provider,
+                    # The selection provider names the Hermes routing profile
+                    # (``claude-agent-sdk``).  Usage receipts name the actual
+                    # upstream model provider so accounting and policy do not
+                    # mistake a transport plugin for the biller.
+                    provider=_UPSTREAM_PROVIDER,
                     # The request model is selection metadata only.  The
                     # projector uses it to classify exact/mismatch; effective
                     # identity still comes only from SDK message/model_usage
@@ -545,7 +550,7 @@ class ClaudeAgentSDKRuntime:
                             receipt=replace(
                                 receipt,
                                 runtime_id=RUNTIME_ID,
-                                provider=request.selection.provider,
+                                provider=_UPSTREAM_PROVIDER,
                                 billing_mode="subscription_included",
                                 cost_status="included",
                                 replay_safe=False,
@@ -604,7 +609,7 @@ class ClaudeAgentSDKRuntime:
                         "partial": False,
                         "error": None,
                         "api_calls": 1,
-                        "provider": request.selection.provider,
+                        "provider": _UPSTREAM_PROVIDER,
                         # Keep the legacy model key as the safe effective /
                         # canonical identity, never as selected request data.
                         "model": (

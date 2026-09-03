@@ -39,6 +39,11 @@ The descriptor accepts only provider id `claude-agent-sdk`, API mode
 slugs are rejected before auth or SDK startup. The host's `anthropic` Messages
 transport remains separate and is not redirected here.
 
+The selection provider remains `claude-agent-sdk` because it identifies the
+Hermes routing profile. Generic usage receipts instead record `anthropic` as
+the upstream model provider, so accounting never mistakes the transport plugin
+for the provider that supplied the model.
+
 ## SDK and bundled CLI policy
 
 Revision 4 is pinned to SDK `0.2.151`, bundled CLI `2.1.258`, and direct model

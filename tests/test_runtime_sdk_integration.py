@@ -619,7 +619,7 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
             receipt.correlation_id,
         ) == (
             RUNTIME_ID,
-            "claude-agent-sdk",
+            "anthropic",
             "claude-fable-synthetic",
             "subscription_included",
             "included",
@@ -639,7 +639,7 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
         assert terminal_result["partial"] is False
         assert terminal_result["error"] is None
         assert terminal_result["api_calls"] == 1
-        assert terminal_result["provider"] == "claude-agent-sdk"
+        assert terminal_result["provider"] == "anthropic"
         assert terminal_result["model"] == "claude-fable-synthetic"
         assert terminal_result["selected_model"] == "claude-fable-5"
         assert terminal_result["effective_model"] == "claude-fable-synthetic"
