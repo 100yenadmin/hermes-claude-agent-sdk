@@ -36,10 +36,16 @@ _SAFE_TOOL = {
 class _Host:
     def __init__(self) -> None:
         self.cancelled = False
-        self.calls: list[tuple[str, dict[str, object]]] = []
+        self.calls: list[tuple[str, dict[str, object], str | None]] = []
 
-    async def execute_tool(self, name: str, arguments):
-        self.calls.append((name, dict(arguments)))
+    async def execute_tool(
+        self,
+        name: str,
+        arguments,
+        *,
+        request_id: str | None = None,
+    ):
+        self.calls.append((name, dict(arguments), request_id))
         return {"ok": True, "call_count": len(self.calls)}
 
     def cancellation_requested(self) -> bool:
@@ -167,7 +173,9 @@ def test_unavailable_structured_question_surface_fails_before_host_and_recovers(
         )
         assert recovered.is_error is False
         assert recovered.correlation_id == "question-boundary"
-        assert host.calls == [("parity_read_only", {"marker": "safe"})]
+        assert host.calls == [
+            ("parity_read_only", {"marker": "safe"}, "question-recovery")
+        ]
 
     asyncio.run(scenario())
 
@@ -202,8 +210,8 @@ def test_cancelled_or_late_tool_request_is_fenced_then_next_turn_rebinds() -> No
         )
         assert recovered.correlation_id == "turn-two"
         assert host.calls == [
-            ("parity_read_only", {"marker": "first"}),
-            ("parity_read_only", {"marker": "recovered"}),
+            ("parity_read_only", {"marker": "first"}, "turn-one-request"),
+            ("parity_read_only", {"marker": "recovered"}, "turn-two-request"),
         ]
 
     asyncio.run(scenario())

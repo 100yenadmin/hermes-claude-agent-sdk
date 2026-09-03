@@ -32,9 +32,9 @@ if not HOST_ROOT.is_dir():
 if str(HOST_ROOT) not in sys.path:
     sys.path.insert(0, str(HOST_ROOT))
 
-from agent.runtime_dispatch import HermesRuntimeHostServices
+from agent.runtime_dispatch import HermesRuntimeHostServices  # noqa: E402
 
-from hermes_claude_agent_sdk.tool_bridge import HostToolBridge
+from hermes_claude_agent_sdk.tool_bridge import HostToolBridge  # noqa: E402
 
 
 PARENT_SESSION_ID = "synthetic-parent-session-42"
@@ -163,7 +163,7 @@ def test_delegate_schema_bridge_reaches_real_host_facade_and_parent_dispatch() -
     assert result.is_error is False
     assert result.text == '{"accepted":true,"route":"synthetic-host"}'
     assert agent.execution_calls == [
-        (TASK_ID, "runtime-tool-0001", arguments)
+        (TASK_ID, REQUEST_ID, arguments)
     ]
     assert agent.dispatch_calls == [(PARENT_SESSION_ID, arguments)]
     assert agent.approval_calls == 0

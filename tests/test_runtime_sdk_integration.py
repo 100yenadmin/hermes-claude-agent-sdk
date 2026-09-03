@@ -439,7 +439,7 @@ def _success_then_interrupt_then_success_sdk(
 
 class _Host:
     def __init__(self, *, cancel_after: int | None = None) -> None:
-        self.calls: list[tuple[str, dict[str, object]]] = []
+        self.calls: list[tuple[str, dict[str, object], str | None]] = []
         self.cancel_after = cancel_after
         self.cancel_checks = 0
         self.background = []
@@ -447,8 +447,8 @@ class _Host:
         self.background_after_terminal: list[bool] = []
         self.compaction = []
 
-    async def execute_tool(self, name, arguments):
-        self.calls.append((name, dict(arguments)))
+    async def execute_tool(self, name, arguments, *, request_id=None):
+        self.calls.append((name, dict(arguments), request_id))
         return {"cwd": "/synthetic"}
 
     async def request_approval(self, action, details):
@@ -1078,7 +1078,9 @@ def test_host_tool_bridge_and_resume_use_only_public_fields() -> None:
         events = await _collect(runtime, _request(state=state, tools=(_tool_schema(),)), host)
         await runtime.close()
 
-        assert host.calls == [("pwd", {"path": "."})]
+        assert host.calls == [
+            ("pwd", {"path": "."}, "synthetic-correlation:sdk-call-0001")
+        ]
         fields = clients[0].options.fields
         assert fields["resume"] == "synthetic-resume"
         assert fields["allowed_tools"] == ["mcp__hermes-tools__pwd"]
@@ -1133,7 +1135,9 @@ def test_unknown_billing_blocks_success_and_tool_side_effect_is_conservative() -
     assert unknown[0].failure.replay_safe is False
     assert [event.kind.value for event in after_tool][-1] == "failed"
     assert after_tool[-1].failure.phase.value == "after_side_effects"
-    assert host.calls == [("pwd", {"path": "."})]
+    assert host.calls == [
+        ("pwd", {"path": "."}, "synthetic-correlation:sdk-call-0001")
+    ]
     assert not any(event.kind.value in {"usage", "completed"} for event in after_tool)
 
 
@@ -1490,7 +1494,9 @@ def test_compaction_retry_keeps_mutation_exactly_once() -> None:
             RuntimeCompactionPhase.COMPLETED,
         ]
         assert result.terminal.kind.value == "completed"
-        assert host.calls == [("pwd", {"path": "."})]
+        assert host.calls == [
+            ("pwd", {"path": "."}, "synthetic-correlation:sdk-call-0001")
+        ]
         assert not any(
             isinstance(event, RuntimeToolRequestEvent) for event in result.events
         )

@@ -466,10 +466,18 @@ def run_approval_followthrough(*, host_root: str, plugin_module: Any | None = No
                     super().__init__(*args, **kwargs)
 
                 async def execute_tool(
-                    self, name: str, arguments: Mapping[str, Any]
+                    self,
+                    name: str,
+                    arguments: Mapping[str, Any],
+                    *,
+                    request_id: str | None = None,
                 ) -> Any:
                     self.execute_calls += 1
-                    return await super().execute_tool(name, arguments)
+                    return await super().execute_tool(
+                        name,
+                        arguments,
+                        request_id=request_id,
+                    )
 
             host = RecordingHost(
                 agent,
