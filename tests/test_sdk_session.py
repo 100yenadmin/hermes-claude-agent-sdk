@@ -601,7 +601,11 @@ def test_native_compaction_suspends_then_restamps_the_turn_deadline() -> None:
         session = SDKSession(
             _configuration(turn_timeout_seconds=0.02),
             sdk_module=_sdk(clients, [[]]),
-            compaction_watchdog_seconds=0.2,
+            # This test exercises turn-deadline suspension/restamping, not
+            # watchdog expiry.  Keep the watchdog well outside scheduler
+            # jitter on loaded CI runners; the dedicated watchdog test above
+            # retains its intentionally tiny behavioral deadline.
+            compaction_watchdog_seconds=30.0,
         )
 
         turn = asyncio.create_task(
@@ -627,7 +631,8 @@ def test_native_compaction_suspends_then_restamps_the_turn_deadline() -> None:
         )
         await clients[0]._messages.put(ResultMessage())
 
-        result = await turn
+        # Outer deadlock guard only.  The asserted turn deadline remains 20 ms.
+        result = await asyncio.wait_for(turn, 2.0)
         await session.close()
 
         assert result.outcome is SessionOutcome.COMPLETE
