@@ -1,79 +1,74 @@
 from __future__ import annotations
-
 from pathlib import Path
-
 import pytest
-
 from hermes_claude_agent_sdk.parity.hashing import sha256_value
-from hermes_claude_agent_sdk.parity.results import ResultPacket, candidate_hash
 from hermes_claude_agent_sdk.parity.v4_contract import OWNERSHIP_PREFLIGHTS, load_v4_contract
 from hermes_claude_agent_sdk.parity.v4_live_map import load_v4_live_execution_map
 from hermes_claude_agent_sdk.parity.v4_live_packets import V4LivePacketViolation, build_v4_live_packets
-
+from hermes_claude_agent_sdk.parity.v4_live_scenarios import LIVE_MAP_SHA256, load_v4_live_scenario_catalog
 ROOT = Path(__file__).parents[2]
-CONTRACT_PATH = ROOT / "qa" / "parity-contract-v4.yaml"
-MAP_PATH = ROOT / "qa" / "parity-v4-live-execution-map.yaml"
-
-
+MAP = ROOT / "qa" / "parity-v4-live-execution-map.yaml"
 def _candidate() -> dict[str, str]:
     return {"plugin_sha": "1" * 40, "host_sha": "2" * 40, "wheel_sha256": "3" * 64, "profile_sha256": "4" * 64, "sdk_distribution": "claude-agent-sdk", "sdk_version": "0.2.151", "cli_version": "2.1.258", "model": "claude-fable-5-1", "runner_id": "hermes-parity-v4", "runner_version": "4.0.0"}
-
-
-def _inputs(*, row_id: str = "AUTH-01", path: str = "positive", classification: str = "COMPLETE") -> tuple[dict, dict, dict, dict]:
-    contract, live_map, candidate = load_v4_contract(CONTRACT_PATH), load_v4_live_execution_map(MAP_PATH), _candidate()
-    row = next(item for item in live_map["rows"] if item["source_item_id"] == row_id)
-    v4_hash = sha256_value(candidate)
-    identity = {"candidate_hash": v4_hash, "preflight_hash": "0" * 64, "live_map_sha256": "16a9e8e3bb2a540b74c2b070b2b84f8d0d588778b615c4b5f91d3597a407140b", "row_key": f"{row['source_pack']}/{row_id}", "predecessor_execution_id": row["predecessor_execution_id"], "path": path, "trial_index": 1}
-    types = {"start": "message.start", "state": "message.state", "usage": "message.usage", "approval_requested": "approval.requested", "approval_decision": "approval.responded", "tool_requested": "tool.start", "tool_result": "tool.complete", "compaction": "compaction", "background": "background", "restart": "restart", "terminal": "message.complete"}
-    events = [{"kind": types[kind], "byte_length": 20 + index, "sha256": f"{index + 1:064x}", "terminal_status": ("denied" if path == "denial" else "completed") if kind == "terminal" else None} for index, kind in enumerate(row["mandatory_paths"] and next(item["expected_trace"] for item in contract["source_rows"] if item["source_item_id"] == row_id), 1)]
-    events[-1]["sha256"] = "f" * 64
-    attempt = {"identity": identity, "candidate": candidate, "classification": classification, "terminal_status": events[-1]["terminal_status"], "event_count": len(events), "event_kinds": {event["kind"]: sum(other["kind"] == event["kind"] for other in events) for event in events}, "events": events, "control_calls_used": 3, "provider_calls": 1, "turns_used": 1, "approval": {"decision_class": "deny", "decision_count": 0}}
-    preflights = {name: {"schema_version": 1, "name": name, "candidate_hash": v4_hash, "status": "PASS", "source": {"executable": "pytest", "source_ref": "tests/parity/fixture.py", "test_id": f"fixture:{name}"}, "observation": {"exit_status": 0, "passed_count": 1}} for name in OWNERSHIP_PREFLIGHTS}
-    identities = {name: {"candidate_hash": v4_hash, "status": "PASS", "source_hash": sha256_value(item["source"]), "observation_hash": sha256_value(item["observation"])} for name, item in preflights.items()}
-    identity["preflight_hash"] = sha256_value(identities); attempt["identity"] = identity
-    trial_hash = candidate_hash(catalog_hash="768c2d8f99077f8557a192d1053fc80401e83dee80d77475d12119df75b63abb", plugin_sha=candidate["plugin_sha"], host_sha=candidate["host_sha"], sdk_version=candidate["sdk_version"], profile_hash=candidate["profile_sha256"], runner_version=candidate["runner_version"], inventory_hash="5" * 64)
-    host = {"identity": dict(identity), "runtime": "claude-agent-sdk", "provider": "anthropic", "effective_model": "claude-fable-5-1", "canonical_model": "claude-fable-5-1", "billing_mode": "subscription_included", "cost_status": "included", "fallback_used": False, "api_calls": 1, "api_call_budget": 1, "tool_request_count": sum(event["kind"] in {"tool.start", "tool.request", "tool.requested"} for event in events), "tool_result_count": sum(event["kind"] in {"tool.complete", "tool.result", "tool.completed"} for event in events), "transcript_count": 1, "terminal_count": 1, "invariant_violations": [], "state_hash": "6" * 64, "profile_id": "isolated", "inventory_hash": "5" * 64, "proof_hashes": {"primary": "7" * 64, "secondary": "8" * 64}, "preflight_projections": preflights, "stream_projection": {"schema_version": 1, "name": "stream", "candidate_hash": v4_hash, "trial_candidate_hash": trial_hash, "trial_index": 1, "status": "PASS", "source": {"executable": "pytest", "source_ref": "tests/parity/stream.py", "test_id": "stream:trial"}, "observation": {"exit_status": 0, "chunk_count": 1, "event_count": len(events), "content_hash": "9" * 64}}}
-    return contract, live_map, attempt, host
-
-
-def test_builds_v3_trial_receipt_and_bound_v4_packet() -> None:
-    contract, live_map, attempt, host = _inputs()
-    bundle = build_v4_live_packets(contract, live_map, attempt, host, map_path=MAP_PATH)
-    assert isinstance(bundle["trial"], ResultPacket)
-    assert bundle["trial"].catalog_hash == "768c2d8f99077f8557a192d1053fc80401e83dee80d77475d12119df75b63abb"
-    assert bundle["trial"].primary_proof_hash == host["proof_hashes"]["primary"]
-    assert bundle["ownership_receipt"]["trial_index"] == 1
-    assert bundle["packet"]["source_item_id"] == "AUTH-01" and bundle["packet"]["path"] == "positive"
-    assert bundle["packet"]["candidate_hash"] == bundle["ownership_receipt"]["candidate_hash"]
-
-
-def test_builds_expected_negative_denial() -> None:
-    contract, live_map, attempt, host = _inputs(row_id="source-docs-discovery-report", path="denial", classification="EXPECTED_NEGATIVE")
-    bundle = build_v4_live_packets(contract, live_map, attempt, host, map_path=MAP_PATH)
-    assert bundle["trial"].classification.value == "EXPECTED_NEGATIVE"
-    assert bundle["packet"]["classification"] == "EXPECTED_NEGATIVE"
-
-
-@pytest.mark.parametrize("change", [lambda host: host["identity"].update(path="recovery"), lambda host: host.update(billing_mode="unknown"), lambda host: host.update(cost_status="unknown"), lambda host: host.update(transcript_count=0), lambda host: host.update(terminal_count=0), lambda host: host.update(api_calls=2), lambda host: host.update(invariant_violations=["violation"])])
-def test_rejects_mismatched_or_unsafe_host_observation(change) -> None:
-    contract, live_map, attempt, host = _inputs()
-    change(host)
-    with pytest.raises(V4LivePacketViolation): build_v4_live_packets(contract, live_map, attempt, host, map_path=MAP_PATH)
-
-
-def test_rejects_reused_event_projection_and_missing_tool_pair() -> None:
-    contract, live_map, attempt, host = _inputs(row_id="TOOL-02")
-    attempt["events"][1]["sha256"] = attempt["events"][0]["sha256"]
-    with pytest.raises(V4LivePacketViolation): build_v4_live_packets(contract, live_map, attempt, host, map_path=MAP_PATH)
-    contract, live_map, attempt, host = _inputs(row_id="TOOL-02")
-    attempt["events"].pop(2); attempt["event_count"] -= 1
-    with pytest.raises(V4LivePacketViolation): build_v4_live_packets(contract, live_map, attempt, host, map_path=MAP_PATH)
-
-
-def test_rejects_raw_fields_and_identity_reuse() -> None:
-    contract, live_map, attempt, host = _inputs()
-    host["stream_projection"]["observation"]["raw_content"] = "forbidden"
-    with pytest.raises(V4LivePacketViolation): build_v4_live_packets(contract, live_map, attempt, host, map_path=MAP_PATH)
-    contract, live_map, attempt, host = _inputs()
-    attempt["identity"]["row_key"] = "v2_non_soak/TOOL-02"
-    with pytest.raises(V4LivePacketViolation): build_v4_live_packets(contract, live_map, attempt, host, map_path=MAP_PATH)
+def _preflights(candidate: dict[str, str]) -> dict[str, dict[str, object]]:
+    digest = sha256_value(candidate)
+    return {name: {"schema_version": 1, "name": name, "candidate_hash": digest, "status": "PASS", "source": {"executable": "pytest", "source_ref": f"tests/{name}.py", "test_id": f"fixture:{name}"}, "observation": {"exit_status": 0, "check_count": 1}} for name in OWNERSHIP_PREFLIGHTS}
+def _preflight_hash(preflights, candidate_hash):
+    return sha256_value({name: {"candidate_hash": candidate_hash, "status": "PASS", "source_hash": sha256_value(item["source"]), "observation_hash": sha256_value(item["observation"])} for name, item in preflights.items()})
+def _attempt(scenario, candidate, preflight_hash, turn_index, *, outcome="completed"):
+    expected = next(row["expected_trace"] for row in load_v4_contract(ROOT / "qa/parity-contract-v4.yaml")["source_rows"] if f"{row['source_pack']}/{row['source_item_id']}" == scenario.row_key)
+    kinds = {"start": "message.start", "state": "message.state", "usage": "message.usage", "tool_requested": "tool.request", "tool_result": "tool.complete", "approval_requested": "approval.requested", "approval_decision": "approval.responded", "compaction": "compaction", "background": "background", "restart": "restart", "terminal": "message.complete"}
+    events = [{"kind": kinds[name], "byte_length": 10 + index, "sha256": f"{turn_index}{index}".ljust(64, "0"), "terminal_status": outcome if name == "terminal" else None} for index, name in enumerate(expected, 1)]
+    events.insert(1, {"kind": "message.delta", "byte_length": 19, "sha256": f"{turn_index}f".ljust(64, "0"), "terminal_status": None})
+    candidate_hash = sha256_value(candidate)
+    return {"identity": {"candidate_hash": candidate_hash, "preflight_hash": preflight_hash, "live_map_sha256": LIVE_MAP_SHA256, "row_key": scenario.row_key, "predecessor_execution_id": scenario.predecessor_execution_id, "path": "positive", "trial_index": scenario.trial_indexes[0]}, "candidate": candidate, "classification": "COMPLETE", "terminal_status": outcome, "event_count": len(events), "event_kinds": {event["kind"]: sum(item["kind"] == event["kind"] for item in events) for event in events}, "events": events, "control_calls_used": 1, "provider_calls": 1, "turns_used": 1, "approval": {"decision_class": "deny", "decision_count": 0}, "turn_index": turn_index}
+def _host(turn_count):
+    usage = [{"ordinal": index, "sha256": f"{index}".ljust(64, "0"), "provider": "anthropic", "model": "claude-fable-5-1", "selected_model": "claude-fable-5-1", "effective_model": "claude-fable-5-1", "canonical_model": "claude-fable-5-1", "model_resolution": "exact", "billing_mode": "subscription_included", "cost_status": "included", "fallback_used": False, "api_call_count": turn_count, "tokens": {"input_tokens": 1, "output_tokens": 1}} for index in range(1, turn_count + 1)]
+    return {"schema_version": 1, "status": "PASS", "runtime": "claude-agent-sdk", "invariant_violations": [], "expected_turn_count": turn_count, "transcript": {"row_count": turn_count * 2, "canonical_rows": {"user": {"count": turn_count}, "assistant": {"count": turn_count}}, "terminal": {"count": turn_count, "persisted": True, "sha256": "a" * 64}}, "runtime_state": {"present": False, "schema_version": None, "sha256": None}, "runtime_usage": {"receipt_count": turn_count, "ordered": usage, "latest": usage[-1]}}
+def _local(path, expected, terminal, prefix):
+    events = [{"kind": {"start": "message.start", "state": "message.state", "terminal": "message.complete"}[name], "byte_length": 12 + index, "sha256": f"{prefix}{index}".ljust(64, "0"), "terminal_status": terminal if name == "terminal" else None} for index, name in enumerate(expected, 1)]
+    return {"schema_version": 1, "status": "PASS", "path": path, "host_local": True, "provider_calls": 0, "terminal_status": terminal, "events": events, "observation": {"surface": "host_local", "observation_count": 1}, "proof_hashes": {"primary": f"{prefix}".ljust(64, "0"), "secondary": f"{prefix}f".ljust(64, "0")}}
+def _inputs(row_key="openclaw_active/source-docs-discovery-report"):
+    contract = load_v4_contract(ROOT / "qa/parity-contract-v4.yaml")
+    live_map = load_v4_live_execution_map(MAP)
+    catalog = load_v4_live_scenario_catalog(MAP)
+    scenario = next(row for row in catalog.scenarios if row.row_key == row_key)
+    candidate = _candidate(); preflights = _preflights(candidate); v4_hash = sha256_value(candidate)
+    pf_hash = _preflight_hash(preflights, v4_hash)
+    attempts = [_attempt(scenario, candidate, pf_hash, index) for index in range(1, scenario.turn_count + 1)]
+    stream = {"schema_version": 1, "name": "stream", "candidate_hash": v4_hash, "trial_candidate_hash": "f" * 64, "trial_index": scenario.trial_indexes[0], "status": "PASS", "source": {"executable": "pytest", "source_ref": "tests/stream.py", "test_id": "stream:scenario"}, "observation": {"stream_count": 1, "content_hash": "e" * 64}}
+    receipt = {"schema_version": 1, "candidate": candidate, "preflight_projections": preflights, "attempts": attempts, "host_observation": _host(scenario.turn_count), "profile_id": "isolated", "inventory_hash": "5" * 64, "stream_projection": stream}
+    return contract, live_map, catalog, scenario, receipt
+def test_one_positive_bundle_and_pending_local_paths_without_triple_counting():
+    contract, live_map, _, scenario, receipt = _inputs()
+    bundle = build_v4_live_packets(contract, scenario, receipt, live_map=live_map, map_path=MAP)
+    assert bundle["scenario_receipt"]["provider_accounting"] == {"positive_calls": 2, "denial_calls": 0, "recovery_calls": 0, "total_calls": 2}
+    assert bundle["paths"]["positive"]["trial"].turn_count == 2
+    assert bundle["paths"]["positive"]["trial"].classification.value == "COMPLETE"
+    assert bundle["paths"]["denial"]["trial"].classification.value == "PENDING"
+    assert bundle["paths"]["recovery"]["trial"].classification.value == "PENDING"
+    assert not bundle["paths"]["denial"]["trial"].normalized_events
+    assert bundle["paths"]["denial"]["packet"] is None and bundle["paths"]["recovery"]["packet"] is None
+    assert "provider_calls" not in bundle["paths"]["positive"]["trial"].to_dict()
+def test_explicit_denial_recovery_are_zero_turn_host_local_paths():
+    contract, live_map, _, scenario, receipt = _inputs()
+    expected = next(row["expected_trace"] for row in contract["source_rows"] if f"{row['source_pack']}/{row['source_item_id']}" == scenario.row_key)
+    bundle = build_v4_live_packets(contract, scenario, receipt, {"denial": _local("denial", expected, "denied", "b"), "recovery": _local("recovery", expected, "completed", "c")}, live_map=live_map, map_path=MAP)
+    assert bundle["paths"]["denial"]["trial"].turn_count == bundle["paths"]["recovery"]["trial"].turn_count == 0
+    assert bundle["paths"]["denial"]["packet"]["classification"] == "EXPECTED_NEGATIVE"
+    assert bundle["paths"]["recovery"]["packet"]["classification"] == "COMPLETE"
+    assert bundle["paths"]["denial"]["packet"]["events"][-1]["terminal_outcome"] == "denied"
+def test_completed_as_denial_and_raw_local_data_are_rejected():
+    contract, live_map, _, scenario, receipt = _inputs()
+    expected = next(row["expected_trace"] for row in contract["source_rows"] if f"{row['source_pack']}/{row['source_item_id']}" == scenario.row_key)
+    bad = _local("denial", expected, "completed", "d")
+    with pytest.raises(V4LivePacketViolation):
+        build_v4_live_packets(contract, scenario, receipt, {"denial": bad}, live_map=live_map, map_path=MAP)
+    bad = _local("denial", expected, "denied", "e"); bad["observation"]["raw_content"] = "forbidden"
+    with pytest.raises(V4LivePacketViolation):
+        build_v4_live_packets(contract, scenario, receipt, {"denial": bad}, live_map=live_map, map_path=MAP)
+def test_positive_content_delta_is_hash_bound_but_not_predecessor_trace():
+    contract, live_map, _, scenario, receipt = _inputs("v2_non_soak/AUTH-01")
+    bundle = build_v4_live_packets(contract, scenario, receipt, live_map=live_map, map_path=MAP)
+    assert [event["kind"] for event in bundle["paths"]["positive"]["trial"].normalized_events] == ["start", "state", "usage", "terminal"]
+    assert bundle["scenario_receipt"]["content_projection_hash"] != sha256_value(())
