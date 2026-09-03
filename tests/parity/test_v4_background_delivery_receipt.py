@@ -53,6 +53,13 @@ def test_one_child_positive_delivery_is_completed(tmp_path: Path) -> None:
     assert events[-1]["terminal_outcome"] == "completed"
 
 
+def test_manager_restores_none_after_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from hermes_cli import plugins as plugins_mod
+    monkeypatch.setattr(plugins_mod, "_plugin_manager", None)
+    _receipt(tmp_path, "openclaw_active/subagent-handoff", "positive")
+    assert plugins_mod._plugin_manager is None
+
+
 def test_fanout_recovery_is_one_batch_and_one_parent_delivery(tmp_path: Path) -> None:
     value = _receipt(tmp_path, "openclaw_active/subagent-fanout-synthesis", "recovery")
     assert value["terminal_status"] == "completed"
@@ -63,12 +70,6 @@ def test_fanout_recovery_is_one_batch_and_one_parent_delivery(tmp_path: Path) ->
     assert [step["phase"] for step in delivery["transitions"]] == ["denial", "delivery"]
     events, _ = _local(value, "recovery", ("start", "background", "terminal"))
     assert events[-1]["terminal_outcome"] == "completed"
-
-
-def test_one_child_positive_delivery_is_completed(tmp_path: Path) -> None:
-    value = _receipt(tmp_path, "openclaw_active/subagent-handoff", "positive")
-    assert value["terminal_status"] == "completed"
-    assert value["observation"]["delivery"] == {"state": "delivered", "attempts": 1, "parent_rows": 1, "transitions": [{"phase": "delivery", "state": "delivered", "attempts": 1, "parent_rows": 1}]}
 
 
 @pytest.mark.parametrize(

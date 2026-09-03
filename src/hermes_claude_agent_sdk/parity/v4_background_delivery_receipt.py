@@ -285,8 +285,7 @@ def run_v4_background_delivery_receipt(row_key: str, trial_index: int, path: str
                 manager.unload(plugin.PLUGIN_ID)
             AIAgent._create_openai_client = old_create
             reset_hermes_home_override(override)
-            if old_manager is not None:
-                plugins_mod._plugin_manager = old_manager
+            plugins_mod._plugin_manager = old_manager
             sys.path[:] = old_path
             for key, value in old_env.items():
                 if value is None:
