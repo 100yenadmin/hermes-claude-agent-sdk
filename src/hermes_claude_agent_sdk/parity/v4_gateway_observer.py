@@ -57,7 +57,8 @@ def _parts(value: object) -> tuple[Mapping[str, Any], str, int, str, str | None]
     kind = params["type"]
     size, digest = _digest(value)
     payload = params.get("payload") if isinstance(params.get("payload"), Mapping) else {}
-    terminal = payload.get("terminal_outcome")
+    lowered = kind.casefold()
+    terminal = None if lowered in _CHILD else payload.get("terminal_outcome")
     if terminal is None and (kind.casefold() in {"terminal", "message.complete", "session.complete", "run.complete", "task.complete"} or kind.casefold().endswith((".terminal", ".finished", ".done"))):
         terminal = _TERMINALS.get(payload.get("status")) if isinstance(payload.get("status"), str) else None
     if terminal is not None and terminal not in {"completed", "denied", "failed", "cancelled"}: _fail("event terminal status is unsupported")

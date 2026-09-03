@@ -60,10 +60,10 @@ def test_observer_rejects_wrong_approval() -> None:
     with pytest.raises(V4GatewayObserverViolation):
         observer.call("approval.respond", {"request_id": "stale-request", "choice": "allow"})
 def test_observer_accepts_two_child_lifecycles_and_rejects_duplicates() -> None:
-    events = [[_event("subagent.spawn_requested", {"task_index": i, "task_count": 2, "parent_id": "p", "child_id": "c" + str(i), "delegation_id": "d" + str(i)}), _event("subagent.start", {"task_index": i, "task_count": 2}), _event("subagent.complete", {"task_index": i, "task_count": 2})] for i in range(2)]
-    fake = _FakeGateway([frame for phases in events for frame in phases] + [_event("background.status"), _event("delegation.status"), _event("message.complete", {"status": "completed"})])
+    events = [[_event("subagent.spawn_requested", {"task_index": i, "task_count": 2, "parent_id": "p", "child_id": "c" + str(i), "delegation_id": "d" + str(i)}), _event("subagent.start", {"task_index": i, "task_count": 2}), _event("subagent.complete", {"task_index": i, "task_count": 2, "status": "completed"})] for i in range(2)]
+    fake = _FakeGateway([frame for phases in events for frame in phases] + [_event("background.status"), _event("delegation.status"), _event("subagent.text", {"task_index": 1, "task_count": 2}), _event("message.complete", {"status": "completed"})])
     observer = V4GatewayObserver(fake); observer.start()
-    for _ in range(9): observer.next_event()
+    for _ in range(10): observer.next_event()
     result = observer.snapshot()
     assert [item["phase"] for item in result["subagents"]] == ["spawn_requested", "start", "complete"] * 2 and [item["task_index"] for item in result["subagents"]] == [0, 0, 0, 1, 1, 1] and observer.collect_delegation_observation()["count"] == 2
     _reject([events[0][0], events[0][0]])
