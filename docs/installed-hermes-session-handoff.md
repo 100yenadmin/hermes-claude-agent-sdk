@@ -8,7 +8,7 @@ an SDK-owned transcript. Hermes owns the visible session and effects.
 
 The `0.1.0rc1` plugin candidate is identified by the exact source commit and
 wheel digest recorded in its v4 result manifest. It targets the Hermes host at
-exact commit `5bddcadb1d9fc8706b16f7a9a09913ec2198d0ea`. The installed data-plane
+exact commit `c5921dd61daa1365dab55d35286316df44d44759`. The installed data-plane
 entrypoint is:
 
 ```sh
