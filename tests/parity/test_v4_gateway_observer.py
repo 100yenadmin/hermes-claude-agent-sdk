@@ -6,6 +6,9 @@ from hermes_claude_agent_sdk.parity.v4_gateway import EventProjection, OpaqueHan
 from hermes_claude_agent_sdk.parity.v4_gateway_observer import V4GatewayObserver, V4GatewayObserverViolation, identity_hash, snapshot_fixture_state
 def _event(kind: str, payload: dict[str, object] | None = None) -> dict[str, object]:
     return {"jsonrpc": "2.0", "method": "event", "params": {"type": kind, "payload": payload or {}}}
+def _reject(events: list[dict[str, object]]) -> None:
+    observer = V4GatewayObserver(_FakeGateway(events)); observer.start(); [observer.next_event() for _ in events[:-1]]
+    with pytest.raises(V4GatewayObserverViolation): observer.next_event()
 class _FakeGateway:
     def __init__(self, events: list[dict[str, object]]) -> None:
         self.events, self.calls, self.started, self.closed = list(events), [], False, False
@@ -27,8 +30,8 @@ def test_observer_composes_projectors_and_records_sanitized_approval_recovery() 
         _event("message.start", {"session_id": "session-secret"}),
         _event("approval.request", {"request_id": "request-secret"}),
         _event("approval.request", {"request_id": "recovery-secret"}),
-        _event("tool.start", {"name": "fixture_tool"}),
-        _event("tool.complete", {"name": "fixture_tool"}),
+        _event("tool.start", {"name": "fixture_tool", "tool_call_id": "call-a"}),
+        _event("tool.complete", {"name": "fixture_tool", "tool_call_id": "call-a"}),
         _event("subagent.spawn_requested", {"task_index": 0, "task_count": 1, "parent_id": "parent-secret", "child_id": "child-secret", "delegation_id": "delegation-secret"}),
         _event("subagent.start", {"task_index": 0, "task_count": 1}),
         _event("subagent.complete", {"task_index": 0, "task_count": 1}),
@@ -57,14 +60,17 @@ def test_observer_rejects_wrong_approval() -> None:
     with pytest.raises(V4GatewayObserverViolation):
         observer.call("approval.respond", {"request_id": "stale-request", "choice": "allow"})
 def test_observer_accepts_two_child_lifecycles_and_rejects_duplicates() -> None:
-    events = [[_event("subagent.spawn_requested", {"task_index": i, "task_count": 2, "parent_id": "p" + str(i), "child_id": "c" + str(i), "delegation_id": "d" + str(i)}), _event("subagent.start", {"task_index": i, "task_count": 2}), _event("subagent.complete", {"task_index": i, "task_count": 2})] for i in range(2)]
-    fake = _FakeGateway([frame for phases in events for frame in phases] + [_event("message.complete", {"status": "completed"})])
+    events = [[_event("subagent.spawn_requested", {"task_index": i, "task_count": 2, "parent_id": "p", "child_id": "c" + str(i), "delegation_id": "d" + str(i)}), _event("subagent.start", {"task_index": i, "task_count": 2}), _event("subagent.complete", {"task_index": i, "task_count": 2})] for i in range(2)]
+    fake = _FakeGateway([frame for phases in events for frame in phases] + [_event("background.status"), _event("delegation.status"), _event("message.complete", {"status": "completed"})])
     observer = V4GatewayObserver(fake); observer.start()
-    for _ in range(7): observer.next_event()
+    for _ in range(9): observer.next_event()
     result = observer.snapshot()
     assert [item["phase"] for item in result["subagents"]] == ["spawn_requested", "start", "complete"] * 2 and [item["task_index"] for item in result["subagents"]] == [0, 0, 0, 1, 1, 1] and observer.collect_delegation_observation()["count"] == 2
-    bad = V4GatewayObserver(_FakeGateway([events[0][0], events[0][0]])); bad.start(); bad.next_event()
-    with pytest.raises(V4GatewayObserverViolation): bad.next_event()
+    _reject([events[0][0], events[0][0]])
+    _reject([events[0][0], _event("subagent.start", {"task_index": 0, "task_count": 2, "parent_id": "q"})]); _reject([events[0][0], _event("subagent.spawn_requested", {"task_index": 1, "task_count": 2, "parent_id": "q"})])
+def test_observer_pairs_same_name_tools_by_id() -> None:
+    observer = V4GatewayObserver(_FakeGateway([_event("tool.start", {"name": "fixture_tool", "tool_call_id": "a"}), _event("tool.start", {"name": "fixture_tool", "tool_call_id": "b"}), _event("tool.complete", {"name": "fixture_tool", "tool_call_id": "b"}), _event("tool.complete", {"name": "fixture_tool", "tool_call_id": "a"}), _event("message.complete", {"status": "completed"})]), allowed_tool_names={"fixture_tool"}); observer.start(); [observer.next_event() for _ in range(5)]
+    assert observer.snapshot()["tools"] == {"started": ["fixture_tool", "fixture_tool"], "completed": ["fixture_tool", "fixture_tool"]}
 def test_fixture_snapshot_is_bounded_and_sanitized(tmp_path: Path) -> None:
     state = tmp_path / ".hermes_v4_fixture_state.json"
     state.write_text(json.dumps({"schema_version": 1, "record_count": 2, "item_count": 1, "item_hash": "a" * 64, "operation_hash": "b" * 64}), encoding="utf-8")
