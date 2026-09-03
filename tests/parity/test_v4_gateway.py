@@ -3,7 +3,7 @@ import queue
 from collections import deque
 from pathlib import Path
 import pytest
-from hermes_claude_agent_sdk.parity.v4_gateway import DuplicateTerminalError, EventAccumulator, Gateway, GatewayProtocolError, MissingTerminalError, NativeToolEvent, OpaqueHandle, PostTerminalEventError
+from hermes_claude_agent_sdk.parity.v4_gateway import DuplicateTerminalError, EventAccumulator, EventAccumulatorError, Gateway, GatewayProtocolError, MissingTerminalError, NativeToolEvent, OpaqueHandle, PostTerminalEventError
 def _event(kind: str, payload: dict[str, object] | None = None) -> dict[str, object]:
     return {"jsonrpc": "2.0", "method": "event", "params": {"type": kind, "payload": payload or {}}}
 class _Transport:
@@ -62,6 +62,22 @@ def test_accumulator_projects_and_rejects_native_duplicate_and_trailing_events()
     with pytest.raises(NativeToolEvent): EventAccumulator().add(_event("tool.request", {"name": "mcp__hermes-tools__evil"}))
     for name in ("Agent", "Bash", "Read", "Write", "Edit", "Web"):
         with pytest.raises(NativeToolEvent): EventAccumulator().add(_event("tool.start", {"name": name}))
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    (("complete", "completed"), ("error", "failed"), ("interrupted", "cancelled")),
+)
+def test_message_complete_maps_hermes_terminal_statuses(status: str, expected: str) -> None:
+    accumulator = EventAccumulator()
+    projection = accumulator.add(_event("message.complete", {"status": status}))
+    assert projection.terminal_status == expected
+    assert accumulator.finish()["terminal_status"] == expected
+
+@pytest.mark.parametrize("payload", ({"status": "unknown"}, {}))
+def test_message_complete_unknown_or_missing_status_fails_closed(payload: dict[str, object]) -> None:
+    with pytest.raises(EventAccumulatorError):
+        EventAccumulator().add(_event("message.complete", payload))
+
 def test_host_tool_inventory_is_explicit_and_fail_closed() -> None:
     accumulator = EventAccumulator(host_tools=frozenset({"memory", "session_search"}), mcp_tools=frozenset({"mcp__hermes-tools__memory"}))
     accumulator.add(_event("tool.start", {"name": "session_search"}))

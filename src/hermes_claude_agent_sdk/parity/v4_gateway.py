@@ -21,6 +21,15 @@ TOOL_PREFIX = "mcp__hermes-tools__"
 HOST_TOOLS = frozenset({"memory", "session_search", "skills", "browser", "cron", "terminal", "process_manage", "delegate_task"})
 MCP_TOOLS = frozenset({"mcp__hermes-tools__memory", "mcp__hermes-tools__session_search", "mcp__hermes-tools__skills", "mcp__hermes-tools__browser", "mcp__hermes-tools__cron", "mcp__hermes-tools__terminal", "mcp__hermes-tools__process_manage", "mcp__hermes-tools__delegate_task"})
 TERMINAL_STATUSES = frozenset({"completed", "denied", "failed", "cancelled"})
+_TERMINAL_STATUS_MAP = {
+    "complete": "completed",
+    "completed": "completed",
+    "error": "failed",
+    "failed": "failed",
+    "interrupted": "cancelled",
+    "cancelled": "cancelled",
+    "denied": "denied",
+}
 _SAFE_KIND = re.compile(r"^[A-Za-z0-9_.:/-]{1,96}$")
 _NATIVE_TYPES = frozenset({"agent", "agent_tool", "tool_use", "tool_result", "server_tool_use", "server_tool_result"})
 _NATIVE_NAMES = frozenset({"agent", "bash", "read", "write", "edit", "web"})
@@ -127,7 +136,8 @@ def _event_projection(frame: Mapping[str, Any], encoded: bytes, prefix: str = TO
         terminal = candidate
     elif terminalish:
         status = body.get("status")
-        terminal = status if isinstance(status, str) and status in TERMINAL_STATUSES else "completed"
+        terminal = _TERMINAL_STATUS_MAP.get(status) if isinstance(status, str) else None
+        if terminal is None: raise EventAccumulatorError("terminal status is unsupported")
     return EventProjection(event_type, len(encoded), hashlib.sha256(encoded).hexdigest(), terminal)
 @dataclass(frozen=True)
 class EventProjection:
