@@ -36,7 +36,7 @@ def _roots(tmp_path: Path) -> tuple[Path, Path]:
             if not source.exists():
                 source.write_text("def test_fixture():\n    assert True\n", encoding="utf-8")
     return plugin, host
-def _fake_run(monkeypatch: pytest.MonkeyPatch, *, plugin: Path, host: Path, output: str = "1 passed in 0.01s\n", returncode: int = 0, seen: list[tuple[tuple[str, ...], dict[str, str]]] | None = None, dirty: bool = False) -> None:
+def _fake_run(monkeypatch: pytest.MonkeyPatch, *, plugin: Path, host: Path, output: str = "1 passed in 0.01s\n", host_output: str | None = None, returncode: int = 0, seen: list[tuple[tuple[str, ...], dict[str, str]]] | None = None, dirty: bool = False) -> None:
     def run(argv, *, cwd, env, **kwargs):
         args = tuple(str(item) for item in argv)
         captured = (args, dict(env))
@@ -48,7 +48,8 @@ def _fake_run(monkeypatch: pytest.MonkeyPatch, *, plugin: Path, host: Path, outp
         if args[:3] == ("git", "status", "--porcelain=v1"):
             dirty_output = " M tests/test_fixture.py\n" if dirty and Path(cwd).resolve() == plugin.resolve() else ""
             return subprocess.CompletedProcess(args, 0, stdout=dirty_output, stderr="")
-        return subprocess.CompletedProcess(args, returncode, stdout=output, stderr="")
+        test_output = host_output if host_output is not None and Path(cwd).resolve() == host.resolve() else output
+        return subprocess.CompletedProcess(args, returncode, stdout=test_output, stderr="")
     monkeypatch.setattr(v4_preflights.subprocess, "run", run)
 def test_collects_exactly_eight_sanitized_projections_and_binds_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     plugin, host = _roots(tmp_path)
@@ -82,6 +83,18 @@ def test_commands_are_closed_and_owner_bound(tmp_path: Path, monkeypatch: pytest
         else:
             assert args[:2] == (str(host / "scripts/run_tests.sh"), node.path)
             assert args[-1] == f"({node.test_name})"
+
+def test_host_wrapper_summary_syntax_records_one_passing_test(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    plugin, host = _roots(tmp_path)
+    _fake_run(
+        monkeypatch,
+        plugin=plugin,
+        host=host,
+        host_output="=== Summary: 1 files, 1 tests passed, 0 failed, 0 skipped, 0 xfailed, 0 xpassed, 0 errors ===\n",
+    )
+    result = v4_preflights.collect_preflights(_candidate(), plugin_root=plugin, host_root=host)
+    assert all(item["observation"]["passed_count"] == item["observation"]["node_count"] for item in result.values())
+
 @pytest.mark.parametrize("output,returncode", [("1 failed in 0.01s\n", 1), ("", 0), ("1 passed in 0.01s\nprovider_calls=1\n", 0)])
 def test_nonpassing_or_provider_subprocess_writes_no_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, output: str, returncode: int) -> None:
     plugin, host = _roots(tmp_path)
