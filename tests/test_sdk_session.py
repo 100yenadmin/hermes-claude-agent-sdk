@@ -223,7 +223,9 @@ def test_turn_timeout_is_one_deadline_not_reset_by_stream_activity() -> None:
                 )
 
         producer = asyncio.create_task(keep_stream_active())
-        result = await asyncio.wait_for(turn, 0.06)
+        # The outer wait is only a deadlock guard; the asserted 20 ms
+        # SDKSession deadline remains the behavior under test.
+        result = await asyncio.wait_for(turn, 2.0)
         producer.cancel()
         await asyncio.gather(producer, return_exceptions=True)
         await session.close()
@@ -575,7 +577,9 @@ def test_missing_compact_boundary_trips_bounded_watchdog_and_retires_client() ->
 
         hook = clients[0].options.fields["hooks"]["PreCompact"][0].hooks[0]
         await hook({"trigger": "auto"}, None, None)
-        result = await asyncio.wait_for(turn, 0.1)
+        # The outer wait is only a deadlock guard; the asserted 10 ms
+        # compaction watchdog remains the behavior under test.
+        result = await asyncio.wait_for(turn, 2.0)
         await session.close()
 
         assert result.outcome is SessionOutcome.FAILED

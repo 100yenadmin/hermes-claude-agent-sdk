@@ -43,6 +43,28 @@ def test_construction_is_inert_and_incompatible_identity_precedes_start(tmp_path
     calls = []; runner = _runner(tmp_path / "home", lambda **_: calls.append(True)); assert calls == [] and not (tmp_path / "home").exists(); assert runner.admission.turn_count == 1
     bad = _candidate(); bad["sdk_version"] = "bad"
     with pytest.raises(V4NormalGatewayRunnerViolation): V4NormalGatewayRunner(candidate=bad, preflight_projections=_preflights(bad), profile_id="isolated", inventory_hash="5" * 64, hermes_home=tmp_path / "bad")
+
+
+def test_stage_plugin_excludes_transient_python_bytecode(tmp_path):
+    source = tmp_path / "source-plugin"
+    source.mkdir()
+    (source / "__init__.py").write_text("PLUGIN_API_VERSION = 1\n", encoding="utf-8")
+    (source / "plugin.yaml").write_text("name: fixture\n", encoding="utf-8")
+    cache = source / "__pycache__"
+    cache.mkdir()
+    (cache / "__init__.cpython-313.pyc").write_bytes(b"transient")
+
+    home = tmp_path / "home"
+    runner_module._stage_plugin(source, home)
+
+    staged = home / "plugins" / "v4_hermes_fixture"
+    assert (staged / "__init__.py").read_text(encoding="utf-8") == (
+        "PLUGIN_API_VERSION = 1\n"
+    )
+    assert (staged / "plugin.yaml").read_text(encoding="utf-8") == "name: fixture\n"
+    assert not (staged / "__pycache__").exists()
+
+
 def test_fake_normal_gateway_positive_packet_and_safe_env(tmp_path, monkeypatch):
     monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(1))
     monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": [], "parent_link_sha256": None, "lifecycle": "none"})

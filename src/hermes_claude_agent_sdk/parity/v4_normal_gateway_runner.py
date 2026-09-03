@@ -120,13 +120,16 @@ def _stage_plugin(source: Path, home: Path) -> None:
     destination = home / "plugins" / "v4_hermes_fixture"
     if destination.exists() or destination.is_symlink():
         raise V4NormalGatewayRunnerViolation("fixture plugin destination already exists")
-    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.mkdir(parents=True)
     for item in source.rglob("*"):
-        target = destination / item.relative_to(source)
+        relative = item.relative_to(source)
+        target = destination / relative
         if item.is_symlink():
             raise V4NormalGatewayRunnerViolation("fixture plugin contains a symlink")
+        if "__pycache__" in relative.parts or item.suffix in {".pyc", ".pyo"}:
+            continue
         if item.is_dir():
-            target.mkdir()
+            target.mkdir(parents=True, exist_ok=True)
         elif item.is_file():
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(item, target)
