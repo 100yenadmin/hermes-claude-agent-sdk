@@ -10,6 +10,7 @@ import argparse
 import asyncio
 import json
 import os
+import tempfile
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
@@ -17,6 +18,8 @@ from typing import Any
 
 from .catalog import Capability, Catalog, load_catalog
 from .hashing import sha256_value
+from .inventory import load_tool_inventory
+from .profile import load_profile_manifest
 from .results import ExecutionClassification, ResultPacket
 from .runner import ExecutionBundle, ExecutionContext, ExecutionOutcome
 from .trace import normalized_path_events
@@ -108,13 +111,13 @@ async def _approval_executor(context: ExecutionContext) -> ExecutionBundle:
         from .approval_followthrough import run_approval_followthrough
         report = run_approval_followthrough(host_root=host_root)
     except Exception:  # noqa: BLE001 - fixture faults fail closed
-        return _bundle(ExecutionClassification.VERIFIED_FAILURE, "approval_deterministic_executor_failed", (("sequence", 1), ("kind", "terminal"), ("status", "failed"), ("terminal_outcome", "failed")))
+        return _bundle(ExecutionClassification.VERIFIED_FAILURE, "approval_deterministic_executor_failed", ({"sequence": 1, "kind": "terminal", "status": "failed", "terminal_outcome": "failed"},))
     if not isinstance(report, Mapping):
-        return _bundle(ExecutionClassification.VERIFIED_FAILURE, "approval_deterministic_report_malformed", (("sequence", 1), ("kind", "terminal"), ("status", "failed"), ("terminal_outcome", "failed")))
+        return _bundle(ExecutionClassification.VERIFIED_FAILURE, "approval_deterministic_report_malformed", ({"sequence": 1, "kind": "terminal", "status": "failed", "terminal_outcome": "failed"},))
     if any(report.get(field) != 0 for field in ("provider_calls", "auth_calls", "network_calls", "raw_payloads")) or report.get("shared_state") != "temporary_only":
-        return _bundle(ExecutionClassification.VERIFIED_FAILURE, "approval_fixture_provider_boundary_failed", (("sequence", 1), ("kind", "terminal"), ("status", "failed"), ("terminal_outcome", "failed")))
+        return _bundle(ExecutionClassification.VERIFIED_FAILURE, "approval_fixture_provider_boundary_failed", ({"sequence": 1, "kind": "terminal", "status": "failed", "terminal_outcome": "failed"},))
     if report.get("status") != "passed":
-        return _bundle(ExecutionClassification.VERIFIED_FAILURE, "approval_deterministic_fixture_failed", (("sequence", 1), ("kind", "terminal"), ("status", "failed"), ("terminal_outcome", "failed")))
+        return _bundle(ExecutionClassification.VERIFIED_FAILURE, "approval_deterministic_fixture_failed", ({"sequence": 1, "kind": "terminal", "status": "failed", "terminal_outcome": "failed"},))
     evidence_hash = _approval_report_hash(report)
     outcomes = {}
     for path in ("positive", "denial", "recovery"):
@@ -211,30 +214,53 @@ def run_deterministic(contract: Mapping[str, Any], **kwargs: Any) -> tuple[Resul
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="hermes-claude-agent-sdk-parity-v4-deterministic")
-    for name in ("contract", "plugin-sha", "host-sha", "profile-sha", "inventory-sha"):
+    for name in ("contract", "plugin-sha", "host-sha", "profile-manifest", "tool-inventory", "output"):
         parser.add_argument(f"--{name}", required=True)
-    parser.add_argument("--profile-id", default="fable-v3-isolated"); parser.add_argument("--sdk-version", default=V4_SDK_VERSION); parser.add_argument("--output", type=Path)
+    parser.add_argument("--profile-id", default="fable-v3-isolated")
+    parser.add_argument("--sdk-version", default=V4_SDK_VERSION)
     return parser
 
 
 def _write_packets(output: Path, packets: Sequence[ResultPacket]) -> None:
     output = output.expanduser().resolve()
-    if output.exists() and not output.is_dir():
-        raise V4DeterministicViolation("packet output must be a directory")
-    output.mkdir(parents=True, exist_ok=True)
+    if output.exists() or output.is_symlink():
+        raise V4DeterministicViolation("refusing to replace predecessor packet output")
+    output.parent.mkdir(parents=True, exist_ok=True)
     targets = [output / f"{packet.capability_id}__{packet.path}__trial-{packet.trial_index:03d}.json" for packet in packets]
-    if any(target.exists() for target in targets):
-        raise V4DeterministicViolation("refusing to replace pre-existing predecessor packet")
-    for target, packet in zip(targets, packets, strict=True):
-        target.write_text(json.dumps(packet.to_dict(), sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    if len(set(targets)) != len(targets):
+        raise V4DeterministicViolation("predecessor packet names are not unique")
+    with tempfile.TemporaryDirectory(prefix=f".{output.name}.", dir=output.parent) as staging_name:
+        staging = Path(staging_name)
+        for target, packet in zip(targets, packets, strict=True):
+            (staging / target.name).write_text(
+                json.dumps(packet.to_dict(), sort_keys=True, indent=2) + "\n",
+                encoding="utf-8",
+            )
+        os.rename(staging, output)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        packets = run_deterministic(load_v4_contract(args.contract), plugin_sha=args.plugin_sha, host_sha=args.host_sha, profile_id=args.profile_id, profile_hash=args.profile_sha, sdk_version=args.sdk_version, inventory_hash=args.inventory_sha)
-        if args.output is not None:
-            _write_packets(args.output, packets)
+        profile = load_profile_manifest(args.profile_manifest, expected_profile=args.profile_id)
+        inventory = load_tool_inventory(
+            args.tool_inventory,
+            expected_profile=args.profile_id,
+            expected_profile_hash=profile.manifest_hash,
+        )
+        packets = run_deterministic(
+            load_v4_contract(args.contract),
+            plugin_sha=args.plugin_sha,
+            host_sha=args.host_sha,
+            profile_id=profile.profile_id,
+            profile_hash=profile.manifest_hash,
+            sdk_version=args.sdk_version,
+            inventory_hash=inventory.inventory_hash,
+            inventory_tools=inventory.observed_tools,
+            profile_isolation_kind=profile.isolation_kind,
+            profile_persistent=profile.persistent,
+        )
+        _write_packets(Path(args.output), packets)
         print(json.dumps({"runner_version": V4_RUNNER_VERSION, "sdk_version": args.sdk_version, "cli_version": V4_CLI_VERSION, "selected_rows": DETERMINISTIC_ROW_COUNT, "required_packets": DETERMINISTIC_PACKET_COUNT, "observed_packets": len(packets), "provider_calls": 0, "proof_boundary": "Provider-free predecessor packets only; ownership receipts, v4 binding, grading, release, runtime, and customer readiness remain external."}, sort_keys=True))
         return 0
     except (V4DeterministicViolation, V4ContractViolation, OSError, ValueError) as exc:

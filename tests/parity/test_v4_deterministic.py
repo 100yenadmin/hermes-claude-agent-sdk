@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import builtins
+import json
 from collections import Counter
 from pathlib import Path
 
 import pytest
+import yaml
 
 from hermes_claude_agent_sdk.parity.hashing import sha256_value
 from hermes_claude_agent_sdk.parity.results import ExecutionClassification, ResultPacket
@@ -16,6 +18,7 @@ from hermes_claude_agent_sdk.parity.v4_deterministic import (
     DETERMINISTIC_ROW_COUNT,
     V4DeterministicViolation,
     deterministic_category,
+    main,
     run_deterministic,
     select_deterministic_rows,
 )
@@ -134,3 +137,75 @@ def test_real_adapter_never_imports_full_registry(monkeypatch) -> None:
     assert len(packets) == DETERMINISTIC_PACKET_COUNT
     assert imported == []
     assert all(packet.billing_classification == "none" for packet in packets)
+
+
+def test_cli_derives_profile_and_inventory_identity_from_manifests(
+    tmp_path: Path, monkeypatch
+) -> None:
+    profile_document = {
+        "schema_version": 1,
+        "profile_id": "fable-v3-isolated",
+        "isolation_kind": "in_process_fixture",
+        "persistent": False,
+        "shared_state": False,
+        "customer_data": False,
+        "configuration_hash": "9" * 64,
+    }
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps(profile_document), encoding="utf-8")
+    tool = {
+        "name": "read",
+        "input_schema": {
+            "type": "object",
+            "properties": {"path": {"type": "string"}},
+            "required": ["path"],
+        },
+    }
+    inventory_path = tmp_path / "inventory.yaml"
+    inventory_path.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "profile_id": "fable-v3-isolated",
+                "profile_hash": sha256_value(profile_document),
+                "declared_tools": [tool],
+                "observed_tools": [tool],
+            }
+        ),
+        encoding="utf-8",
+    )
+    captured = {}
+
+    def fake_run(contract, **kwargs):
+        captured.update(kwargs)
+        return ()
+
+    monkeypatch.setattr(
+        "hermes_claude_agent_sdk.parity.v4_deterministic.run_deterministic",
+        fake_run,
+    )
+    monkeypatch.setattr(
+        "hermes_claude_agent_sdk.parity.v4_deterministic._write_packets",
+        lambda output, packets: captured.update(output=output, packets=packets),
+    )
+
+    assert main(
+        [
+            "--contract",
+            str(ROOT / "qa/parity-contract-v4.yaml"),
+            "--plugin-sha",
+            "a" * 40,
+            "--host-sha",
+            "b" * 40,
+            "--profile-manifest",
+            str(profile_path),
+            "--tool-inventory",
+            str(inventory_path),
+            "--output",
+            str(tmp_path / "packets"),
+        ]
+    ) == 0
+    assert captured["profile_hash"] == sha256_value(profile_document)
+    assert captured["inventory_tools"] == ({"name": "read", "schema_hash": captured["inventory_tools"][0]["schema_hash"]},)
+    assert captured["profile_isolation_kind"] == "in_process_fixture"
+    assert captured["profile_persistent"] is False
