@@ -112,7 +112,7 @@ def _root(value: str | Path, field: str) -> Path:
     return root
 def _isolated_environment(*, home: Path, hermes_home: Path, plugin_root: Path, host_root: Path) -> dict[str, str]:
     python_dir = str(Path(sys.executable).resolve().parent)
-    env = {"PATH": os.pathsep.join((python_dir, os.defpath)), "HOME": str(home), "HERMES_HOME": str(hermes_home), "TMPDIR": str(home / "tmp"), "PYTHONPATH": os.pathsep.join((str(plugin_root / "src"), str(host_root))), "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1", "PYTHONHASHSEED": "0", "PYTHONUTF8": "1", "TZ": "UTC", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "HERMES_PARITY_LIVE": "0"}
+    env = {"PATH": os.pathsep.join((python_dir, os.defpath)), "HOME": str(home), "HERMES_HOME": str(hermes_home), "HERMES_AGENT_HOST_ROOT": str(host_root), "TMPDIR": str(home / "tmp"), "PYTHONPATH": os.pathsep.join((str(plugin_root / "src"), str(host_root))), "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1", "PYTHONHASHSEED": "0", "PYTHONUTF8": "1", "TZ": "UTC", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "HERMES_PARITY_LIVE": "0"}
     if _FORBIDDEN_ENV & set(env):
         raise PreflightCollectorViolation("isolated environment contains a forbidden inherited variable")
     return env

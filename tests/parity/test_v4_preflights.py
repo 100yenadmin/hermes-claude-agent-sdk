@@ -66,6 +66,7 @@ def test_collects_exactly_eight_sanitized_projections_and_binds_receipt(tmp_path
     }
     assert all("provider" not in key.casefold() for _, env in seen for key in env)
     assert all(env["HERMES_PARITY_LIVE"] == "0" for _, env in seen)
+    assert all(env["HERMES_AGENT_HOST_ROOT"] == str(host.resolve()) for _, env in seen)
     assert all(item["candidate_hash"] == sha256_value(_candidate()) for item in result.values())
     assert all(_projection(item, name, sha256_value(_candidate()))[0] == item for name, item in result.items())
 def test_commands_are_closed_and_owner_bound(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
