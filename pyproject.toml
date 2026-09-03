@@ -39,6 +39,7 @@ parity = "hermes_claude_agent_sdk.parity.executors:EXECUTORS"
 [project.scripts]
 hermes-claude-agent-sdk = "hermes_claude_agent_sdk.__main__:main"
 hermes-claude-agent-sdk-parity = "hermes_claude_agent_sdk.parity.cli:main"
+hermes-claude-agent-sdk-parity-v4 = "hermes_claude_agent_sdk.parity.v4_cli:main"
 
 [project.urls]
 Homepage = "https://github.com/100yenadmin/hermes-claude-agent-sdk"
