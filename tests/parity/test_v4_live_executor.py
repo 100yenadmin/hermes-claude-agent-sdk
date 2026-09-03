@@ -188,8 +188,8 @@ def test_executor_rejects_terminal_duplicates_and_post_terminal_events() -> None
 def test_executor_is_single_use_and_rejects_unsafe_receipt_inputs() -> None:
     fake = _FakeTransport([_event("message.complete", {"status": "denied"})])
     executor = _executor(fake)
-    receipt = executor.run("fixture")
-    assert receipt["classification"] == "EXPECTED_NEGATIVE"
+    with pytest.raises(V4LiveExecutorViolation):
+        executor.run("fixture")
     with pytest.raises(V4LiveExecutorViolation):
         executor.run("second")
 
@@ -208,3 +208,23 @@ def test_executor_is_single_use_and_rejects_unsafe_receipt_inputs() -> None:
             path="positive",
             trial_index=1,
         )
+
+
+def test_executor_rejects_nonpositive_provider_paths_before_gateway_start() -> None:
+    candidate = _candidate()
+    document = load_v4_live_execution_map(MAP_PATH)
+    for path in ("denial", "recovery"):
+        fake = _FakeTransport([_event("message.complete", {"status": "completed"})])
+        with pytest.raises(V4LiveExecutorViolation):
+            V4LiveExecutor(
+                gateway=Gateway(python="fake-python", cwd=ROOT, env={}, transport=fake),
+                candidate=candidate,
+                preflight_projections=_preflights(candidate),
+                live_map=document,
+                map_path=MAP_PATH,
+                source_pack="openclaw_active",
+                source_item_id="thread-memory-isolation",
+                path=path,
+                trial_index=1,
+            )
+        assert fake.calls == []

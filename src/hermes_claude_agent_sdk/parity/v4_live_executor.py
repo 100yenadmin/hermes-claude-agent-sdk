@@ -122,6 +122,10 @@ class V4LiveExecutor:
         rows = {f"{row['source_pack']}/{row['source_item_id']}": row for row in document.get("rows", []) if isinstance(row, Mapping)}; row = rows.get(row_key)
         if not isinstance(path, str) or path not in {"positive", "denial", "recovery"}: raise V4LiveExecutorViolation("attempt path is unsupported")
         if row is None or path not in row.get("mandatory_paths", []) or type(trial_index) is not int or trial_index not in row.get("required_trial_indexes", []): raise V4LiveExecutorViolation("attempt path or trial is not mandatory")
+        if path != "positive":
+            raise V4LiveExecutorViolation(
+                "provider execution is admitted only for the positive path"
+            )
         params = dict(session_params or {})
         if set(params) - _SESSION: raise V4LiveExecutorViolation("session parameters contain unsupported fields")
         _reject_raw(params, "session_params")
@@ -176,8 +180,11 @@ class V4LiveExecutor:
         try: trailing = self._gateway.next_event(timeout=0.01)
         except (GatewayClosed, GatewayTimeout, TimeoutError): trailing = None
         if trailing is not None: raise V4LiveExecutorViolation("event arrived after terminal")
-        classification = {"completed": "COMPLETE", "denied": "EXPECTED_NEGATIVE", "failed": "VERIFIED_FAILURE", "cancelled": "VERIFIED_FAILURE"}.get(terminal)
-        if classification is None: raise V4LiveExecutorViolation("event sequence has no supported terminal")
+        if terminal != "completed":
+            raise V4LiveExecutorViolation(
+                "positive provider execution did not complete"
+            )
+        classification = "COMPLETE"
         counts = Counter(event.event_type for event in events)
         return {"identity": self._identity.to_dict(), "candidate": dict(self._candidate), "classification": classification, "terminal_status": terminal, "event_count": len(events), "event_kinds": dict(sorted(counts.items())), "events": [event.to_dict() for event in events], "control_calls_used": self._control_calls, "provider_calls": self._provider_calls, "turns_used": 1, "approval": {"decision_class": decision_class, "decision_count": self._approval_count}}
 
