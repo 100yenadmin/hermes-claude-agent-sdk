@@ -58,7 +58,8 @@ def _install_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, plugin: An
     shutil.copytree(PLUGIN_ROOT, installed)
     (home / "config.yaml").write_text(
         f"plugins:\n  enabled:\n    - {plugin.PLUGIN_ID}\n"
-        "delegation:\n  max_iterations: 1\n  max_spawn_depth: 1\n",
+        "delegation:\n  max_iterations: 1\n  max_spawn_depth: 1\n"
+        "auxiliary:\n  title_generation:\n    enabled: false\n",
         encoding="utf-8",
     )
     monkeypatch.setenv("HERMES_HOME", str(home))
@@ -124,6 +125,9 @@ def _run_parent(
     prompt: str,
 ) -> tuple[dict[str, Any], list[tuple[str, str | None, str]], dict[str, Any]]:
     home, manager, override = _install_fixture(tmp_path, monkeypatch, plugin)
+    from agent.title_generator import _auto_title_enabled
+
+    assert _auto_title_enabled() is False
     db = SessionDB(home / "state.db")
     parent_id = f"v4-parent-{prompt.rsplit(' ', 1)[-1]}"
     client_builds: list[str] = []
