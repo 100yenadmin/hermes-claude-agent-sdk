@@ -37,16 +37,13 @@ _HERMES_MCP_TOOLS = frozenset(
         "mcp__hermes-tools__terminal",
         "mcp__hermes-tools__process_manage",
         "mcp__hermes-tools__delegate_task",
+        "mcp__hermes-tools__v4_fixture_local_state",
     }
 )
 _TOOLS_BY_MECHANISM = {
     "parent_text": (),
     "parent_state": ("mcp__hermes-tools__memory",),
-    "host_tool_pdr": (
-        "mcp__hermes-tools__browser",
-        "mcp__hermes-tools__cron",
-        "mcp__hermes-tools__terminal",
-    ),
+    "host_tool_pdr": ("mcp__hermes-tools__v4_fixture_local_state",),
     "host_delegate": ("mcp__hermes-tools__delegate_task",),
     "host_background": (
         "mcp__hermes-tools__cron",
@@ -286,10 +283,10 @@ class V4FixtureMaterializer:
                 f"Fixture root: {item['fixture_id']}", f"Row: {item.row_key}",
                 f"Mechanism: {item['mechanism_class']}; path: {path}; trial: {trial}; turn: {turn}; label: {label}.",
                 f"Use only Hermes-owned MCP host surfaces; allowed tools: {tools}.",
-                "Do not invoke native Claude tools, agents, background routes, providers, or external delivery.",
+                "Do not invoke native Claude tools, Agent, or native background features; do not make direct or alternate provider calls or deliver externally. Answer this instruction through Hermes-owned surfaces.",
                 f"Exercise the bounded {item['turn_recipe']} recipe and expose: {','.join(expected.required_observations)}.",
                 f"Approval choice is {expected.approval_choice}; expected child count is {expected.expected_child_count}.",
-                "Keep any approval denial and safe local recovery in this one parent turn; do not add a provider call.",
+                "Keep any approval denial and safe local recovery in this one parent turn; preserve one parent call.",
             )
         )
         encoded = text.encode("utf-8")

@@ -45,13 +45,13 @@ def test_special_recipes_have_distinct_labels_and_one_positive_parent_call() -> 
 def test_children_approval_recovery_and_external_delivery_are_closed_expectations() -> None:
     materializer = _materializer()
     fanout = materializer.materialize("v2_non_soak/ORCH-05", trial_index=1, turn_index=1)
-    assert fanout.host.expected_child_count == 2
+    assert fanout.host.expected_child_count == 2 and fanout.host.allowed_tool_names == ("mcp__hermes-tools__delegate_task",)
     assert fanout.host.expected_child_ordinals == (1, 2)
     approval = materializer.materialize("clawprobench_native/constraints_23_external_approval_boundary_live", trial_index=2, turn_index=1)
-    assert approval.host.approval_choice == "deny"
+    assert approval.host.approval_choice == "deny" and approval.host.allowed_tool_names == ("mcp__hermes-tools__v4_fixture_local_state",)
     assert approval.host.approval_sequence == ("deny", "safe_recovery")
     assert approval.host.expected_parent_provider_calls == 1
-    assert approval.host.external_delivery_allowed is False
+    assert approval.host.external_delivery_allowed is False and "direct or alternate provider calls" in approval.prompt.ephemeral_text
     assert "delivery_boundary" in approval.host.required_observations
 
 
