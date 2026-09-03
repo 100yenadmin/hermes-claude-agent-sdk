@@ -37,12 +37,14 @@ def test_construction_is_inert_and_incompatible_identity_precedes_start(tmp_path
 def test_fake_normal_gateway_positive_packet_and_safe_env(tmp_path, monkeypatch):
     monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(1))
     monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": [], "parent_link_sha256": None, "lifecycle": "none"})
-    monkeypatch.setenv("HOME", "transient-home"); monkeypatch.setenv("CLAUDE_CONFIG_DIR", "transient-config"); monkeypatch.setenv("ANTHROPIC_API_KEY", "redacted"); monkeypatch.setenv("GLM_API_KEY", "redacted"); monkeypatch.setenv("EXTRA_USAGE", "redacted")
+    transient_home = tmp_path / "transient-home"
+    transient_config = tmp_path / "transient-config"
+    monkeypatch.setenv("HOME", str(transient_home)); monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(transient_config)); monkeypatch.setenv("ANTHROPIC_API_KEY", "redacted"); monkeypatch.setenv("GLM_API_KEY", "redacted"); monkeypatch.setenv("EXTRA_USAGE", "redacted")
     transport, seen = _Transport(_events()), {}
     def factory(**kwargs): seen.update(kwargs); return Gateway(python="fake", cwd=ROOT, env=kwargs["env"], transport=transport, host_tools=kwargs["host_tools"], mcp_tools=kwargs["mcp_tools"])
     result = _runner(tmp_path / "home", factory).execute(); env = seen["env"]
     assert result["paths"]["positive"]["classification"] == "COMPLETE" and transport.sid not in repr(result)
-    assert env["HOME"] == "transient-home" and env["CLAUDE_CONFIG_DIR"] == "transient-config" and env["HERMES_MODEL"] == "claude-fable-5-1" and env["HERMES_TUI_PROVIDER"] == "claude-agent-sdk"
+    assert env["HOME"] == str(transient_home) and env["CLAUDE_CONFIG_DIR"] == str(transient_config) and env["HERMES_MODEL"] == "claude-fable-5-1" and env["HERMES_TUI_PROVIDER"] == "claude-agent-sdk"
     assert all(name not in env for name in ("ANTHROPIC_API_KEY", "GLM_API_KEY", "EXTRA_USAGE")); assert "v4_fixture_local_state" in seen["host_tools"] and "mcp__hermes-tools__v4_fixture_local_state" in seen["mcp_tools"]
 def test_missing_host_observation_fails_closed_without_path_fabrication(tmp_path):
     transport = _Transport(_events())
