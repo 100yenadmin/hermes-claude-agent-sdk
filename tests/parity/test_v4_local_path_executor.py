@@ -21,19 +21,6 @@ def _assert_local(packet: dict, path: str, trace: tuple[str, ...]) -> None:
     assert packet["host_local"] is True and packet["provider_calls"] == 0
 
 
-def test_basic_start_terminal_is_observed_and_closed(tmp_path: Path) -> None:
-    packet = _run(tmp_path, "openclaw_active/source-docs-discovery-report")
-    _assert_local(packet, "positive", ("start", "terminal"))
-    assert packet["terminal_status"] == "completed"
-
-
-def test_state_path_uses_before_after_fixture_snapshot(tmp_path: Path) -> None:
-    packet = _run(tmp_path, "v2_non_soak/PARENT-01")
-    _assert_local(packet, "positive", ("start", "state", "terminal"))
-    assert packet["observation"]["state_before"]["present"] is False
-    assert packet["observation"]["state_after"]["present"] is True
-
-
 def test_tool_path_observes_real_host_request_and_result(tmp_path: Path) -> None:
     packet = _run(tmp_path, "v2_non_soak/TOOL-02")
     _assert_local(packet, "positive", ("start", "tool_requested", "tool_result", "state", "terminal"))
@@ -44,26 +31,41 @@ def test_tool_path_observes_real_host_request_and_result(tmp_path: Path) -> None
 
 def test_approval_denial_is_negative_and_does_not_write(tmp_path: Path) -> None:
     packet = _run(tmp_path, "clawprobench_native/constraints_23_external_approval_boundary_live", "denial")
-    _assert_local(packet, "denial", ("start", "approval_requested", "approval_decision", "terminal"))
+    _assert_local(packet, "denial", ("start", "approval_requested", "approval_decision", "tool_requested", "tool_result", "terminal"))
     assert packet["terminal_status"] == "denied"
+    assert packet["observation"]["tool"] == {"request_count": 1, "result_count": 1}
     assert packet["observation"]["approval"]["decisions"] == ["deny"]
     assert not (tmp_path / ".v4_local_runtime_fixture_state.json").exists()
 
 
 def test_approval_recovery_retains_denial_then_writes_once(tmp_path: Path) -> None:
     packet = _run(tmp_path, "clawprobench_native/constraints_23_external_approval_boundary_live", "recovery")
-    _assert_local(packet, "recovery", ("start", "approval_requested", "approval_decision", "terminal"))
+    _assert_local(packet, "recovery", ("start", "approval_requested", "approval_decision", "tool_requested", "tool_result", "terminal"))
     assert packet["observation"]["prior_denial"] == {"observed": True, "no_write": True}
     assert packet["observation"]["single_write_on_recovery"] is True
     assert packet["observation"]["approval"]["decisions"] == ["deny", "once"]
+    assert packet["observation"]["tool"] == {"request_count": 2, "result_count": 2}
+
+
+def test_host_binding_is_required_and_source_bound(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("HERMES_AGENT_HOST_ROOT", raising=False)
+    with pytest.raises(V4LocalPathExecutorViolation):
+        _run(tmp_path, "v2_non_soak/TOOL-02")
+    monkeypatch.setenv("HERMES_AGENT_HOST_ROOT", str(tmp_path))
+    with pytest.raises(V4LocalPathExecutorViolation):
+        _run(tmp_path, "v2_non_soak/TOOL-02")
 
 
 def test_inputs_and_unmapped_rows_are_rejected_before_host(tmp_path: Path) -> None:
     with pytest.raises(V4LocalPathExecutorViolation):
         _run(tmp_path, "v2_non_soak/AUTH-01")
     with pytest.raises(V4LocalPathExecutorViolation):
-        execute_v4_local_path(row_key="v2_non_soak/PARENT-01", trial_index=2, path="positive", task_root=tmp_path)
+        _run(tmp_path, "v2_non_soak/PARENT-01")
     with pytest.raises(V4LocalPathExecutorViolation):
-        execute_v4_local_path(row_key="v2_non_soak/PARENT-01", trial_index=1, path="denial", task_root=tmp_path)
+        _run(tmp_path, "openclaw_active/source-docs-discovery-report")
+    with pytest.raises(V4LocalPathExecutorViolation):
+        execute_v4_local_path(row_key="v2_non_soak/TOOL-02", trial_index=4, path="positive", task_root=tmp_path)
+    with pytest.raises(V4LocalPathExecutorViolation):
+        execute_v4_local_path(row_key="v2_non_soak/TOOL-02", trial_index=1, path="denial", task_root=tmp_path)
     with pytest.raises(TypeError):
         execute_v4_local_path(row_key="v2_non_soak/PARENT-01", trial_index=1, path="positive", task_root=tmp_path, expected_trace=())
