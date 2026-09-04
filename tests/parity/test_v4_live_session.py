@@ -3,7 +3,9 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 import pytest
+from hermes_claude_agent_sdk.parity import v4_live_session as live_session_module
 from hermes_claude_agent_sdk.parity.v4_gateway import Gateway, OpaqueHandle
+from hermes_claude_agent_sdk.parity.v4_host_probe import V4HostProbeViolation
 from hermes_claude_agent_sdk.parity.v4_live_map import load_v4_live_execution_map
 from hermes_claude_agent_sdk.parity.v4_live_session import V4LiveSession, V4LiveSessionViolation
 from .test_v4_host_probe import _db, _delegation_db
@@ -310,6 +312,34 @@ def test_live_session_collects_durable_delegation_with_private_stored_identity(t
     assert observation["count"] == observation["parent_delivery_count"] == 1
     assert stored_id not in repr(observation)
     assert delegation_id not in repr(observation)
+
+
+def test_live_session_waits_for_atomic_delegation_delivery_settlement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path, stored_id, _ = _delegation_db(tmp_path)
+    transport = _SessionTransport(stored_session_id=stored_id)
+    session = _session(transport)
+    session.start()
+    delivered = live_session_module.collect_v4_delegation_observation(
+        path, stored_id, allowed_root=tmp_path, expected_count=1
+    )
+    attempts = 0
+
+    def settling(*args: object, **kwargs: object) -> dict[str, object]:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise V4HostProbeViolation("live delegation has a parent completion")
+        return delivered
+
+    monkeypatch.setattr(live_session_module, "collect_v4_delegation_observation", settling)
+    monkeypatch.setattr(live_session_module.time, "sleep", lambda _: None)
+    observation = session.collect_delegation_observation(
+        path, allowed_root=tmp_path, expected_count=1
+    )
+    assert attempts == 2
+    assert observation["delivery_state"] == "delivered"
 
 
 def test_live_session_delegation_observation_failure_closes_session(tmp_path: Path) -> None:

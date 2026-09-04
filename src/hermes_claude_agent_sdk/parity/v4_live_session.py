@@ -1,10 +1,12 @@
 """Bounded provider-free normal-Hermes sessions over one live gateway."""
 from __future__ import annotations
 import re
+import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 from .v4_host_probe import (
+    V4HostProbeViolation,
     collect_v4_delegation_observation,
     collect_v4_host_observation,
 )
@@ -30,6 +32,15 @@ class V4LiveSessionViolation(V4LiveExecutorViolation):
 
 
 _TOOL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
+_DELEGATION_SETTLEMENT_TIMEOUT = 5.0
+_DELEGATION_SETTLEMENT_POLL = 0.05
+_TRANSIENT_DELEGATION_ERRORS = frozenset(
+    {
+        "delegation count does not match expected evidence",
+        "delivered delegation lacks parent delivery",
+        "live delegation has a parent completion",
+    }
+)
 
 def _row_turn_budget(live_map: Mapping[str, Any], source_pack: str, source_item_id: str) -> int:
     rows = live_map.get("rows", ())
@@ -465,15 +476,36 @@ class V4LiveSession:
         ):
             raise V4LiveSessionViolation("delegation observation count is invalid")
         try:
-            observation = collect_v4_delegation_observation(
-                db_path,
-                self._stored_session_id,
-                allowed_root=allowed_root,
-                expected_count=expected_count,
-            )
-            if not isinstance(observation, Mapping) or observation.get("status") != "PASS":
-                raise V4LiveSessionViolation("delegation observation is not a closed PASS")
-            return dict(observation)
+            deadline = time.monotonic() + _DELEGATION_SETTLEMENT_TIMEOUT
+            while True:
+                try:
+                    observation = collect_v4_delegation_observation(
+                        db_path,
+                        self._stored_session_id,
+                        allowed_root=allowed_root,
+                        expected_count=expected_count,
+                    )
+                except V4HostProbeViolation as exc:
+                    if (
+                        str(exc) not in _TRANSIENT_DELEGATION_ERRORS
+                        or time.monotonic() >= deadline
+                    ):
+                        raise
+                else:
+                    if not isinstance(observation, Mapping) or observation.get("status") != "PASS":
+                        raise V4LiveSessionViolation("delegation observation is not a closed PASS")
+                    if (
+                        not expected_count
+                        or observation.get("delivery_state") == "delivered"
+                        and observation.get("parent_delivery_count") == expected_count
+                    ):
+                        return dict(observation)
+                    if (
+                        observation.get("delivery_state") != "pending"
+                        or time.monotonic() >= deadline
+                    ):
+                        raise V4LiveSessionViolation("delegation observation is not a closed PASS")
+                time.sleep(_DELEGATION_SETTLEMENT_POLL)
         except Exception:
             self._failed = True
             if not self._closed:
