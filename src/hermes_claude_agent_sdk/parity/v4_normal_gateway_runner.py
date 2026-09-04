@@ -451,6 +451,13 @@ class V4NormalGatewayRunner:
             self._admit(row_key, trial_index)
 
     def _admit(self, row_key: str, trial_index: int) -> Any:
+        # A row-labelled local ownership fixture does not exercise the pinned
+        # native problem or run its semantic grader. Do not spend provider calls
+        # or issue native parity packets until a source-faithful adapter exists.
+        if row_key.startswith("clawprobench_native/"):
+            raise V4NormalGatewayRunnerViolation(
+                "native behavior requires source-faithful Hermes execution and grading"
+            )
         try:
             scenario = next(item for item in self._catalog.scenarios if item.row_key == row_key)
             fixture = next(item for item in self._materializer.fixtures if item.row_key == row_key)

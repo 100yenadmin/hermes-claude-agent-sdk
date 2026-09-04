@@ -13,6 +13,7 @@ from hermes_claude_agent_sdk.parity.v4_gateway_inventory import (
     build_v4_gateway_inventory,
 )
 from hermes_claude_agent_sdk.parity.v4_live_session import V4LiveSession
+from hermes_claude_agent_sdk.parity.v4_live_scenarios import build_v4_live_scenario_catalog
 from hermes_claude_agent_sdk.parity.v4_normal_gateway_runner import (
     V4NormalGatewayRunner,
     V4NormalGatewayRunnerViolation,
@@ -442,7 +443,9 @@ def test_background_batch_count_mismatch_fails_closed(tmp_path, monkeypatch):
     ),
 )
 def test_zero_child_delegation_boundary_retains_required_background(tmp_path, row):
-    runner = _runner(tmp_path / "home", lambda **_: None, row)
+    # This tests only the delegation projection, not native row admission or
+    # the source scenario's behavior.
+    runner = _runner(tmp_path / "home", lambda **_: None)
     scenario = next(item for item in runner._catalog.scenarios if item.row_key == row)
     durable = {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": []}
     snapshots = ({"subagents": [], "events": [{"kind": "background"}], "terminal_status": "completed"},)
@@ -455,6 +458,20 @@ def test_zero_child_delegation_boundary_retains_required_background(tmp_path, ro
         "parent_link_sha256": None,
         "parent_delivery_sha256": None,
     }
+
+
+@pytest.mark.parametrize(
+    "row",
+    [scenario.row_key for scenario in build_v4_live_scenario_catalog().scenarios
+     if scenario.row_key.startswith("clawprobench_native/")],
+)
+def test_generic_fixture_cannot_admit_native_behavior_proof(tmp_path, row):
+    def forbidden_gateway(**kwargs):
+        pytest.fail("native semantic admission must fail before Gateway creation")
+
+    with pytest.raises(V4NormalGatewayRunnerViolation, match="source-faithful"):
+        _runner(tmp_path / "home", forbidden_gateway, row)
+    assert not (tmp_path / "home").exists()
 
 
 def test_zero_child_delegation_rejects_unmapped_background(tmp_path):

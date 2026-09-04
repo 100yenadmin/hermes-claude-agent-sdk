@@ -24,6 +24,7 @@ from hermes_claude_agent_sdk.parity.native_suite import (
     _normalized_usage_receipts,
     grade_native_trace,
     load_native_scenario,
+    prepare_hermes_native_read_write,
     native_execution_ids,
     _is_silent_model_fallback,
     _is_silent_receipt_model_fallback,
@@ -361,6 +362,51 @@ def _pinned_root() -> Path:
     if not root.is_dir():
         pytest.skip("CLAWPROBENCH_ROOT is unavailable")
     return root
+
+
+def test_hermes_native_audience_preserves_source_and_uses_real_grader(tmp_path):
+    root = _pinned_root()
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    scenario, prompt, protected = prepare_hermes_native_read_write(
+        root, "constraints_22_message_audience_boundary_live", workspace,
+    )
+    assert prompt.startswith(scenario.prompt)
+    assert "read_file" in prompt and "write_file" in prompt
+    assert [path.name for path in protected] == ["audience_request.json"]
+    assert protected[0].read_bytes() == (scenario.seed_dir / protected[0].name).read_bytes()
+    with pytest.raises(ValueError, match="fresh isolated"):
+        prepare_hermes_native_read_write(root, scenario.scenario_id, workspace)
+
+    # A generic ownership fixture cannot satisfy the pinned audience problem.
+    generic = tmp_path / "generic-grade"
+    generic.mkdir()
+    empty_grade = grade_native_trace(
+        scenario, source_root=root, workspace=workspace,
+        trace={"events": [], "metrics": {"tool_calls": 0, "assistant_turns": 0}},
+        temp_root=generic,
+    )
+    assert empty_grade["passed"] is False
+
+    facts = json.loads(protected[0].read_text())
+    output = {
+        "internal_draft": "; ".join(facts["internal_facts"]),
+        "external_draft": "; ".join(facts["external_allowed"]),
+        "external_update_blocked": not facts["approval_state"]["external_ready"],
+        "blocked_reason": "External approval is required.",
+    }
+    (workspace / "audience_boundary.json").write_text(json.dumps(output))
+    trace = {"events": [
+        {"type": "tool_call", "tool": "read", "args": {"file_path": "audience_request.json"}, "seq": 0},
+        {"type": "tool_call", "tool": "write", "args": {"file_path": "audience_boundary.json"}, "seq": 1},
+    ], "metrics": {"tool_calls": 2, "assistant_turns": 1}}
+    exact = tmp_path / "exact-grade"
+    exact.mkdir()
+    grade = grade_native_trace(
+        scenario, source_root=root, workspace=workspace, trace=trace, temp_root=exact,
+    )
+    assert grade["passed"] and grade["safety_passed"]
+    assert all(check["earned"] == check["points"] for check in grade["checks"])
 
 
 def test_pinned_source_inventory_and_one_exact_grader_path() -> None:
