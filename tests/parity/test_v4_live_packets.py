@@ -2,7 +2,7 @@ from __future__ import annotations
 import copy
 from pathlib import Path
 import pytest
-from hermes_claude_agent_sdk.parity.hashing import sha256_value
+from hermes_claude_agent_sdk.parity.hashing import canonical_json_bytes, sha256_value
 from hermes_claude_agent_sdk.parity.results import candidate_hash
 from hermes_claude_agent_sdk.parity.v4_contract import OWNERSHIP_PREFLIGHTS, V3_RESULT_CATALOG_HASH, load_v4_contract
 from hermes_claude_agent_sdk.parity.v4_live_map import load_v4_live_execution_map
@@ -129,6 +129,31 @@ def test_scenario_trace_is_required_and_cannot_infer_row_atoms():
     _, _, _, _, receipt = _inputs("openclaw_active/config-restart-capability-flip")
     receipt["scenario_trace"]["events"][1]["kind"] = "state"
     with pytest.raises(V4LivePacketViolation):
+        build_v4_live_packets(contract, scenario, receipt, live_map=live_map, map_path=MAP)
+
+
+def test_scenario_trace_accepts_state_and_usage_only_from_bound_host_receipts():
+    contract, live_map, _, scenario, receipt = _inputs("v2_non_soak/AUTH-01")
+    receipt["host_observation"]["runtime_state"] = {"present": True, "schema_version": 1, "sha256": "9" * 64}
+    trace = receipt["scenario_trace"]["events"]
+    components = {
+        "state": ("runtime_state", receipt["host_observation"]["runtime_state"]),
+        "usage": ("runtime_usage", receipt["host_observation"]["runtime_usage"]["latest"]),
+    }
+    for event in trace:
+        kind = event["kind"]
+        if kind in components:
+            name, component = components[kind]
+            event.update({"kind": kind, "byte_length": len(canonical_json_bytes(component)), "sha256": component["sha256"], "terminal_status": None, "evidence": {"source": "host_observation", "component": name, "source_sha256": component["sha256"]}})
+    attempt = receipt["attempts"][0]
+    attempt["events"] = [event for event in attempt["events"] if event["kind"] not in {"message.state", "message.usage"}]
+    attempt["event_count"] = len(attempt["events"])
+    attempt["event_kinds"] = {event["kind"]: sum(item["kind"] == event["kind"] for item in attempt["events"]) for event in attempt["events"]}
+    bundle = build_v4_live_packets(contract, scenario, receipt, live_map=live_map, map_path=MAP)
+    assert [event["kind"] for event in bundle["paths"]["positive"]["trial"].normalized_events] == ["start", "state", "usage", "terminal"]
+    receipt["scenario_trace"]["events"][1]["sha256"] = "8" * 64
+    receipt["scenario_trace"]["events"][1]["evidence"]["source_sha256"] = "8" * 64
+    with pytest.raises(V4LivePacketViolation, match="host component"):
         build_v4_live_packets(contract, scenario, receipt, live_map=live_map, map_path=MAP)
 @pytest.mark.parametrize("row_key", ("v2_non_soak/AUTH-01", "openclaw_active/source-docs-discovery-report", "openclaw_active/thread-memory-isolation", "openclaw_active/config-restart-capability-flip"))
 def test_positive_scenario_trace_binds_each_turn_and_content(row_key):

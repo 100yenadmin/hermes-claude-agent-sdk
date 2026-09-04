@@ -30,6 +30,7 @@ from .v4_live_session import V4LiveSession
 from .v4_local_mechanism_executor import execute_v4_local_mechanism
 from .v4_local_path_executor import execute_v4_local_path
 from .v4_local_restart import run_v4_local_restart
+from .hashing import canonical_json_bytes
 from .results import candidate_hash as result_candidate_hash
 
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
@@ -191,7 +192,13 @@ class _ObservedGateway:
         return tuple(self._snapshots)
 
 
-def _trace(contract: Mapping[str, Any], scenario: Any, attempts: list[Mapping[str, Any]], snapshots: tuple[Mapping[str, Any], ...]) -> dict[str, Any]:
+def _trace(
+    contract: Mapping[str, Any],
+    scenario: Any,
+    attempts: list[Mapping[str, Any]],
+    snapshots: tuple[Mapping[str, Any], ...],
+    host: Mapping[str, Any],
+) -> dict[str, Any]:
     row = next(item for item in contract["source_rows"] if f"{item['source_pack']}/{item['source_item_id']}" == scenario.row_key)
     expected = tuple(row["expected_trace"])
     if len(attempts) != len(snapshots):
@@ -207,18 +214,35 @@ def _trace(contract: Mapping[str, Any], scenario: Any, attempts: list[Mapping[st
             canonical = _CANONICAL.get(event.get("kind"))
             if canonical is not None:
                 observed.append((turn, ordinal, event, canonical))
-    chosen: list[tuple[int, int, Mapping[str, Any], str]] = []
+    chosen: list[dict[str, Any]] = []
+    chosen_attempt_positions: list[tuple[int, int]] = []
     used: set[tuple[int, int]] = set()
     for kind in expected:
         candidates = [item for item in observed if item[3] == kind and (item[0], item[1]) not in used]
-        if not candidates:
-            raise V4NormalGatewayRunnerViolation("observed Gateway trace lacks a required projection")
-        chosen_item = candidates[-1] if kind == "terminal" else candidates[0]
-        used.add((chosen_item[0], chosen_item[1]))
-        chosen.append(chosen_item)
-    if [(item[0], item[1]) for item in chosen] != sorted((item[0], item[1]) for item in chosen):
+        if candidates:
+            turn, ordinal, event, _ = candidates[-1] if kind == "terminal" else candidates[0]
+            used.add((turn, ordinal))
+            chosen_attempt_positions.append((turn, ordinal))
+            chosen.append({"kind": event["kind"], "byte_length": event["byte_length"], "sha256": event["sha256"], "terminal_status": event["terminal_status"], "evidence": {"source": "attempt", "attempt_index": turn, "source_sha256": event["sha256"]}})
+            continue
+        component: Mapping[str, Any] | None = None
+        component_name: str | None = None
+        if kind == "state":
+            state = host.get("runtime_state")
+            if isinstance(state, Mapping) and state.get("present") is True:
+                component, component_name = state, "runtime_state"
+        elif kind == "usage":
+            usage = host.get("runtime_usage")
+            latest = usage.get("latest") if isinstance(usage, Mapping) else None
+            if isinstance(latest, Mapping):
+                component, component_name = latest, "runtime_usage"
+        if component is None or component_name is None:
+            raise V4NormalGatewayRunnerViolation("observed Hermes evidence lacks a required projection")
+        digest = _digest(component.get("sha256"), f"host {component_name} proof")
+        chosen.append({"kind": kind, "byte_length": len(canonical_json_bytes(component)), "sha256": digest, "terminal_status": None, "evidence": {"source": "host_observation", "component": component_name, "source_sha256": digest}})
+    if chosen_attempt_positions != sorted(chosen_attempt_positions):
         raise V4NormalGatewayRunnerViolation("observed Gateway trace is out of order")
-    return {"schema_version": 1, "row_key": scenario.row_key, "predecessor_execution_id": scenario.predecessor_execution_id, "path": "positive", "trial_index": attempts[0]["identity"]["trial_index"], "events": [{"kind": event["kind"], "byte_length": event["byte_length"], "sha256": event["sha256"], "terminal_status": event["terminal_status"], "evidence": {"source": "attempt", "attempt_index": turn, "source_sha256": event["sha256"]}} for turn, _, event, _ in chosen]}
+    return {"schema_version": 1, "row_key": scenario.row_key, "predecessor_execution_id": scenario.predecessor_execution_id, "path": "positive", "trial_index": attempts[0]["identity"]["trial_index"], "events": chosen}
 
 
 def _packet_attempt(attempt: Mapping[str, Any]) -> dict[str, Any]:
@@ -378,7 +402,7 @@ class V4NormalGatewayRunner:
                 session.close()
             expected_batches = 1 if scenario.mechanism_class == "host_background" and scenario.child_calls else 0
             durable = session.collect_delegation_observation(database, allowed_root=self._home, expected_count=expected_batches)
-            trace = _trace(self._contract, scenario, attempts, observed_gateway.snapshots)
+            trace = _trace(self._contract, scenario, attempts, observed_gateway.snapshots, host)
             delegation = _delegation(scenario, trial_index, observed_gateway.snapshots, durable)
             packet_attempts = [_packet_attempt(attempt) for attempt in attempts]
             trial_candidate_hash = result_candidate_hash(catalog_hash=V3_RESULT_CATALOG_HASH, plugin_sha=self._candidate["plugin_sha"], host_sha=self._candidate["host_sha"], sdk_version=self._candidate["sdk_version"], profile_hash=self._candidate["profile_sha256"], runner_version=self._candidate["runner_version"], inventory_hash=self._inventory_hash)

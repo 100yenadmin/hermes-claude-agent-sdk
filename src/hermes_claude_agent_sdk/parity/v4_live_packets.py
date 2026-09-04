@@ -4,7 +4,7 @@ import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
-from .hashing import json_compatible, sha256_value
+from .hashing import canonical_json_bytes, json_compatible, sha256_value
 from .results import ResultPacket
 from .v4_contract import (
     OWNERSHIP_PREFLIGHTS, V3_RESULT_CATALOG_HASH, V3_RESULT_CONTRACT_HASH,
@@ -31,7 +31,8 @@ _LOCAL = frozenset({"schema_version", "status", "path", "host_local", "provider_
 _DELEGATION = frozenset({"count", "background_count", "lifecycle", "parent_link_sha256"})
 _TRACE = frozenset({"schema_version", "row_key", "predecessor_execution_id", "path", "trial_index", "events"})
 _TRACE_EVENT = frozenset({"kind", "byte_length", "sha256", "terminal_status", "evidence"})
-_TRACE_EVIDENCE = frozenset({"source", "attempt_index", "source_sha256"})
+_TRACE_ATTEMPT_EVIDENCE = frozenset({"source", "attempt_index", "source_sha256"})
+_TRACE_HOST_EVIDENCE = frozenset({"source", "component", "source_sha256"})
 _TERMINALS = frozenset({"completed", "denied", "failed", "cancelled"})
 _CONTENT = frozenset({"message.delta", "message.content", "content", "text", "message.text"})
 class V4LivePacketViolation(ValueError):
@@ -217,7 +218,7 @@ def _attempt(value: Any, scenario: V4LiveScenario, candidate_hash: str) -> tuple
     if approval["decision_count"] != sum(count for kind, count in raw_counts.items() if kind.casefold() not in _CONTENT and _kind(kind) == "approval_requested"):
         raise V4LivePacketViolation("approval request count does not match event projection")
     return result, candidate, events, content
-def _scenario_trace(value: Any, scenario: V4LiveScenario, expected_trace: Sequence[str], attempts: Sequence[Mapping[str, Any]]) -> tuple[tuple[dict[str, Any], ...], str]:
+def _scenario_trace(value: Any, scenario: V4LiveScenario, expected_trace: Sequence[str], attempts: Sequence[Mapping[str, Any]], host: Mapping[str, Any]) -> tuple[tuple[dict[str, Any], ...], str]:
     trace = _copy(value, "scenario_trace")
     if set(trace) != _TRACE or trace["schema_version"] != 1 or trace["row_key"] != scenario.row_key or trace["predecessor_execution_id"] != scenario.predecessor_execution_id or trace["path"] != "positive" or trace["trial_index"] != attempts[0]["identity"]["trial_index"] or not isinstance(trace["events"], list) or len(trace["events"]) != len(expected_trace):
         raise V4LivePacketViolation("scenario trace envelope is not closed or row-bound")
@@ -229,11 +230,36 @@ def _scenario_trace(value: Any, scenario: V4LiveScenario, expected_trace: Sequen
             raise V4LivePacketViolation("scenario trace event fields are not closed")
         kind, digest = _kind(item["kind"]), _digest(item["sha256"], f"scenario_trace.events[{ordinal - 1}].sha256")
         evidence = _copy(item["evidence"], f"scenario_trace.events[{ordinal - 1}].evidence")
-        if set(evidence) != _TRACE_EVIDENCE or evidence["source"] != "attempt" or type(evidence["attempt_index"]) is not int or not 1 <= evidence["attempt_index"] <= len(attempts) or evidence["source_sha256"] != digest:
-            raise V4LivePacketViolation("scenario trace evidence is not an attempt-bound projection")
-        source = source_events.get((evidence["attempt_index"], digest))
-        if source is None or _kind(source["kind"]) != kind or source["byte_length"] != item["byte_length"] or source["terminal_status"] != item["terminal_status"] or digest in used:
-            raise V4LivePacketViolation("scenario trace component is absent, mismatched, or reused")
+        source_key: tuple[str, str]
+        if evidence.get("source") == "attempt":
+            if set(evidence) != _TRACE_ATTEMPT_EVIDENCE or type(evidence["attempt_index"]) is not int or not 1 <= evidence["attempt_index"] <= len(attempts) or evidence["source_sha256"] != digest:
+                raise V4LivePacketViolation("scenario trace evidence is not an attempt-bound projection")
+            source = source_events.get((evidence["attempt_index"], digest))
+            if source is None or _kind(source["kind"]) != kind or source["byte_length"] != item["byte_length"] or source["terminal_status"] != item["terminal_status"]:
+                raise V4LivePacketViolation("scenario trace component is absent or mismatched")
+            source_key = ("attempt", digest)
+        elif evidence.get("source") == "host_observation":
+            if set(evidence) != _TRACE_HOST_EVIDENCE or evidence.get("component") not in {"runtime_state", "runtime_usage"} or evidence["source_sha256"] != digest:
+                raise V4LivePacketViolation("scenario trace evidence is not a host-bound projection")
+            component_name = evidence["component"]
+            if component_name == "runtime_state":
+                source = host.get("runtime_state")
+                expected_kind = "state"
+                if not isinstance(source, Mapping) or source.get("present") is not True:
+                    raise V4LivePacketViolation("scenario trace host state evidence is absent")
+            else:
+                usage = host.get("runtime_usage")
+                source = usage.get("latest") if isinstance(usage, Mapping) else None
+                expected_kind = "usage"
+                if not isinstance(source, Mapping):
+                    raise V4LivePacketViolation("scenario trace host usage evidence is absent")
+            if kind != expected_kind or source.get("sha256") != digest or len(canonical_json_bytes(source)) != item["byte_length"] or item["terminal_status"] is not None:
+                raise V4LivePacketViolation("scenario trace host component is mismatched")
+            source_key = (f"host:{component_name}", digest)
+        else:
+            raise V4LivePacketViolation("scenario trace evidence source is unsupported")
+        if source_key in used:
+            raise V4LivePacketViolation("scenario trace component is reused")
         if type(item["byte_length"]) is not int or not 1 <= item["byte_length"] <= 1_048_576:
             raise V4LivePacketViolation("scenario trace byte length is invalid")
         if kind == "terminal":
@@ -247,7 +273,7 @@ def _scenario_trace(value: Any, scenario: V4LiveScenario, expected_trace: Sequen
             event = {"sequence": ordinal, "kind": kind, "metadata_hash": digest, "status": "observed"}
         if kind != expected_trace[ordinal - 1]:
             raise V4LivePacketViolation("scenario trace does not match the immutable row trace")
-        used.add(digest); output.append(event)
+        used.add(source_key); output.append(event)
     if terminal_count != 1:
         raise V4LivePacketViolation("scenario trace lacks one completed terminal")
     return tuple(output), sha256_value(trace)
@@ -371,7 +397,7 @@ def build_v4_live_packets(contract: Mapping[str, Any], scenario: V4LiveScenario 
             raise V4LivePacketViolation("positive preflight identity is not exact")
         _id(receipt["profile_id"], "profile_id"); _digest(receipt["inventory_hash"], "inventory_hash")
         host, host_proofs = _host(receipt["host_observation"], selected.turn_count, selected.turn_count)
-        scenario_events, scenario_trace_hash = _scenario_trace(receipt["scenario_trace"], selected, row["expected_trace"], attempts)
+        scenario_events, scenario_trace_hash = _scenario_trace(receipt["scenario_trace"], selected, row["expected_trace"], attempts, host)
         delegation = _delegation(receipt["delegation"], selected, first_identity["trial_index"])
         content_hash = sha256_value(tuple(content_hashes))
         catalog_hash = chosen_catalog.catalog_sha256
