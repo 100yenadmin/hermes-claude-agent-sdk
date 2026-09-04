@@ -28,7 +28,7 @@ _ATTEMPT = frozenset("identity candidate classification terminal_status event_co
 _EVENT = frozenset({"kind", "byte_length", "sha256", "terminal_status", "projection"})
 _HOST = frozenset({"schema_version", "status", "runtime", "invariant_violations", "expected_turn_count", "transcript", "runtime_state", "runtime_usage"})
 _LOCAL = frozenset({"schema_version", "status", "path", "host_local", "provider_calls", "terminal_status", "events", "observation", "proof_hashes"})
-_DELEGATION = frozenset({"count", "background_count", "lifecycle", "parent_link_sha256"})
+_DELEGATION = frozenset({"count", "background_count", "lifecycle", "delivery_state", "parent_delivery_count", "parent_link_sha256", "parent_delivery_sha256"})
 _TRACE = frozenset({"schema_version", "row_key", "predecessor_execution_id", "path", "trial_index", "events"})
 _TRACE_EVENT = frozenset({"kind", "byte_length", "sha256", "terminal_status", "evidence"})
 _TRACE_ATTEMPT_EVIDENCE = frozenset({"source", "attempt_index", "source_sha256"})
@@ -176,12 +176,17 @@ def _delegation(value: Any, scenario: V4LiveScenario, trial_index: int) -> dict[
         raise V4LivePacketViolation("delegation background count is invalid")
     if result["lifecycle"] not in {"none", "pending", "running", "completed", "failed", "cancelled", "delivered", "dropped"}:
         raise V4LivePacketViolation("delegation lifecycle is unsupported")
+    if result["delivery_state"] not in {"none", "delivered"} or type(result["parent_delivery_count"]) is not int or not 0 <= result["parent_delivery_count"] <= result["background_count"]:
+        raise V4LivePacketViolation("delegation delivery evidence is unsupported")
     parent_hash = result["parent_link_sha256"]
+    delivery_hash = result["parent_delivery_sha256"]
     if parent_hash is not None:
         _digest(parent_hash, "delegation.parent_link_sha256")
-    if result["count"] == 0 and (result["lifecycle"] != "none" or parent_hash is not None):
+    if delivery_hash is not None:
+        _digest(delivery_hash, "delegation.parent_delivery_sha256")
+    if result["count"] == 0 and (result["lifecycle"] != "none" or result["delivery_state"] != "none" or result["parent_delivery_count"] != 0 or parent_hash is not None or delivery_hash is not None):
         raise V4LivePacketViolation("empty delegation summary carries an outcome")
-    if result["count"] > 0 and (result["lifecycle"] == "none" or parent_hash is None):
+    if result["count"] > 0 and (result["lifecycle"] == "none" or result["delivery_state"] != "delivered" or result["parent_delivery_count"] != result["background_count"] or parent_hash is None or delivery_hash is None):
         raise V4LivePacketViolation("delegation summary lacks lifecycle or parent-link proof")
     return result
 def _preflight_hash(value: Any, candidate_hash: str) -> str:

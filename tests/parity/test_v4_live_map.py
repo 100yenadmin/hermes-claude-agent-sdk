@@ -13,7 +13,7 @@ MAP_PATH = ROOT / "qa" / "parity-v4-live-execution-map.yaml"
 
 def test_provider_free_map_closes_immutable_v4_accounting() -> None:
     document = load_v4_live_execution_map(MAP_PATH); validated = validate_v4_live_execution_map(document, map_path=MAP_PATH)
-    assert {key: validated[key] for key in ("provider_live_rows", "mandatory_paths", "required_trial_packets", "parent_calls", "child_calls", "total_calls", "reserve_calls")} == {"provider_live_rows": 70, "mandatory_paths": 158, "required_trial_packets": 242, "parent_calls": 120, "child_calls": 16, "total_calls": 136, "reserve_calls": 44}
+    assert {key: validated[key] for key in ("provider_live_rows", "mandatory_paths", "required_trial_packets", "parent_calls", "child_calls", "total_calls", "reserve_calls")} == {"provider_live_rows": 70, "mandatory_paths": 158, "required_trial_packets": 242, "parent_calls": 134, "child_calls": 16, "total_calls": 150, "reserve_calls": 30}
     assert len(document["rows"]) == len(set(validated["row_keys"])) == 70 and document["non_executable_rows"] == []
     assert document["target"] == {"routing_provider": "claude-agent-sdk", "receipt_provider": "anthropic", "effective_model": "claude-fable-5-1", "execution_mode": "normal_hermes_gateway_live", "gateway_entrypoint": "python -m tui_gateway.entry", "map_construction": "provider_free", "external_delivery": "never"}
     assert document["source"]["candidate_identity"] == "unresolved" and document["source"]["identity_kind"] == "authoring_base_only"
@@ -21,7 +21,7 @@ def test_provider_free_map_closes_immutable_v4_accounting() -> None:
 
 def test_map_has_exact_feature_partition_and_child_budget() -> None:
     document = load_v4_live_execution_map(MAP_PATH); features = {item["id"]: item for item in document["features"]}; keys = [key for feature in features.values() for key in feature["row_keys"]]
-    assert set(features) == {f"F{index}" for index in range(9)} and sum(item["parent_calls"] for item in features.values()) == 120 and sum(item["child_calls"] for item in features.values()) == 16
+    assert set(features) == {f"F{index}" for index in range(9)} and sum(item["parent_calls"] for item in features.values()) == 134 and sum(item["child_calls"] for item in features.values()) == 16
     assert len(keys) == len(set(keys)) == 70 and set(keys) == {f"{row['source_pack']}/{row['source_item_id']}" for row in document["rows"]}
     assert len(document["child_calls"]) == 16 and {call["feature_id"] for call in document["child_calls"]} == {"F2", "F3", "F4"}
     assert all(call["max_iterations"] == 1 and call["child_tools"] == [] and call["retry"] is False and call["delivery"] is False and call["local_only"] is True for call in document["child_calls"])
@@ -39,9 +39,15 @@ def test_rows_have_exact_provider_free_ledger_and_bundle_boundaries() -> None:
     child_counts = {}
     for call in document["child_calls"]:
         child_counts[call["row_key"]] = child_counts.get(call["row_key"], 0) + 1
+    delivery_counts = {}
+    for row_key, path, trial_index in {
+        (call["row_key"], call["path"], call["trial_index"])
+        for call in document["child_calls"]
+    }:
+        delivery_counts[row_key] = delivery_counts.get(row_key, 0) + 1
     assert all({"parent_calls", "child_calls", "bundle_mode", "session_boundary"} <= set(row) for row in rows.values())
     assert all(
-        row["parent_calls"] == specials.get(key, len(row["required_trial_indexes"]))
+        row["parent_calls"] == specials.get(key, len(row["required_trial_indexes"])) + delivery_counts.get(key, 0)
         and row["child_calls"] == child_counts.get(key, 0)
         for key, row in rows.items()
     )

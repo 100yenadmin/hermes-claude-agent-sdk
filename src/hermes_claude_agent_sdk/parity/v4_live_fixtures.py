@@ -20,7 +20,7 @@ FIXTURE_MANIFEST_SCHEMA_VERSION = 1
 FIXTURE_MANIFEST_VERSION = "1.0.0"
 CATALOG_VERSION = FIXTURE_MANIFEST_VERSION
 LIVE_FIXTURE_COUNT = 70
-LIVE_MAP_SHA256 = "85583a44b797a58e6a3f6fcc9f4f5234b445b49c5ab6bf38b153e872473a16ff"
+LIVE_MAP_SHA256 = "aa68ce417d9a8ad74110de76f37ef550e1f5414eba0a6ecba0af235ba1488c69"
 _DEFAULT_MAP = Path(__file__).resolve().parents[3] / "qa" / "parity-v4-live-execution-map.yaml"
 _DEFAULT_MANIFEST = Path(__file__).resolve().parents[3] / "qa" / "parity-v4-live-fixtures.yaml"
 _SAFE = re.compile(r"^[A-Za-z0-9_.:/-]{1,240}$")
@@ -179,7 +179,14 @@ def _expected(value: Mapping[str, Any] | str | Path | None = None, *, map_path: 
     for row in live_map["rows"]:
         key = f"{row['source_pack']}/{row['source_item_id']}"; recipe = row["session_boundary"]
         defaults = _MECHANISM_DEFAULTS[row["mechanism_class"]]; child_ids = children.get(key, [])
-        turn_count = row["parent_calls"] // len(row["required_trial_indexes"])
+        turn_count = _TURN_RECIPES[recipe]["turn_count"]
+        delivery_turns = len({
+            child["trial_index"]
+            for child in live_map["child_calls"]
+            if child["row_key"] == key and child["path"] == "positive"
+        })
+        if row["parent_calls"] != turn_count * len(row["required_trial_indexes"]) + delivery_turns:
+            raise V4LiveFixtureViolation("fixture parent-call ledger omits a Hermes delivery turn")
         path_policy = "host_denial_local_recovery" if row["delivery_mode"] == "host_denial_local_recovery" else "local_only"
         fixtures.append({
             "row_key": key, "fixture_id": f"synthetic/{key}", "mechanism_class": row["mechanism_class"],

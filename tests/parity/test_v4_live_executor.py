@@ -192,7 +192,7 @@ def test_admission_rejects_budget_and_identity_before_gateway_start() -> None:
     with pytest.raises(V4LiveExecutorViolation):
         _executor(fake, planned_calls=0)
     with pytest.raises(V4LiveExecutorViolation):
-        _executor(fake, planned_calls=137)
+        _executor(fake, planned_calls=151)
     assert fake.calls == []
 
     candidate = _candidate()

@@ -48,6 +48,30 @@ class _SessionTransport:
     def close(self) -> None:
         self.closed = True
 
+
+class _AsyncDelegationTransport(_SessionTransport):
+    def send(self, frame: dict[str, object]) -> dict[str, object]:
+        method = frame["method"]
+        params = frame.get("params", {})
+        assert isinstance(method, str) and isinstance(params, dict)
+        self.calls.append((method, dict(params)))
+        if method == "session.create":
+            result = {"session_id": LIVE_SESSION_ID, "stored_session_id": self.stored_session_id}
+        else:
+            result = {"status": "streaming"}
+            if method == "prompt.submit":
+                self._turn += 1
+                self._events.extend([
+                    _event("message.start", {"session_id": self._live_id()}),
+                    _event("subagent.start", {"task_index": 0, "task_count": 1}),
+                    _event("message.complete", {"status": "completed", "session_id": self._live_id()}),
+                    _event("subagent.complete", {"task_index": 0, "task_count": 1}),
+                    _event("message.start", {"session_id": self._live_id()}),
+                    _event("session.usage", {"session_id": self._live_id()}),
+                    _event("message.complete", {"status": "completed", "session_id": self._live_id()}),
+                ])
+        return {"jsonrpc": "2.0", "id": frame["id"], "result": result}
+
 def _session(transport: _SessionTransport, **kwargs: Any) -> V4LiveSession:
     return V4LiveSession(
         gateway=Gateway(python="fake-python", cwd=ROOT, env={}, transport=transport),
@@ -97,6 +121,36 @@ def test_live_session_reuses_one_gateway_for_two_turns_in_one_row_trial() -> Non
     assert "second fixture prompt" not in repr(second)
     session.close()
     assert transport.closed
+
+
+def test_live_session_counts_hermes_generated_delegation_delivery_as_parent_turn() -> None:
+    transport = _AsyncDelegationTransport()
+    session = _session(transport, planned_calls=2, planned_turns=2)
+    session.start()
+    initial = session.run_turn(
+        "delegate one bounded task",
+        source_pack="v2_non_soak",
+        source_item_id="TOOL-05",
+        path="positive",
+        trial_index=1,
+        approval_choice="allow",
+        expect_followup=True,
+    )
+    delivered = session.observe_delivery_turn(
+        source_pack="v2_non_soak",
+        source_item_id="TOOL-05",
+        trial_index=1,
+    )
+    assert [method for method, _ in transport.calls] == ["session.create", "prompt.submit"]
+    assert initial["turn_index"] == 1 and initial["provider_calls"] == 1
+    assert delivered["turn_index"] == 2 and delivered["provider_calls"] == 1
+    assert delivered["event_kinds"] == {
+        "message.start": 1,
+        "session.usage": 1,
+        "subagent.complete": 1,
+        "message.complete": 1,
+    }
+    session.close()
 
 def test_live_session_restart_resumes_exact_stored_identity_without_exposing_it() -> None:
     first_transport = _SessionTransport()

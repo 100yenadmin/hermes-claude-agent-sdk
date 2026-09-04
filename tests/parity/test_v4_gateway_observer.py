@@ -84,6 +84,50 @@ def test_observer_accepts_real_gateway_two_phase_child_lifecycle() -> None:
     assert [item["phase"] for item in result["subagents"]] == ["start", "complete"]
     assert result["subagents"][0]["child_id_sha256"] == identity_hash("child_id", "persisted-child")
     assert observer.collect_delegation_observation()["count"] == 1
+
+
+def test_observer_closes_async_delegation_as_two_distinct_parent_turns() -> None:
+    fake = _FakeGateway([
+        _event("message.start"),
+        _event("subagent.start", {"task_index": 0, "task_count": 1, "parent_id": "p", "child_session_id": "c", "delegation_id": "d"}),
+        _event("message.complete", {"status": "completed"}),
+        _event("subagent.complete", {"task_index": 0, "task_count": 1, "parent_id": "p", "child_session_id": "c", "delegation_id": "d", "status": "completed"}),
+        _event("message.start"),
+        _event("session.usage"),
+        _event("message.complete", {"status": "completed"}),
+    ])
+    observer = V4GatewayObserver(fake, expected_terminal_count=2, expected_task_count=1)
+    observer.start()
+    for _ in range(3):
+        observer.next_event()
+    first = observer.turn_snapshot()
+    assert first["terminal_count"] == 1
+    assert [item["phase"] for item in first["subagents"]] == ["start"]
+    assert observer.snapshot(require_terminal=False)["terminal_status"] is None
+    for _ in range(4):
+        observer.next_event()
+    second = observer.turn_snapshot()
+    assert second["terminal_count"] == 1
+    assert [item["phase"] for item in second["subagents"]] == ["complete"]
+    complete = observer.snapshot()
+    assert complete["terminal_count"] == 2
+    assert complete["terminal_status"] == "completed"
+    assert observer.collect_delegation_observation()["lifecycle"] == "completed"
+
+
+def test_observer_rejects_second_parent_terminal_before_child_settlement() -> None:
+    fake = _FakeGateway([
+        _event("subagent.start", {"task_index": 0, "task_count": 1}),
+        _event("message.complete", {"status": "completed"}),
+        _event("message.start"),
+        _event("message.complete", {"status": "completed"}),
+    ])
+    observer = V4GatewayObserver(fake, expected_terminal_count=2, expected_task_count=1)
+    observer.start()
+    for _ in range(3):
+        observer.next_event()
+    with pytest.raises(V4GatewayObserverViolation, match="incomplete observed evidence"):
+        observer.next_event()
 def test_observer_pairs_same_name_tools_by_id() -> None:
     observer = V4GatewayObserver(_FakeGateway([_event("tool.start", {"name": "fixture_tool", "tool_call_id": "a"}), _event("tool.start", {"name": "fixture_tool", "tool_call_id": "b"}), _event("tool.complete", {"name": "fixture_tool", "tool_call_id": "b"}), _event("tool.complete", {"name": "fixture_tool", "tool_call_id": "a"}), _event("message.complete", {"status": "completed"})]), allowed_tool_names={"fixture_tool"}); observer.start(); [observer.next_event() for _ in range(5)]
     assert observer.snapshot()["tools"] == {"started": ["fixture_tool", "fixture_tool"], "completed": ["fixture_tool", "fixture_tool"]}

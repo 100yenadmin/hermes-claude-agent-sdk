@@ -164,9 +164,15 @@ def _stage_plugin(source: Path, home: Path) -> None:
 class _ObservedGateway:
     """Rotate sanitized observers at turn boundaries over one real Gateway."""
 
-    def __init__(self, gateway: V4LiveGateway, fixture_root: Path) -> None:
+    def __init__(self, gateway: V4LiveGateway, fixture_root: Path, *, expected_terminal_count: int = 1, expected_task_count: int | None = None) -> None:
         self._gateway, self._root = gateway, fixture_root
-        self._observers = [V4GatewayObserver(gateway, fixture_root=fixture_root)]
+        self._expected_terminal_count = expected_terminal_count
+        self._observers = [V4GatewayObserver(
+            gateway,
+            fixture_root=fixture_root,
+            expected_terminal_count=expected_terminal_count,
+            expected_task_count=expected_task_count,
+        )]
         self._observer, self._terminal = self._observers[0], False
         self._snapshots: list[dict[str, Any]] = []
 
@@ -184,9 +190,11 @@ class _ObservedGateway:
         value = self._observer.next_event(**kwargs)
         status = getattr(value, "terminal_status", None) if not isinstance(value, Mapping) else value.get("terminal_status")
         if status is not None:
-            self._observer.fixture_snapshot(self._root)
-            self._snapshots.append(self._observer.snapshot())
-            self._terminal = True
+            self._snapshots.append(self._observer.turn_snapshot(self._root))
+            self._terminal = (
+                self._expected_terminal_count == 1
+                or len(self._snapshots) == self._expected_terminal_count
+            )
         return value
 
     def close(self, *args: Any, **kwargs: Any) -> Any:
@@ -271,7 +279,9 @@ def _delegation(scenario: Any, trial_index: int, snapshots: tuple[Mapping[str, A
         observed_background = any(event.get("kind") == "background" for snapshot in snapshots for event in snapshot.get("events", ()))
         if observed_background and scenario.row_key not in _ZERO_CHILD_BACKGROUND_ROWS:
             raise V4NormalGatewayRunnerViolation("unexpected child or background lifecycle was observed")
-        return {"count": 0, "background_count": 0, "lifecycle": "none", "parent_link_sha256": None}
+        if durable.get("delivery_state") not in {None, "none"} or durable.get("parent_delivery_count", 0) != 0 or durable.get("parent_delivery_sha256") is not None:
+            raise V4NormalGatewayRunnerViolation("empty delegation carries delivery evidence")
+        return {"count": 0, "background_count": 0, "lifecycle": "none", "delivery_state": "none", "parent_delivery_count": 0, "parent_link_sha256": None, "parent_delivery_sha256": None}
     children = [child for snapshot in snapshots for child in snapshot.get("subagents", ())]
     groups = {index: [child for child in children if child.get("task_index") == index] for index in range(count)}
     if set(groups) != set(range(count)) or any(
@@ -306,7 +316,12 @@ def _delegation(scenario: Any, trial_index: int, snapshots: tuple[Mapping[str, A
     lifecycle = durable.get("lifecycle") if batch_count else snapshots[-1].get("terminal_status")
     if lifecycle not in {"pending", "running", "completed", "failed", "cancelled", "delivered", "dropped"}:
         raise V4NormalGatewayRunnerViolation("child lifecycle observation is incomplete")
-    return {"count": count, "background_count": batch_count, "lifecycle": lifecycle, "parent_link_sha256": durable_parent}
+    if durable.get("delivery_state") != "delivered" or durable.get("parent_delivery_count") != batch_count:
+        raise V4NormalGatewayRunnerViolation("Hermes child result was not delivered exactly once")
+    delivery_hash = _digest(
+        durable.get("parent_delivery_sha256"), "durable delegation delivery"
+    )
+    return {"count": count, "background_count": batch_count, "lifecycle": lifecycle, "delivery_state": "delivered", "parent_delivery_count": batch_count, "parent_link_sha256": durable_parent, "parent_delivery_sha256": delivery_hash}
 
 
 def _local_observations(scenario: Any, trial_index: int, task_root: Path) -> dict[str, Mapping[str, Any]]:
@@ -391,7 +406,12 @@ class V4NormalGatewayRunner:
             fixture = next(item for item in self._materializer.fixtures if item.row_key == row_key)
         except StopIteration as exc:
             raise V4NormalGatewayRunnerViolation("row is not in the immutable map") from exc
-        if type(trial_index) is not int or trial_index not in scenario.trial_indexes or fixture.turn_count != scenario.turn_count or scenario.parent_calls != scenario.turn_count * len(scenario.trial_indexes):
+        trial_child_count = sum(
+            binding[1] == trial_index and binding[4] == "positive"
+            for binding in scenario.child_bindings
+        )
+        delivery_turns = 1 if trial_child_count else 0
+        if type(trial_index) is not int or trial_index not in scenario.trial_indexes or fixture.turn_count + delivery_turns != scenario.turn_count or scenario.parent_calls != scenario.turn_count * len(scenario.trial_indexes):
             raise V4NormalGatewayRunnerViolation("row/trial budget is not immutable")
         self._bound_row_key, self._bound_trial_index = row_key, trial_index
         self._admission = V4NormalGatewayAdmission(self._candidate_hash, self._preflight_hash, LIVE_MAP_SHA256, self._manifest.manifest_sha256, hashlib.sha256(str(self._task_root).encode()).hexdigest(), row_key, trial_index, tuple(scenario.mandatory_paths), scenario.turn_count, scenario.parent_calls, scenario.child_calls, self._profile_id, self._candidate["profile_sha256"], self._inventory_hash)
@@ -426,23 +446,32 @@ class V4NormalGatewayRunner:
                 gateway = self._factory(env=env, cwd=self._cwd or self._map_path.parent, host_tools=self._inventory.host_event_names, mcp_tools=self._inventory.mcp_event_names) if self._factory is not None else Gateway(python=self._python, cwd=self._cwd or self._map_path.parent, env=env, host_tools=self._inventory.host_event_names, mcp_tools=self._inventory.mcp_event_names)
             if isinstance(gateway, Gateway) and gateway.command[1:] != ("-u", "-m", "tui_gateway.entry"):
                 raise V4NormalGatewayRunnerViolation("normal Gateway command is not tui_gateway.entry")
-            observed_gateway = _ObservedGateway(gateway, self._task_root)
+            trial_child_count = sum(
+                binding[1] == trial_index and binding[4] == "positive"
+                for binding in scenario.child_bindings
+            )
+            expected_terminals = 2 if trial_child_count else 1
+            observed_gateway = _ObservedGateway(
+                gateway,
+                self._task_root,
+                expected_terminal_count=expected_terminals,
+                expected_task_count=trial_child_count or None,
+            )
             session = V4LiveSession(gateway=observed_gateway, candidate=self._candidate, preflight_projections=self._preflights, live_map=self._map, map_path=self._map_path, expected_live_map_sha256=LIVE_MAP_SHA256, planned_calls=scenario.turn_count, planned_turns=scenario.turn_count)
             attempts: list[dict[str, Any]] = []
             database = db_path or self._home / "state.db"
             try:
                 session.start()
                 session.verify_tool_inventory(tuple(self._inventory.executable_names))
-                for turn in range(1, scenario.turn_count + 1):
+                fixture = next(item for item in self._materializer.fixtures if item.row_key == row_key)
+                for turn in range(1, fixture.turn_count + 1):
                     material = self._materializer.materialize(row_key=row_key, trial_index=trial_index, turn_index=turn, path="positive", task_root=self._task_root if scenario.mechanism_class == "host_tool_pdr" else None)
-                    attempts.append(session.run_turn(material.prompt.text, source_pack=scenario.source_pack, source_item_id=scenario.source_item_id, path="positive", trial_index=trial_index, approval_choice=material.host.approval_choice, planned_calls=1))
+                    attempts.append(session.run_turn(material.prompt.text, source_pack=scenario.source_pack, source_item_id=scenario.source_item_id, path="positive", trial_index=trial_index, approval_choice=material.host.approval_choice, planned_calls=1, expect_followup=bool(trial_child_count)))
+                if trial_child_count:
+                    attempts.append(session.observe_delivery_turn(source_pack=scenario.source_pack, source_item_id=scenario.source_item_id, trial_index=trial_index))
                 host = session.collect_host_observation(database, allowed_root=self._home, expected_turn_count=scenario.turn_count)
             finally:
                 session.close()
-            trial_child_count = sum(
-                binding[1] == trial_index and binding[4] == "positive"
-                for binding in scenario.child_bindings
-            )
             expected_batches = 1 if trial_child_count else 0
             durable = session.collect_delegation_observation(database, allowed_root=self._home, expected_count=expected_batches)
             trace = _trace(self._contract, scenario, attempts, observed_gateway.snapshots, host)

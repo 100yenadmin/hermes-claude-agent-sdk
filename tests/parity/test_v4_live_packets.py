@@ -36,7 +36,16 @@ def _scenario_trace(contract, scenario, attempts):
 def _delegation(scenario, trial_index=None):
     trial_index = scenario.trial_indexes[0] if trial_index is None else trial_index
     count = sum(1 for _, bound_trial, _, _, path in scenario.child_bindings if bound_trial == trial_index and path == "positive")
-    return {"count": count, "background_count": 0, "lifecycle": "completed" if count else "none", "parent_link_sha256": "d" * 64 if count else None}
+    batch_count = 1 if count else 0
+    return {
+        "count": count,
+        "background_count": batch_count,
+        "lifecycle": "completed" if count else "none",
+        "delivery_state": "delivered" if count else "none",
+        "parent_delivery_count": batch_count,
+        "parent_link_sha256": "d" * 64 if count else None,
+        "parent_delivery_sha256": "e" * 64 if count else None,
+    }
 def _host(turn_count, *, assistant_count=None):
     usage = [{"ordinal": index, "sha256": f"{index}".ljust(64, "0"), "provider": "anthropic", "model": "claude-fable-5-1", "selected_model": "claude-fable-5-1", "effective_model": "claude-fable-5-1", "canonical_model": "claude-fable-5-1", "model_resolution": "exact", "billing_mode": "subscription_included", "cost_status": "included", "fallback_used": False, "api_call_count": turn_count, "tokens": {"input_tokens": 1, "output_tokens": 1}} for index in range(1, turn_count + 1)]
     assistant_count = turn_count if assistant_count is None else assistant_count
@@ -198,7 +207,7 @@ def test_positive_scenario_trace_binds_each_turn_and_content(row_key):
 def test_delegation_summary_is_explicit_and_scenario_bound():
     contract, live_map, _, scenario, receipt = _inputs("v2_non_soak/ORCH-01")
     with pytest.raises(V4LivePacketViolation):
-        build_v4_live_packets(contract, scenario, {**receipt, "delegation": {"count": 0, "background_count": 0, "lifecycle": "none", "parent_link_sha256": None}}, live_map=live_map, map_path=MAP)
+        build_v4_live_packets(contract, scenario, {**receipt, "delegation": {**_delegation(scenario), "count": 0}}, live_map=live_map, map_path=MAP)
 @pytest.mark.parametrize("row_key,invalid_count", (("v2_non_soak/TOOL-05", 3), ("v2_non_soak/ORCH-05", 1), ("openclaw_active/source-docs-discovery-report", 1)))
 def test_delegation_count_uses_bound_trial_child_bindings(row_key, invalid_count):
     contract, live_map, _, scenario, receipt = _inputs(row_key)

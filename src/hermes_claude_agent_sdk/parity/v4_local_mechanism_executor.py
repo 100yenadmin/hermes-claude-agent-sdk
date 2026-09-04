@@ -28,10 +28,10 @@ _ROOT = Path(__file__).resolve().parents[3]
 _MAP = _ROOT / "qa" / "parity-v4-live-execution-map.yaml"
 _CONTRACT = _ROOT / "qa" / "parity-contract-v4.yaml"
 _MANIFEST = _ROOT / "qa" / "parity-v4-live-fixtures.yaml"
-_MAP_SHA256 = "85583a44b797a58e6a3f6fcc9f4f5234b445b49c5ab6bf38b153e872473a16ff"
+_MAP_SHA256 = "aa68ce417d9a8ad74110de76f37ef550e1f5414eba0a6ecba0af235ba1488c69"
 _CONTRACT_SHA256 = "53864834496403388f3475291475fea70acfa3105609ad49f5edf75ad1c67d94"
-_MANIFEST_SHA256 = "8c83c3edf836a449923519dfaacecd2e061defd27d74c2ae5d7618355247bc6e"
-_MANIFEST_FILE_SHA256 = "dbd9346db85ff09979ea3e72632ec90119d9a270df3681154df705e5ea5bc586"
+_MANIFEST_SHA256 = "52c0ee8bc02b782e64c7fb30a32b76e57fcc0787059a050a409b9992b81f46f2"
+_MANIFEST_FILE_SHA256 = "ea8c5e01b9d54aa1f143d89d63f31274aa200b54127e229a8b089cba84fc08a8"
 _GENERIC_MECHANISMS = frozenset(
     {
         "host_tool_pdr",

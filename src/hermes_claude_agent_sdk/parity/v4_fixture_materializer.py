@@ -315,7 +315,7 @@ class V4FixtureMaterializer:
                 "Do not invoke native Claude tools, Agent, or native background features; do not make direct or alternate provider calls or deliver externally. Answer this instruction through Hermes-owned surfaces.",
                 f"Exercise the bounded {item['turn_recipe']} recipe and expose: {','.join(expected.required_observations)}.",
                 f"Approval choice is {expected.approval_choice}; expected child count is {expected.expected_child_count}.",
-                "Keep any approval denial and safe local recovery in this one parent turn; preserve one parent call.",
+                "Keep any approval denial and safe local recovery inside Hermes-owned turns.",
         ]
         if expected.expected_child_count:
             lines.append(
@@ -323,9 +323,9 @@ class V4FixtureMaterializer:
                 "Do not supply a background argument; Hermes owns the top-level dispatch mode and durable child delivery."
             )
             if item["mechanism_class"] == "host_background":
-                lines.append("Expose the Hermes-owned durable background settlement lifecycle before answering.")
+                lines.append("Acknowledge the dispatch in this turn. Hermes will inject the durable completion as one follow-up turn; expose settlement there without polling.")
             else:
-                lines.append("Use the completed Hermes-owned child result(s) from the normal durable session lifecycle in the answer; do not poll.")
+                lines.append("Acknowledge the dispatch in this turn. Hermes will inject the completed child result(s) as one durable follow-up turn for synthesis; do not poll or submit another task.")
         if task_root is not None and expected.fixture_tool_args is not None:
             count, digest = expected.fixture_tool_args
             sequence = "record (host denial expected), then check (safe recovery)" if expected.approval_sequence == ("deny", "safe_recovery") else "record (host denial expected)"

@@ -263,6 +263,7 @@ class V4LiveSession:
         trial_index: int,
         approval_choice: str = "deny",
         planned_calls: int = 1,
+        expect_followup: bool = False,
     ) -> dict[str, Any]:
         if not self.started or self._live_session_id is None:
             raise V4LiveSessionViolation("session is not live")
@@ -319,6 +320,7 @@ class V4LiveSession:
                 prompt,
                 session_id=self._live_session_id,
                 approval_choice=approval_choice,
+                expect_followup=expect_followup,
             )
             used = receipt.get("provider_calls")
             if type(used) is not int or used < 1 or self._provider_calls + used > self._planned_calls:
@@ -336,6 +338,68 @@ class V4LiveSession:
                 raise
             raise V4LiveSessionViolation("session turn failed") from None
     turn = run_turn
+
+    def observe_delivery_turn(
+        self,
+        *,
+        source_pack: str,
+        source_item_id: str,
+        trial_index: int,
+        approval_choice: str = "deny",
+    ) -> dict[str, Any]:
+        """Observe one host-generated delegation completion turn."""
+        if not self.started or self._live_session_id is None or self._bound_row is None:
+            raise V4LiveSessionViolation("session is not live for automatic delivery")
+        row_key = (source_pack, source_item_id, trial_index)
+        if self._bound_row != row_key:
+            self._failed = True
+            self.close()
+            raise V4LiveSessionViolation("automatic delivery crossed a row or trial boundary")
+        if len(self._turn_receipts) >= self._planned_turns or self._provider_calls >= self._planned_calls:
+            self._failed = True
+            self.close()
+            raise V4LiveSessionViolation("automatic delivery exceeded the session budget")
+        row_budget = _row_turn_budget(self._live_map, source_pack, source_item_id)
+        if self._row_turns.get(row_key, 0) >= row_budget:
+            self._failed = True
+            self.close()
+            raise V4LiveSessionViolation("automatic delivery exceeded the row budget")
+        try:
+            executor = V4LiveExecutor(
+                gateway=self._gateway,
+                candidate=self._candidate,
+                preflight_projections=self._preflights,
+                live_map=self._live_map,
+                map_path=self._map_path,
+                expected_live_map_sha256=self._expected_map_hash,
+                source_pack=source_pack,
+                source_item_id=source_item_id,
+                path="positive",
+                trial_index=trial_index,
+                planned_calls=1,
+                planned_turns=self._planned_turns,
+                session_params=self._session_params,
+            )
+            receipt = executor.observe_on_session(
+                session_id=self._live_session_id,
+                approval_choice=approval_choice,
+            )
+            if receipt.get("provider_calls") != 1:
+                raise V4LiveSessionViolation("automatic delivery lacks one provider call")
+            result = dict(receipt)
+            result["turn_index"] = len(self._turn_receipts) + 1
+            self._turn_receipts.append(result)
+            self._row_turns[row_key] = self._row_turns.get(row_key, 0) + 1
+            self._provider_calls += 1
+            return result
+        except Exception as exc:
+            self._failed = True
+            self.close()
+            if isinstance(exc, V4LiveSessionViolation):
+                raise
+            raise V4LiveSessionViolation("automatic delivery turn failed") from None
+
+    observe_auto_turn = observe_delivery_turn
     def close(self) -> None:
         if self._closed:
             return

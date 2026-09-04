@@ -25,7 +25,7 @@ def test_manifest_is_map_bound_and_closes_all_fixture_accounting() -> None:
     assert len(manifest.fixtures) == LIVE_FIXTURE_COUNT == 70
     assert proof["live_map_sha256"] == LIVE_MAP_SHA256
     assert {key: proof[key] for key in ("parent_calls", "child_calls", "total_calls", "turn_budget", "reserve_calls")} == {
-        "parent_calls": 120, "child_calls": 16, "total_calls": 136, "turn_budget": 180, "reserve_calls": 44,
+        "parent_calls": 134, "child_calls": 16, "total_calls": 150, "turn_budget": 180, "reserve_calls": 30,
     }
     assert len({fixture.row_key for fixture in manifest.fixtures}) == 70
     assert all(fixture["fixture_id"] == f"synthetic/{fixture.row_key}" for fixture in manifest.fixtures)

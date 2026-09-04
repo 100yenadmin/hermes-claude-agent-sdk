@@ -75,10 +75,12 @@ def test_legacy_tool_delegate_fixture_allows_hermes_child_instead_of_denial(tmp_
     assert "mcp__hermes-tools__v4_fixture_local_state" not in delegated.prompt.ephemeral_text
     assert "task_root=" not in delegated.prompt.ephemeral_text
     assert "Do not supply a background argument" in delegated.prompt.ephemeral_text
-    assert "normal durable session lifecycle" in delegated.prompt.ephemeral_text
+    assert "one durable follow-up turn for synthesis" in delegated.prompt.ephemeral_text
+    assert "do not poll or submit another task" in delegated.prompt.ephemeral_text
     background = _materializer().materialize("v2_non_soak/BG-01", trial_index=1, turn_index=1)
     assert "Do not supply a background argument" in background.prompt.ephemeral_text
-    assert "durable background settlement lifecycle" in background.prompt.ephemeral_text
+    assert "durable completion as one follow-up turn" in background.prompt.ephemeral_text
+    assert "without polling" in background.prompt.ephemeral_text
 
 
 @pytest.mark.parametrize(

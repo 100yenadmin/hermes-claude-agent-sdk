@@ -17,7 +17,7 @@ from .v4_live_map import load_v4_live_execution_map, validate_v4_live_execution_
 SCENARIO_SCHEMA_VERSION = 1
 SCENARIO_CATALOG_VERSION = "1.0.0"
 LIVE_SCENARIO_COUNT = 70
-LIVE_MAP_SHA256 = "85583a44b797a58e6a3f6fcc9f4f5234b445b49c5ab6bf38b153e872473a16ff"
+LIVE_MAP_SHA256 = "aa68ce417d9a8ad74110de76f37ef550e1f5414eba0a6ecba0af235ba1488c69"
 _DEFAULT_MAP = Path(__file__).resolve().parents[3] / "qa" / "parity-v4-live-execution-map.yaml"
 _PATHS = {"positive", "denial", "recovery"}
 _SURFACE_EXTRAS = {
@@ -141,11 +141,11 @@ class V4LiveScenarioCatalog:
     contract_sha256: str
     predecessor_map_sha256: str
     scenarios: tuple[V4LiveScenario, ...]
-    parent_calls: int = 120
+    parent_calls: int = 134
     child_calls: int = 16
-    total_calls: int = 136
+    total_calls: int = 150
     turn_budget: int = 180
-    reserve_calls: int = 44
+    reserve_calls: int = 30
 
     @property
     def rows(self) -> tuple[V4LiveScenario, ...]:
@@ -291,7 +291,7 @@ def validate_v4_live_scenario_catalog(value: V4LiveScenarioCatalog | Mapping[str
     if document["live_map_sha256"] != expected.live_map_sha256 or document["contract_sha256"] != expected.contract_sha256 or document["predecessor_map_sha256"] != expected.predecessor_map_sha256:
         raise V4LiveScenarioViolation("catalog is not bound to the corrected v4 source artifacts")
     budget = document["budget"]
-    expected_budget = {"parent_calls": 120, "child_calls": 16, "total_calls": 136, "turn_budget": 180, "reserve_calls": 44}
+    expected_budget = {"parent_calls": 134, "child_calls": 16, "total_calls": 150, "turn_budget": 180, "reserve_calls": 30}
     if not isinstance(budget, Mapping) or dict(budget) != expected_budget:
         raise V4LiveScenarioViolation("catalog budget is not the frozen row-bound envelope")
     raw = document["scenarios"]

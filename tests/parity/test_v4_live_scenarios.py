@@ -27,8 +27,8 @@ def test_catalog_closes_exact_rows_and_frozen_budget() -> None:
     rows = catalog.scenarios
     assert len(rows) == LIVE_SCENARIO_COUNT == len({row.row_key for row in rows})
     assert proof["live_map_sha256"] == LIVE_MAP_SHA256
-    assert (proof["parent_calls"], proof["child_calls"], proof["total_calls"], proof["turn_budget"]) == (120, 16, 136, 180)
-    assert sum(row.parent_calls for row in rows) == 120
+    assert (proof["parent_calls"], proof["child_calls"], proof["total_calls"], proof["turn_budget"]) == (134, 16, 150, 180)
+    assert sum(row.parent_calls for row in rows) == 134
     assert sum(row.child_calls for row in rows) == 16
 
 

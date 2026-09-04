@@ -129,6 +129,26 @@ def test_two_turns_are_ordered_and_count_is_strict(tmp_path: Path) -> None:
     with pytest.raises(V4HostProbeViolation): collect_v4_host_observation(path, sid, allowed_root=tmp_path)
 
 
+def test_hermes_owned_async_delivery_is_counted_as_visible_parent_turn(tmp_path: Path) -> None:
+    path, sid = _db(tmp_path, turns=2)
+    conn = sqlite3.connect(path)
+    conn.execute(
+        "UPDATE messages SET display_kind=? WHERE session_id=? AND id=?",
+        ("async_delegation_complete", sid, 5),
+    )
+    conn.commit()
+    conn.close()
+    observation = collect_v4_host_observation(
+        path,
+        sid,
+        allowed_root=tmp_path,
+        expected_turn_count=2,
+    )
+    assert observation["transcript"]["canonical_rows"]["user"]["count"] == 2
+    assert observation["transcript"]["terminal"]["count"] == 2
+    assert observation["runtime_usage"]["receipt_count"] == 2
+
+
 @pytest.mark.parametrize(
     "kwargs",
     ({"canonical_model": None}, {"turns": 2, "api_call_count": 1}),

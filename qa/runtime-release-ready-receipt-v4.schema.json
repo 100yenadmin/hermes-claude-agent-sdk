@@ -26,7 +26,7 @@
     "sdist_sha256": {"$ref": "#/$defs/sha256"},
     "profile_sha256": {"$ref": "#/$defs/sha256"},
     "contract_sha256": {"const": "53864834496403388f3475291475fea70acfa3105609ad49f5edf75ad1c67d94"},
-    "map_sha256": {"const": "85583a44b797a58e6a3f6fcc9f4f5234b445b49c5ab6bf38b153e872473a16ff"},
+    "map_sha256": {"const": "aa68ce417d9a8ad74110de76f37ef550e1f5414eba0a6ecba0af235ba1488c69"},
     "artifact_sha256": {"$ref": "#/$defs/sha256"},
     "ownership_preflights": {
       "type": "object", "additionalProperties": false,
@@ -78,8 +78,8 @@
         "native_agent_events": {"const": false}
       }
     },
-    "parent_calls": {"const": 120}, "child_calls": {"const": 16}, "total_calls": {"const": 136},
-    "reserve_calls": {"const": 44}, "direct_sdk_calls": {"const": 0}, "alternate_route_calls": {"const": 0},
+    "parent_calls": {"const": 134}, "child_calls": {"const": 16}, "total_calls": {"const": 150},
+    "reserve_calls": {"const": 30}, "direct_sdk_calls": {"const": 0}, "alternate_route_calls": {"const": 0},
     "proof_boundary": {"const": "Phase-A evidence receipt includes exact local provider-live runtime-safe evidence only; no merge, tag, release, publication, fleet, or customer proof."
     }
   },

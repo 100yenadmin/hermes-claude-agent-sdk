@@ -285,18 +285,13 @@ def _usage(conn: sqlite3.Connection, session: sqlite3.Row, expected_turn_count: 
 
 
 def _host_messages(conn: sqlite3.Connection, session_id: str) -> list[sqlite3.Row]:
-    """Keep durable background completions out of the ordinary transcript."""
-    columns = {row[1] for row in conn.execute('PRAGMA table_info("messages")')}
+    """Include both operator and Hermes-owned synthetic turns in the transcript."""
     query = (
         "SELECT id, role, content, tool_call_id, tool_calls, tool_name, "
         "timestamp, finish_reason FROM messages WHERE session_id=? AND active=1"
     )
-    params: tuple[Any, ...] = (session_id,)
-    if "display_kind" in columns:
-        query += " AND (display_kind IS NULL OR display_kind != ?)"
-        params += ("async_delegation_complete",)
     query += " ORDER BY id ASC"
-    return conn.execute(query, params).fetchall()
+    return conn.execute(query, (session_id,)).fetchall()
 
 
 def _domain_hash(domain: str, value: Any) -> str:

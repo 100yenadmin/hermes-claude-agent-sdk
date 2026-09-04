@@ -15,7 +15,7 @@ V4_SDK_VERSION = "0.2.151"
 V4_CLI_VERSION = "2.1.258"
 V4_MODEL = "claude-fable-5-1"
 V4_CONTRACT_SHA256 = "53864834496403388f3475291475fea70acfa3105609ad49f5edf75ad1c67d94"
-V4_LIVE_MAP_SHA256 = "85583a44b797a58e6a3f6fcc9f4f5234b445b49c5ab6bf38b153e872473a16ff"
+V4_LIVE_MAP_SHA256 = "aa68ce417d9a8ad74110de76f37ef550e1f5414eba0a6ecba0af235ba1488c69"
 V4_PROOF_BOUNDARY = "Phase-A evidence receipt includes exact local provider-live runtime-safe evidence only; no merge, tag, release, publication, fleet, or customer proof."
 OWNERSHIP_PREFLIGHTS = (
     "zero_native_absence", "exact_prompt_settings_tools_mcp", "no_native_events_projector",
@@ -179,7 +179,7 @@ def validate_v4_release_ready(value: Mapping[str, Any]) -> dict[str, Any]:
         "publication_authorized": False, "merge_performed": False, "tag_created": False,
         "release_created": False, "artifact_immutable": True, "sdk_distribution": V4_SDK_DISTRIBUTION,
         "sdk_version": V4_SDK_VERSION, "cli_version": V4_CLI_VERSION, "model": V4_MODEL,
-        "parent_calls": 120, "child_calls": 16, "total_calls": 136, "reserve_calls": 44, "direct_sdk_calls": 0, "alternate_route_calls": 0, "proof_boundary": V4_PROOF_BOUNDARY,
+        "parent_calls": 134, "child_calls": 16, "total_calls": 150, "reserve_calls": 30, "direct_sdk_calls": 0, "alternate_route_calls": 0, "proof_boundary": V4_PROOF_BOUNDARY,
     }
     if any(type(receipt[field]) is not type(expected) or receipt[field] != expected for field, expected in constants.items()):
         raise V4ReleaseReadyViolation("receipt identity, Phase-A barrier, or proof boundary is invalid")

@@ -98,9 +98,17 @@ def snapshot_fixture_state(task_root: str | Path, *, max_bytes: int = MAX_FIXTUR
     return {"exists": True, "size": len(content), "sha256": hashlib.sha256(content).hexdigest(), "record_count": count}
 fixture_state_snapshot = snapshot_fixture_state
 class V4GatewayObserver:
-    def __init__(self, gateway: Any, *, session_id: str | None = None, allowed_tool_names: Iterable[str] | None = None, fixture_root: str | Path | None = None, max_events: int = MAX_OBSERVED_EVENTS) -> None:
+    def __init__(self, gateway: Any, *, session_id: str | None = None, allowed_tool_names: Iterable[str] | None = None, fixture_root: str | Path | None = None, max_events: int = MAX_OBSERVED_EVENTS, expected_terminal_count: int = 1, expected_task_count: int | None = None) -> None:
         if type(max_events) is not int or not 1 <= max_events <= MAX_OBSERVED_EVENTS:
             _fail("observer event bound is invalid")
+        if type(expected_terminal_count) is not int or expected_terminal_count not in {1, 2}:
+            _fail("observer terminal count is invalid")
+        if expected_task_count is not None and (
+            type(expected_task_count) is not int or not 1 <= expected_task_count <= 10_000
+        ):
+            _fail("observer task count is invalid")
+        if expected_terminal_count == 1 and expected_task_count is not None:
+            _fail("observer task count requires a two-phase terminal policy")
         self._gateway = gateway
         self._session_hash = identity_hash("session_id", session_id) if session_id is not None else None
         names = set(allowed_tool_names) if allowed_tool_names is not None else set(getattr(gateway, "_hosts", ())) | set(getattr(gateway, "_mcps", ()))
@@ -114,6 +122,12 @@ class V4GatewayObserver:
         self._task_count = self._pending_hash = self._pending = self._terminal = None
         self._requests, self._responses, self._denied, self._denial_free, self._recovery, self._denial_guard = [], [], False, False, False, False
         self._fixture, self._failed = None, False
+        self._expected_terminal_count = expected_terminal_count
+        self._expected_task_count = expected_task_count
+        self._terminal_count = 0
+        self._turn_event_cursor = self._turn_child_cursor = 0
+        self._turn_start_cursor = self._turn_complete_cursor = 0
+        self._turn_request_cursor = self._turn_response_cursor = 0
     def _guard(self) -> None:
         if self._failed:
             _fail("observer is closed after an observation violation")
@@ -241,7 +255,17 @@ class V4GatewayObserver:
                 self._parent_hash = item["parent_id_sha256"]
             self._children.append(item)
         if terminal is not None:
-            if self._pending_hash is not None or self._active_tools or self._task_count is not None and len(self._child_complete) != self._task_count or self._task_count and self._task_count > 1 and len({item["task_index"] for item in self._children if item.get("parent_id_sha256") == self._parent_hash}) != self._task_count:
+            if self._pending_hash is not None or self._active_tools:
+                _fail("terminal event has incomplete observed evidence")
+            self._terminal_count += 1
+            if self._terminal_count > self._expected_terminal_count:
+                _fail("terminal event count exceeds the admitted lifecycle")
+            if self._expected_terminal_count == 2:
+                if terminal != "completed" or self._task_count != self._expected_task_count:
+                    _fail("two-phase terminal is not bound to its delegated work")
+                if self._terminal_count == 1:
+                    return
+            if self._task_count is not None and len(self._child_complete) != self._task_count or self._task_count and self._task_count > 1 and len({item["task_index"] for item in self._children if item.get("parent_id_sha256") == self._parent_hash}) != self._task_count:
                 _fail("terminal event has incomplete observed evidence")
             self._terminal = terminal
     def next_event(self, *, timeout: float = 30.0, projector: Callable[[object], object] | None = None) -> EventProjection | Mapping[str, Any]:
@@ -289,6 +313,48 @@ class V4GatewayObserver:
         self._fixture = snapshot_fixture_state(root, max_bytes=max_bytes)
         return dict(self._fixture)
     snapshot_fixture_state = fixture_snapshot
+    def turn_snapshot(self, task_root: str | Path | None = None, *, max_bytes: int = MAX_FIXTURE_BYTES) -> dict[str, object]:
+        """Close one parent turn while retaining cross-turn child lifecycle state."""
+        self._guard()
+        if task_root is not None or self._fixture_root is not None:
+            self.fixture_snapshot(task_root, max_bytes=max_bytes)
+        events = self._events[self._turn_event_cursor:]
+        terminals = [item["terminal_status"] for item in events if item["terminal_status"] is not None]
+        starts = self._starts[self._turn_start_cursor:]
+        completes = self._completes[self._turn_complete_cursor:]
+        if not events or len(terminals) != 1 or events[-1]["terminal_status"] != terminals[0]:
+            _fail("turn observation does not close with exactly one terminal")
+        if self._pending_hash is not None or Counter(starts) != Counter(completes):
+            _fail("turn observation is incomplete")
+        requests = self._requests[self._turn_request_cursor:]
+        responses = self._responses[self._turn_response_cursor:]
+        children = self._children[self._turn_child_cursor:]
+        result = {
+            "schema_version": 1,
+            "event_count": len(events),
+            "event_kinds": dict(sorted(Counter(item["kind"] for item in events).items())),
+            "events": [dict(item) for item in events],
+            "approval": {
+                "request_count": len(requests),
+                "response_count": len(responses),
+                "requests": [dict(item) for item in requests],
+                "responses": [dict(item) for item in responses],
+                "denial_tool_free": self._denial_free,
+                "recovery_succeeded": self._denied and self._recovery and terminals[0] == "completed",
+            },
+            "tools": {"started": list(starts), "completed": list(completes)},
+            "subagents": [dict(item) for item in children],
+            "terminal_status": terminals[0],
+            "terminal_count": 1,
+            "fixture_state": None if self._fixture is None else dict(self._fixture),
+        }
+        self._turn_event_cursor = len(self._events)
+        self._turn_child_cursor = len(self._children)
+        self._turn_start_cursor = len(self._starts)
+        self._turn_complete_cursor = len(self._completes)
+        self._turn_request_cursor = len(self._requests)
+        self._turn_response_cursor = len(self._responses)
+        return result
     def collect_delegation_observation(self) -> dict[str, object]:
         self._guard()
         children = [{"task_index": index, "task_count": self._task_count, "phases": [item["phase"] for item in self._children if item["task_index"] == index], **{key: next(iter(values)) for key in ("parent_id_sha256", "child_id_sha256", "delegation_id_sha256") if (values := {item[key] for item in self._children if item["task_index"] == index and key in item}) and len(values) == 1}} for index in sorted(self._phases)]
@@ -299,7 +365,7 @@ class V4GatewayObserver:
         self._guard()
         if self._pending_hash is not None or Counter(self._starts) != Counter(self._completes) or require_terminal and self._terminal is None:
             _fail("observation is incomplete")
-        return {"schema_version": 1, "event_count": len(self._events), "event_kinds": dict(sorted(self._kinds.items())), "events": [dict(event) for event in self._events], "approval": {"request_count": len(self._requests), "response_count": len(self._responses), "requests": [dict(item) for item in self._requests], "responses": [dict(item) for item in self._responses], "denial_tool_free": self._denial_free, "recovery_succeeded": self._denied and self._recovery and self._terminal == "completed"}, "tools": {"started": list(self._starts), "completed": list(self._completes)}, "subagents": [dict(item) for item in self._children], "terminal_status": self._terminal, "terminal_count": 1 if self._terminal is not None else 0, "fixture_state": None if self._fixture is None else dict(self._fixture)}
+        return {"schema_version": 1, "event_count": len(self._events), "event_kinds": dict(sorted(self._kinds.items())), "events": [dict(event) for event in self._events], "approval": {"request_count": len(self._requests), "response_count": len(self._responses), "requests": [dict(item) for item in self._requests], "responses": [dict(item) for item in self._responses], "denial_tool_free": self._denial_free, "recovery_succeeded": self._denied and self._recovery and self._terminal == "completed"}, "tools": {"started": list(self._starts), "completed": list(self._completes)}, "subagents": [dict(item) for item in self._children], "terminal_status": self._terminal, "terminal_count": self._terminal_count, "fixture_state": None if self._fixture is None else dict(self._fixture)}
     observation = snapshot
     collect_observation = snapshot
     def start(self, *args: Any, **kwargs: Any) -> Any:

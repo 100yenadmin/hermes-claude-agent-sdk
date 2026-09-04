@@ -190,10 +190,14 @@ class V4LiveExecutor:
                 if isinstance(envelope, Mapping) and any(key in envelope and envelope[key] != value for key, value in expected): raise V4LiveExecutorViolation("gateway response identity does not match")
         if method == "prompt.submit": self._provider_calls += 1
         return result
-    def _next(self, session_id: str, choice: str, decision_class: str, accumulator: EventAccumulator, captured: dict[str, Mapping[str, Any]], approval_receipts: list[dict[str, dict[str, object]]]) -> EventProjection:
+    def _next(self, session_id: str, choice: str, decision_class: str, accumulator: EventAccumulator, captured: dict[str, Mapping[str, Any]], approval_receipts: list[dict[str, dict[str, object]]], *, timeout: float | None = None) -> EventProjection:
         def project(raw: object) -> None:
             if isinstance(raw, Mapping): captured["value"] = raw
-        try: value = self._gateway.next_event(projector=project)
+        try:
+            kwargs = {"projector": project}
+            if timeout is not None:
+                kwargs["timeout"] = timeout
+            value = self._gateway.next_event(**kwargs)
         except Exception: raise V4LiveExecutorViolation("gateway event sequence failed") from None
         raw = captured.get("value")
         if raw is not None:
@@ -213,26 +217,36 @@ class V4LiveExecutor:
             self._approval_count += 1
         return projection
 
-    def _execute_turn(self, prompt: str, *, session_id: str, approval_choice: str) -> dict[str, Any]:
+    def _execute_turn(self, prompt: str | None, *, session_id: str, approval_choice: str, submit_prompt: bool = True, expect_followup: bool = False) -> dict[str, Any]:
         terminal: str | None = None; events: list[EventProjection] = []; accumulator = EventAccumulator(); approval_receipts: list[dict[str, dict[str, object]]] = []
         decision = approval_choice.casefold(); decision_class = "allow" if decision in {"allow", "approve", "yes"} else "deny" if decision in {"deny", "reject", "no", "cancel"} else "other"
-        submitted_session: list[str] = []
-        def project_submit(raw: object) -> None:
-            if isinstance(raw, Mapping) and isinstance(raw.get("session_id"), str): submitted_session.append(raw["session_id"])
-        submitted = self._call("prompt.submit", {"session_id": session_id, "text": prompt}, project_submit)
-        returned_session = submitted_session[0] if submitted_session else submitted.get("session_id")
-        if isinstance(returned_session, str) and returned_session != session_id: raise V4LiveExecutorViolation("prompt response session identity does not match")
+        if submit_prompt:
+            if not isinstance(prompt, str):
+                raise V4LiveExecutorViolation("submitted turn requires a prompt")
+            submitted_session: list[str] = []
+            def project_submit(raw: object) -> None:
+                if isinstance(raw, Mapping) and isinstance(raw.get("session_id"), str): submitted_session.append(raw["session_id"])
+            submitted = self._call("prompt.submit", {"session_id": session_id, "text": prompt}, project_submit)
+            returned_session = submitted_session[0] if submitted_session else submitted.get("session_id")
+            if isinstance(returned_session, str) and returned_session != session_id: raise V4LiveExecutorViolation("prompt response session identity does not match")
         while terminal is None:
-            captured: dict[str, Mapping[str, Any]] = {}; projection = self._next(session_id, approval_choice, decision_class, accumulator, captured, approval_receipts); events.append(projection)
+            captured: dict[str, Mapping[str, Any]] = {}; projection = self._next(session_id, approval_choice, decision_class, accumulator, captured, approval_receipts, timeout=600.0 if not submit_prompt else None); events.append(projection)
             if projection.terminal_status is not None: terminal = projection.terminal_status
             if len(events) > MAX_EVENTS: raise V4LiveExecutorViolation("event sequence exceeds the bounded count")
-        try: trailing = self._gateway.next_event(timeout=0.01)
-        except (GatewayClosed, GatewayTimeout, TimeoutError): trailing = None
-        if trailing is not None: raise V4LiveExecutorViolation("event arrived after terminal")
+        if not expect_followup:
+            try: trailing = self._gateway.next_event(timeout=0.01)
+            except (GatewayClosed, GatewayTimeout, TimeoutError): trailing = None
+            if trailing is not None: raise V4LiveExecutorViolation("event arrived after terminal")
         if terminal != "completed":
             raise V4LiveExecutorViolation(
                 "positive provider execution did not complete"
             )
+        if not submit_prompt:
+            kinds = [event.event_type for event in events]
+            starts = [index for index, kind in enumerate(kinds) if kind == "message.start"]
+            if not starts or not any(kind in {"message.usage", "session.usage"} for kind in kinds[starts[0] + 1:]):
+                raise V4LiveExecutorViolation("automatic Hermes delivery turn lacks start or usage proof")
+            self._provider_calls = 1
         classification = "COMPLETE"
         counts = Counter(event.event_type for event in events)
         approval = {
@@ -244,13 +258,23 @@ class V4LiveExecutor:
         }
         return {"identity": self._identity.to_dict(), "candidate": dict(self._candidate), "classification": classification, "terminal_status": terminal, "event_count": len(events), "event_kinds": dict(sorted(counts.items())), "events": [event.to_dict() for event in events], "control_calls_used": self._control_calls, "provider_calls": self._provider_calls, "turns_used": 1, "approval": approval}
 
-    def run_on_session(self, prompt: str, *, session_id: str, approval_choice: str = "deny") -> dict[str, Any]:
+    def run_on_session(self, prompt: str, *, session_id: str, approval_choice: str = "deny", expect_followup: bool = False) -> dict[str, Any]:
         if self._used: raise V4LiveExecutorViolation("attempt is already terminal")
         self._used = True
         if not isinstance(prompt, str) or not prompt.strip() or len(prompt.encode()) > 1_048_576: raise V4LiveExecutorViolation("prompt is empty or too large")
         if not isinstance(approval_choice, str) or not approval_choice.strip() or len(approval_choice) > 64: raise V4LiveExecutorViolation("approval choice is invalid")
         session_id = _safe_id(session_id, "session_id")
-        return self._execute_turn(prompt, session_id=session_id, approval_choice=approval_choice)
+        if type(expect_followup) is not bool:
+            raise V4LiveExecutorViolation("follow-up expectation is invalid")
+        return self._execute_turn(prompt, session_id=session_id, approval_choice=approval_choice, expect_followup=expect_followup)
+
+    def observe_on_session(self, *, session_id: str, approval_choice: str = "deny") -> dict[str, Any]:
+        """Observe one Hermes-owned automatic delivery turn without submitting input."""
+        if self._used: raise V4LiveExecutorViolation("attempt is already terminal")
+        self._used = True
+        if not isinstance(approval_choice, str) or not approval_choice.strip() or len(approval_choice) > 64: raise V4LiveExecutorViolation("approval choice is invalid")
+        session_id = _safe_id(session_id, "session_id")
+        return self._execute_turn(None, session_id=session_id, approval_choice=approval_choice, submit_prompt=False)
 
     def run(self, prompt: str, *, approval_choice: str = "deny") -> dict[str, Any]:
         if self._used: raise V4LiveExecutorViolation("attempt is already terminal")

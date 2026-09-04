@@ -15,10 +15,10 @@ from .v4_contract import V4ContractViolation, V4_MODEL, V4_SDK_DISTRIBUTION, V4_
 LIVE_MAP_SCHEMA_VERSION = 1
 LIVE_MAP_VERSION = "1.0.0"
 LIVE_ROW_COUNT, LIVE_MANDATORY_PATH_COUNT, LIVE_TRIAL_PACKET_COUNT = 70, 158, 242
-PARENT_CALL_COUNT, CHILD_CALL_COUNT, TOTAL_CALL_COUNT = 120, 16, 136
-TURN_BUDGET, RESERVE_CALL_COUNT, EFFECTIVE_PROVIDER = 180, 44, "fable"
+PARENT_CALL_COUNT, CHILD_CALL_COUNT, TOTAL_CALL_COUNT = 134, 16, 150
+TURN_BUDGET, RESERVE_CALL_COUNT, EFFECTIVE_PROVIDER = 180, 30, "fable"
 _HEX64, _SHA1, _SAFE = re.compile(r"^[0-9a-f]{64}$"), re.compile(r"^[0-9a-f]{40}$"), re.compile(r"^[A-Za-z0-9_.:/-]{1,240}$")
-_FEATURES = {"F0": ("route/preflight", "parent_text", 13, 0), "F1": ("parent/input/state", "parent_state", 8, 0), "F2": ("tools/approval/memory", "host_tool_pdr", 18, 3), "F3": ("delegation/handoff", "host_delegate", 14, 11), "F4": ("background/restart", "host_background", 9, 2), "F5": ("memory/session", "memory_session", 22, 0), "F6": ("docs/skills", "docs_skills", 9, 0), "F7": ("browser/cross-surface", "local_cross_surface", 9, 0), "F8": ("adversarial/composite", "adversarial_local", 18, 0)}
+_FEATURES = {"F0": ("route/preflight", "parent_text", 13, 0), "F1": ("parent/input/state", "parent_state", 8, 0), "F2": ("tools/approval/memory", "host_tool_pdr", 21, 3), "F3": ("delegation/handoff", "host_delegate", 23, 11), "F4": ("background/restart", "host_background", 11, 2), "F5": ("memory/session", "memory_session", 22, 0), "F6": ("docs/skills", "docs_skills", 9, 0), "F7": ("browser/cross-surface", "local_cross_surface", 9, 0), "F8": ("adversarial/composite", "adversarial_local", 18, 0)}
 _PACKS = {"v2_non_soak": {"rows": 26, "mandatory_paths": 26, "required_trial_packets": 38}, "openclaw_active": {"rows": 8, "mandatory_paths": 24, "required_trial_packets": 36}, "clawprobench_native": {"rows": 36, "mandatory_paths": 108, "required_trial_packets": 168}}
 _EXTERNAL = frozenset({"v2_non_soak/OPS-02", "clawprobench_native/constraints_22_message_audience_boundary_live", "clawprobench_native/constraints_23_external_approval_boundary_live", "clawprobench_native/error_recovery_20_browser_cron_message_orchestration_live", "clawprobench_native/synthesis_24_browser_message_reschedule_live", "clawprobench_native/synthesis_28_browser_internal_external_split_live"})
 _ALIASES = {"codex-luna": ("openai-codex/gpt-5.6-luna", {"v2_non_soak/AUTH-02", "v2_non_soak/ORCH-03", "v2_non_soak/ORCH-05"}), "codex-sol": ("openai-codex/gpt-5.6-sol", {"v2_non_soak/AUTH-03", "v2_non_soak/ORCH-04", "v2_non_soak/ORCH-05"}), "opencode-free": ("opencode-free", {"v2_non_soak/AUTH-04"})}
@@ -45,6 +45,11 @@ _CHILD_BINDINGS = (
 )
 _CHILD_ROW_SESSION_BOUNDARIES = {binding[2]: binding[7] for binding in _CHILD_BINDINGS}
 _EXPECTED_CHILD_COUNTS = Counter(binding[2] for binding in _CHILD_BINDINGS)
+_DELIVERY_PARENT_CALLS = Counter(
+    key for key, _path, _trial in {
+        (binding[2], binding[3], binding[4]) for binding in _CHILD_BINDINGS
+    }
+)
 _ROW_BUNDLE_MODES = {key: "parent_only" for key in _EXPECTED_CHILD_COUNTS}
 _ROW_BUNDLE_MODES.update({
     key: ("background_one_entry_batch_join" if key == "v2_non_soak/BG-01" else "background_child_cancel_restart" if key == "v2_non_soak/BG-03" else "parent_two_children" if sum(1 for binding in _CHILD_BINDINGS if binding[2] == key and binding[6] == 2) else "parent_child")
@@ -116,7 +121,7 @@ def _rows(raw_rows: Sequence[Any], contract: Mapping[str, Any], feature_ids: set
         expected_delivery = "host_denial_local_recovery" if key in _EXTERNAL else "local_fixture_only"
         if item["delivery_mode"] != expected_delivery:
             raise V4LiveMapViolation(f"{key} delivery policy is unsafe")
-        expected_parent_calls = _SPECIAL_PARENT_CALLS.get(key, len(item["required_trial_indexes"]))
+        expected_parent_calls = _SPECIAL_PARENT_CALLS.get(key, len(item["required_trial_indexes"])) + _DELIVERY_PARENT_CALLS.get(key, 0)
         if type(item["parent_calls"]) is not int or item["parent_calls"] != expected_parent_calls:
             raise V4LiveMapViolation(f"{key} parent call ledger does not match its trial bundle")
         expected_child_calls = _EXPECTED_CHILD_COUNTS.get(key, 0)
@@ -201,7 +206,7 @@ def validate_v4_live_execution_map(value: Mapping[str, Any], *, map_path: str | 
     if coverage != {"provider_live_rows": 70, "mandatory_paths": 158, "required_trial_packets": 242, "rows_by_pack": _PACKS}:
         raise V4LiveMapViolation("live map coverage accounting drifted")
     budget = _m(document["budget"], "budget")
-    if budget != {"parent_calls": 120, "child_calls": 16, "total_calls": 136, "turn_budget": 180, "reserve_calls": 44} or TOTAL_CALL_COUNT + RESERVE_CALL_COUNT != TURN_BUDGET:
+    if budget != {"parent_calls": 134, "child_calls": 16, "total_calls": 150, "turn_budget": 180, "reserve_calls": 30} or TOTAL_CALL_COUNT + RESERVE_CALL_COUNT != TURN_BUDGET:
         raise V4LiveMapViolation("live map call budget is unsafe")
     mechanisms = _m(document["mechanism_classes"], "mechanism_classes")
     if set(mechanisms) != {spec[1] for spec in _FEATURES.values()} or any((m := _m(item, "mechanism")).keys() != {"host_owned", "live_call_accounting", "external_delivery", "operation"} or m["host_owned"] is not True or m["live_call_accounting"] != "feature_budgeted" or m["external_delivery"] is not False or not isinstance(m["operation"], str) for item in mechanisms.values()):

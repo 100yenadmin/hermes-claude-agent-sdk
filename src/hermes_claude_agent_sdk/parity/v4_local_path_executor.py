@@ -17,7 +17,7 @@ from .v4_live_map import V4LiveMapViolation, load_v4_live_execution_map
 _ROOT = Path(__file__).resolve().parents[3]
 _MAP = _ROOT / "qa" / "parity-v4-live-execution-map.yaml"
 _FIXTURE = _ROOT / "tests" / "fixtures" / "v4_local_runtime_plugin"
-_MAP_SHA256 = "85583a44b797a58e6a3f6fcc9f4f5234b445b49c5ab6bf38b153e872473a16ff"
+_MAP_SHA256 = "aa68ce417d9a8ad74110de76f37ef550e1f5414eba0a6ecba0af235ba1488c69"
 _HOST_FILE_SHA256 = {
     "agent/runtime_api.py": "0b230d2ea4ab074bd52cd2cfcb34c53cab64ebd0edb3ef8ff2874454b320e604",
     "agent/runtime_dispatch.py": "896240c77103010caf03a99fd355492e2fd985eded9c20851ce968c8de03a15b",
