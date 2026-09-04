@@ -154,10 +154,16 @@ class V4LiveSession:
     def _capture_session_identities(self, raw: object, captured: dict[str, str]) -> None:
         if not isinstance(raw, Mapping):
             return
-        for field in ("session_id", "stored_session_id"):
+        for field in ("session_id", "stored_session_id", "session_key", "resumed"):
             value = raw.get(field)
             if isinstance(value, str) and value:
-                captured[field] = value
+                target = "stored_session_id" if field in {"session_key", "resumed"} else field
+                existing = captured.get(target)
+                if existing is not None and existing != value:
+                    raise V4LiveSessionViolation(
+                        "gateway returned conflicting session identities"
+                    )
+                captured[target] = value
     def start(self) -> dict[str, OpaqueHandle]:
         if self._started or self._closed or self._failed:
             raise V4LiveSessionViolation("session cannot be started twice")
@@ -175,7 +181,13 @@ class V4LiveSession:
                 projector=lambda raw: self._capture_session_identities(raw, captured),
             )
             live = captured.get("session_id") or response.get("session_id")
-            stored = captured.get("stored_session_id") or response.get("stored_session_id")
+            stored = (
+                captured.get("stored_session_id")
+                or response.get("stored_session_id")
+                or response.get("session_key")
+                or response.get("resumed")
+                or self._resume_stored_session_id
+            )
             if not isinstance(live, str) or not live or not isinstance(stored, str) or not stored:
                 raise V4LiveSessionViolation("gateway did not return both session identities")
             live, stored = _safe_id(live, "session_id"), _safe_id(stored, "stored_session_id")

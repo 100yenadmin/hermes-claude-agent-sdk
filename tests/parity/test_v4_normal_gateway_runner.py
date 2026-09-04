@@ -68,7 +68,7 @@ class _Transport:
         elif method == "session.resume":
             result = {
                 "session_id": self.sid,
-                "stored_session_id": frame["params"]["session_id"],
+                "session_key": frame["params"]["session_id"],
             }
         elif method == "tools.show":
             result = {

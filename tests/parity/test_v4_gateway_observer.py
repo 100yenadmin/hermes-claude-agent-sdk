@@ -21,7 +21,7 @@ class _FakeGateway:
         elif method == "session.resume":
             result = {
                 "session_id": "resumed-session-secret",
-                "stored_session_id": params["session_id"],
+                "session_key": params["session_id"],
             }
         elif method == "tools.show":
             result = {"sections": [], "total": 0}

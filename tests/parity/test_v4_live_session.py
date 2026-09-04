@@ -34,7 +34,10 @@ class _SessionTransport:
         if method == "session.create":
             result = {"session_id": LIVE_SESSION_ID, "stored_session_id": self.stored_session_id}
         elif method == "session.resume":
-            result = {"session_id": "resumed-live-session", "stored_session_id": self.stored_session_id}
+            result = {
+                "session_id": "resumed-live-session",
+                "session_key": self.stored_session_id,
+            }
         else:
             result = {"status": "streaming"}
             if method == "prompt.submit":
@@ -83,6 +86,16 @@ class _AsyncDelegationTransport(_SessionTransport):
                 delivery.append(_event("message.complete", terminal))
                 self._events.extend(delivery)
         return {"jsonrpc": "2.0", "id": frame["id"], "result": result}
+
+
+class _ConflictingResumeTransport(_SessionTransport):
+    def send(self, frame: dict[str, object]) -> dict[str, object]:
+        response = super().send(frame)
+        if frame["method"] == "session.resume":
+            result = response["result"]
+            assert isinstance(result, dict)
+            result["stored_session_id"] = "conflicting-stored-session"
+        return response
 
 def _session(transport: _SessionTransport, **kwargs: Any) -> V4LiveSession:
     return V4LiveSession(
@@ -241,6 +254,19 @@ def test_live_session_rejects_resume_identity_drift_and_unbounded_turns() -> Non
     with pytest.raises(V4LiveSessionViolation):
         _run_turn(bounded, "two", "AUTH-01")
     assert bounded_transport.closed
+
+
+def test_live_session_rejects_conflicting_resume_identity_aliases() -> None:
+    first = _session(_SessionTransport(), planned_calls=1, planned_turns=1)
+    first.start()
+    first.close()
+    conflicting = _ConflictingResumeTransport(resume=True)
+    resumed = first.restart(
+        gateway=Gateway(python="fake-python", cwd=ROOT, env={}, transport=conflicting)
+    )
+    with pytest.raises(V4LiveSessionViolation, match="session start failed"):
+        resumed.start()
+    assert conflicting.closed
 
 def test_live_session_rejects_cross_row_or_nonpositive_provider_turn() -> None:
     cross = _session(_SessionTransport())
