@@ -142,7 +142,7 @@ def test_real_gateway_shape_binds_state_and_usage_to_durable_host_receipts(tmp_p
     host["runtime_state"] = {"present": True, "schema_version": 1, "sha256": "9" * 64}
     monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: host)
     monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": [], "parent_link_sha256": None, "lifecycle": "none"})
-    transport = _Transport([_event("session.info"), _event("message.start"), _event("session.title"), _event("sessions.changed"), _event("status.update"), _event("message.delta"), _event("message.complete", {"status": "completed"})])
+    transport = _Transport([_event("session.info"), _event("message.start"), _event("session.title"), _event("sessions.changed"), _event("status.update"), _event("session.usage"), _event("message.delta"), _event("message.complete", {"status": "completed"})])
     result = _runner(tmp_path / "home", lambda **kwargs: Gateway(python="fake", cwd=ROOT, env=kwargs["env"], transport=transport, host_tools=kwargs["host_tools"], mcp_tools=kwargs["mcp_tools"])).execute()
     assert [event["kind"] for event in result["paths"]["positive"]["trial"].normalized_events] == ["start", "state", "usage", "terminal"]
     assert result["scenario_receipt"]["scenario_trace_hash"] != "0" * 64
