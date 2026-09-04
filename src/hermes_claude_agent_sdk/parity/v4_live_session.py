@@ -1,6 +1,7 @@
 """Bounded provider-free normal-Hermes sessions over one live gateway."""
 from __future__ import annotations
-from collections.abc import Mapping
+import re
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 from .v4_host_probe import (
@@ -26,6 +27,9 @@ from .v4_live_map import (
 
 class V4LiveSessionViolation(V4LiveExecutorViolation):
     """A session could not be admitted, resumed, or closed safely."""
+
+
+_TOOL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 
 def _row_turn_budget(live_map: Mapping[str, Any], source_pack: str, source_item_id: str) -> int:
     rows = live_map.get("rows", ())
@@ -122,6 +126,7 @@ class V4LiveSession:
         self._started = False
         self._closed = False
         self._failed = False
+        self._tool_inventory_verified = False
     @property
     def started(self) -> bool:
         return self._started and not self._closed
@@ -180,6 +185,74 @@ class V4LiveSession:
                 raise
             raise V4LiveSessionViolation("session start failed") from None
     create = start
+
+    def verify_tool_inventory(self, expected_names: Sequence[str]) -> tuple[str, ...]:
+        """Fail closed unless this exact Hermes session exposes the frozen tools."""
+
+        if not self.started or self._live_session_id is None or self._tool_inventory_verified:
+            raise V4LiveSessionViolation("session tool inventory cannot be verified")
+        if (
+            not isinstance(expected_names, Sequence)
+            or isinstance(expected_names, (str, bytes, bytearray))
+            or not expected_names
+        ):
+            raise V4LiveSessionViolation("expected tool inventory is invalid")
+        expected = tuple(sorted(expected_names))
+        if len(set(expected)) != len(expected) or any(
+            not isinstance(name, str) or _TOOL_NAME.fullmatch(name) is None
+            for name in expected
+        ):
+            raise V4LiveSessionViolation("expected tool inventory is invalid")
+
+        captured: list[str] = []
+
+        def project(raw: object) -> None:
+            if not isinstance(raw, Mapping) or set(raw) != {"sections", "total"}:
+                raise V4LiveSessionViolation("Hermes tools.show response is not closed")
+            sections, total = raw.get("sections"), raw.get("total")
+            if (
+                not isinstance(sections, Sequence)
+                or isinstance(sections, (str, bytes, bytearray))
+                or type(total) is not int
+                or total < 0
+            ):
+                raise V4LiveSessionViolation("Hermes tools.show response is invalid")
+            for section in sections:
+                if not isinstance(section, Mapping) or set(section) != {"name", "tools"}:
+                    raise V4LiveSessionViolation("Hermes tools.show section is not closed")
+                tools = section.get("tools")
+                if not isinstance(tools, Sequence) or isinstance(tools, (str, bytes, bytearray)):
+                    raise V4LiveSessionViolation("Hermes tools.show section is invalid")
+                for tool in tools:
+                    if not isinstance(tool, Mapping) or set(tool) != {"name", "description"}:
+                        raise V4LiveSessionViolation("Hermes tools.show tool is not closed")
+                    name = tool.get("name")
+                    if not isinstance(name, str) or _TOOL_NAME.fullmatch(name) is None:
+                        raise V4LiveSessionViolation("Hermes tools.show tool name is invalid")
+                    captured.append(name)
+            if total != len(captured):
+                raise V4LiveSessionViolation("Hermes tools.show total is inconsistent")
+
+        try:
+            self._gateway.call(
+                "tools.show",
+                {"session_id": self._live_session_id},
+                projector=project,
+            )
+        except Exception as exc:
+            self._failed = True
+            self.close()
+            if isinstance(exc, V4LiveSessionViolation):
+                raise
+            raise V4LiveSessionViolation("Hermes tool inventory query failed") from None
+        observed = tuple(sorted(captured))
+        if len(set(observed)) != len(observed) or observed != expected:
+            self._failed = True
+            self.close()
+            raise V4LiveSessionViolation("Hermes tool inventory drifted from the frozen inventory")
+        self._tool_inventory_verified = True
+        return observed
+
     def run_turn(
         self,
         prompt: str,

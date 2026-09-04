@@ -15,7 +15,11 @@ from typing import Any
 from .v4_background_delivery_receipt import run_v4_background_delivery_receipt
 from .v4_contract import V3_RESULT_CATALOG_HASH, OWNERSHIP_PREFLIGHTS, load_v4_contract, validate_v4_contract
 from .v4_fixture_materializer import V4FixtureMaterializer
-from .v4_gateway import HOST_TOOLS, MCP_TOOLS, Gateway
+from .v4_gateway import Gateway
+from .v4_gateway_inventory import (
+    V4GatewayInventory,
+    load_v4_gateway_inventory,
+)
 from .v4_gateway_observer import V4GatewayObserver
 from .v4_live_executor import V4LiveGateway, _candidate, _preflight_hash
 from .v4_live_fixtures import (
@@ -317,7 +321,7 @@ def _local_observations(scenario: Any, trial_index: int, task_root: Path) -> dic
 class V4NormalGatewayRunner:
     """Admit one row/trial and execute only its positive provider turns."""
 
-    def __init__(self, *, candidate: Mapping[str, Any], preflight_projections: Mapping[str, Mapping[str, Any]], profile_id: str, inventory_hash: str, hermes_home: str | Path, fixture_root: str | Path | None = None, contract: Mapping[str, Any] | str | Path | None = None, live_map: Mapping[str, Any] | str | Path | None = None, fixture_manifest: V4LiveFixtureManifest | Mapping[str, Any] | str | Path | None = None, map_path: str | Path | None = None, manifest_path: str | Path | None = None, plugin_root: str | Path | None = None, python: str | Path | None = None, cwd: str | Path | None = None, gateway_factory: Callable[..., V4LiveGateway] | None = None, row_key: str | None = None, trial_index: int | None = None) -> None:
+    def __init__(self, *, candidate: Mapping[str, Any], preflight_projections: Mapping[str, Mapping[str, Any]], profile_id: str, tool_inventory: V4GatewayInventory | Mapping[str, Any] | str | Path, hermes_home: str | Path, fixture_root: str | Path | None = None, contract: Mapping[str, Any] | str | Path | None = None, live_map: Mapping[str, Any] | str | Path | None = None, fixture_manifest: V4LiveFixtureManifest | Mapping[str, Any] | str | Path | None = None, map_path: str | Path | None = None, manifest_path: str | Path | None = None, plugin_root: str | Path | None = None, python: str | Path | None = None, cwd: str | Path | None = None, gateway_factory: Callable[..., V4LiveGateway] | None = None, row_key: str | None = None, trial_index: int | None = None) -> None:
         try:
             home = _bounded_root(hermes_home, allow_missing=True)
             task_root = _bounded_root(fixture_root or hermes_home, allow_missing=True)
@@ -336,7 +340,16 @@ class V4NormalGatewayRunner:
             normalized, candidate_hash = _candidate(candidate)
             preflight_hash = _preflight_hash(preflight_projections, candidate_hash)
             profile = _safe_id(profile_id, "profile_id")
-            inventory = _digest(inventory_hash, "inventory_hash")
+            inventory = load_v4_gateway_inventory(
+                tool_inventory,
+                expected_profile_id=profile,
+                expected_profile_sha256=normalized["profile_sha256"],
+                expected_host_sha=normalized["host_sha"],
+            )
+            if "v4_fixture_local_state" not in inventory.executable_names:
+                raise ValueError("v4 fixture tool is absent from the executable inventory")
+            if "delegate_task" not in inventory.host_event_names:
+                raise ValueError("Hermes delegate_task is absent from the inventory")
         except V4NormalGatewayRunnerViolation:
             raise
         except Exception as exc:
@@ -346,7 +359,8 @@ class V4NormalGatewayRunner:
         self._home, self._task_root = home, task_root
         self._plugin_root = Path(plugin_root).expanduser() if plugin_root is not None else Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "v4_hermes_plugin"
         self._python, self._cwd, self._factory = os.fspath(python or sys.executable), cwd, gateway_factory
-        self._profile_id, self._inventory_hash = profile, inventory
+        self._profile_id, self._inventory = profile, inventory
+        self._inventory_hash = inventory.inventory_sha256
         self._candidate_hash, self._preflight_hash = candidate_hash, preflight_hash
         self._executed, self._admission = False, None
         self._bound_row_key, self._bound_trial_index = None, None
@@ -393,7 +407,7 @@ class V4NormalGatewayRunner:
             if gateway is not None and self._factory is not None:
                 raise V4NormalGatewayRunnerViolation("gateway and gateway_factory are mutually exclusive")
             if gateway is None:
-                gateway = self._factory(env=env, cwd=self._cwd or self._map_path.parent, host_tools=HOST_TOOLS | {"v4_fixture_local_state"}, mcp_tools=MCP_TOOLS | {"mcp__hermes-tools__v4_fixture_local_state"}) if self._factory is not None else Gateway(python=self._python, cwd=self._cwd or self._map_path.parent, env=env, host_tools=HOST_TOOLS | {"v4_fixture_local_state"}, mcp_tools=MCP_TOOLS | {"mcp__hermes-tools__v4_fixture_local_state"})
+                gateway = self._factory(env=env, cwd=self._cwd or self._map_path.parent, host_tools=self._inventory.host_event_names, mcp_tools=self._inventory.mcp_event_names) if self._factory is not None else Gateway(python=self._python, cwd=self._cwd or self._map_path.parent, env=env, host_tools=self._inventory.host_event_names, mcp_tools=self._inventory.mcp_event_names)
             if isinstance(gateway, Gateway) and gateway.command[1:] != ("-u", "-m", "tui_gateway.entry"):
                 raise V4NormalGatewayRunnerViolation("normal Gateway command is not tui_gateway.entry")
             observed_gateway = _ObservedGateway(gateway, self._task_root)
@@ -402,6 +416,7 @@ class V4NormalGatewayRunner:
             database = db_path or self._home / "state.db"
             try:
                 session.start()
+                session.verify_tool_inventory(tuple(self._inventory.executable_names))
                 for turn in range(1, scenario.turn_count + 1):
                     material = self._materializer.materialize(row_key=row_key, trial_index=trial_index, turn_index=turn, path="positive", task_root=self._task_root if scenario.mechanism_class == "host_tool_pdr" else None)
                     attempts.append(session.run_turn(material.prompt.text, source_pack=scenario.source_pack, source_item_id=scenario.source_item_id, path="positive", trial_index=trial_index, approval_choice=material.host.approval_choice, planned_calls=1))

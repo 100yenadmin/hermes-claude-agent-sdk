@@ -8,6 +8,9 @@ import pytest
 
 from hermes_claude_agent_sdk.parity import v4_normal_gateway_runner as runner_module
 from hermes_claude_agent_sdk.parity.v4_gateway import Gateway
+from hermes_claude_agent_sdk.parity.v4_gateway_inventory import (
+    build_v4_gateway_inventory,
+)
 from hermes_claude_agent_sdk.parity.v4_live_session import V4LiveSession
 from hermes_claude_agent_sdk.parity.v4_normal_gateway_runner import (
     V4NormalGatewayRunner,
@@ -18,19 +21,70 @@ from .test_v4_live_executor import _candidate, _event, _preflights
 from .test_v4_live_packets import _host
 
 ROOT = Path(__file__).parents[2]
+
+
+def _schema(name):
+    return {
+        "type": "function",
+        "function": {"name": name, "parameters": {"type": "object"}},
+    }
+
+
+def _inventory():
+    candidate = _candidate()
+    return build_v4_gateway_inventory(
+        profile_id="isolated",
+        profile_sha256=candidate["profile_sha256"],
+        host_sha=candidate["host_sha"],
+        delivered_schemas=[
+            _schema(name)
+            for name in (
+                "delegate_task",
+                "read_file",
+                "tool_call",
+                "tool_describe",
+                "tool_search",
+                "v4_fixture_local_state",
+            )
+        ],
+        executable_schemas=[
+            _schema(name)
+            for name in ("delegate_task", "read_file", "v4_fixture_local_state")
+        ],
+    )
+
+
 class _Transport:
-    def __init__(self, events):
+    def __init__(self, events, tool_names=None):
         self.events, self.calls, self.started = deque([_event("gateway.ready"), *events]), [], False; self.sid = "s" + format(id(self), "x")
+        self.tool_names = tuple(tool_names or _inventory().executable_names)
     def start(self): self.started = True
     def send(self, frame):
-        method = frame["method"]; self.calls.append(method); result = {"session_id": self.sid, "stored_session_id": self.sid} if method == "session.create" else {}
+        method = frame["method"]; self.calls.append(method)
+        if method == "session.create":
+            result = {"session_id": self.sid, "stored_session_id": self.sid}
+        elif method == "tools.show":
+            result = {
+                "sections": [
+                    {
+                        "name": "test",
+                        "tools": [
+                            {"name": name, "description": ""}
+                            for name in sorted(self.tool_names)
+                        ],
+                    }
+                ],
+                "total": len(self.tool_names),
+            }
+        else:
+            result = {}
         return {"jsonrpc": "2.0", "id": frame["id"], "result": result}
     def recv(self, _):
         if self.events: return self.events.popleft()
         raise TimeoutError
     def close(self): pass
 def _runner(home, factory, row="v2_non_soak/AUTH-01"):
-    return V4NormalGatewayRunner(candidate=_candidate(), preflight_projections=_preflights(_candidate()), profile_id="isolated", inventory_hash="5" * 64, hermes_home=home, contract=ROOT / "qa/parity-contract-v4.yaml", live_map=ROOT / "qa/parity-v4-live-execution-map.yaml", fixture_manifest=ROOT / "qa/parity-v4-live-fixtures.yaml", gateway_factory=factory, row_key=row, trial_index=1)
+    return V4NormalGatewayRunner(candidate=_candidate(), preflight_projections=_preflights(_candidate()), profile_id="isolated", tool_inventory=_inventory(), hermes_home=home, contract=ROOT / "qa/parity-contract-v4.yaml", live_map=ROOT / "qa/parity-v4-live-execution-map.yaml", fixture_manifest=ROOT / "qa/parity-v4-live-fixtures.yaml", gateway_factory=factory, row_key=row, trial_index=1)
 def _events(extra=()): return [_event("message.start"), _event("message.state"), *extra, _event("message.usage"), _event("message.complete", {"status": "completed"})]
 def _children(transport, count, background=False, include_spawn=True):
     parent, events = "p" + format(id(transport), "x"), []
@@ -44,7 +98,7 @@ def _children(transport, count, background=False, include_spawn=True):
 def test_construction_is_inert_and_incompatible_identity_precedes_start(tmp_path):
     calls = []; runner = _runner(tmp_path / "home", lambda **_: calls.append(True)); assert calls == [] and not (tmp_path / "home").exists(); assert runner.admission.turn_count == 1
     bad = _candidate(); bad["sdk_version"] = "bad"
-    with pytest.raises(V4NormalGatewayRunnerViolation): V4NormalGatewayRunner(candidate=bad, preflight_projections=_preflights(bad), profile_id="isolated", inventory_hash="5" * 64, hermes_home=tmp_path / "bad")
+    with pytest.raises(V4NormalGatewayRunnerViolation): V4NormalGatewayRunner(candidate=bad, preflight_projections=_preflights(bad), profile_id="isolated", tool_inventory=_inventory(), hermes_home=tmp_path / "bad")
 
 
 def test_stage_plugin_excludes_transient_python_bytecode(tmp_path):
@@ -133,6 +187,26 @@ def test_missing_host_observation_fails_closed_without_path_fabrication(tmp_path
     transport = _Transport(_events())
     with pytest.raises(V4NormalGatewayRunnerViolation): _runner(tmp_path / "home", lambda **kwargs: Gateway(python="fake", cwd=ROOT, env=kwargs["env"], transport=transport, host_tools=kwargs["host_tools"], mcp_tools=kwargs["mcp_tools"])).execute()
     assert transport.calls.count("prompt.submit") == 1
+
+
+def test_gateway_inventory_drift_fails_before_provider_prompt(tmp_path):
+    transport = _Transport(_events(), tool_names=("delegate_task", "v4_fixture_local_state"))
+    with pytest.raises(V4NormalGatewayRunnerViolation):
+        _runner(
+            tmp_path / "home",
+            lambda **kwargs: Gateway(
+                python="fake",
+                cwd=ROOT,
+                env=kwargs["env"],
+                transport=transport,
+                host_tools=kwargs["host_tools"],
+                mcp_tools=kwargs["mcp_tools"],
+            ),
+        ).execute()
+    assert "tools.show" in transport.calls
+    assert "prompt.submit" not in transport.calls
+
+
 def test_sync_child_uses_observed_lifecycle_not_durable_batch_count(tmp_path, monkeypatch):
     monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(1)); monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": [], "parent_link_sha256": None, "lifecycle": "none"})
     transport = _Transport(_events(_children(None, 1)))
