@@ -285,8 +285,20 @@ def _delegation(scenario: Any, trial_index: int, snapshots: tuple[Mapping[str, A
         raise V4NormalGatewayRunnerViolation("observed child lifecycle does not match the immutable map")
     if tuple(sorted(binding[2] for binding in bindings)) != tuple(range(1, count + 1)):
         raise V4NormalGatewayRunnerViolation("immutable child ordinals are not contiguous")
-    parents = {child.get("parent_id_sha256") for child in children if child.get("parent_id_sha256") is not None}
-    if len(parents) != 1:
+    # Top-level Hermes child events are already scoped by the Gateway event
+    # envelope to the observed parent session.  Their optional ``parent_id``
+    # payload means "parent subagent" and is intentionally absent for a root
+    # agent.  Bind root ownership to the durable async_delegations row queried
+    # by that same stored session instead of inventing a payload requirement.
+    durable_parent = _digest(
+        durable.get("parent_link_sha256"), "durable delegation parent linkage"
+    )
+    event_parents = {
+        child.get("parent_id_sha256")
+        for child in children
+        if child.get("parent_id_sha256") is not None
+    }
+    if len(event_parents) > 1:
         raise V4NormalGatewayRunnerViolation("observed child parent linkage is incomplete")
     observed_background = sum(1 for snapshot in snapshots for event in snapshot.get("events", ()) if event.get("kind") == "background")
     if observed_background not in (0, batch_count):
@@ -294,7 +306,7 @@ def _delegation(scenario: Any, trial_index: int, snapshots: tuple[Mapping[str, A
     lifecycle = durable.get("lifecycle") if batch_count else snapshots[-1].get("terminal_status")
     if lifecycle not in {"pending", "running", "completed", "failed", "cancelled", "delivered", "dropped"}:
         raise V4NormalGatewayRunnerViolation("child lifecycle observation is incomplete")
-    return {"count": count, "background_count": batch_count, "lifecycle": lifecycle, "parent_link_sha256": next(iter(parents))}
+    return {"count": count, "background_count": batch_count, "lifecycle": lifecycle, "parent_link_sha256": durable_parent}
 
 
 def _local_observations(scenario: Any, trial_index: int, task_root: Path) -> dict[str, Mapping[str, Any]]:
