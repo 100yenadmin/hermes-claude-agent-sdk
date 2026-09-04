@@ -104,6 +104,35 @@ def test_background_batch_count_mismatch_fails_closed(tmp_path, monkeypatch):
     with pytest.raises(V4NormalGatewayRunnerViolation): _runner(tmp_path / "home", lambda **k: Gateway(python="fake", cwd=ROOT, env=k["env"], transport=transport, host_tools=k["host_tools"], mcp_tools=k["mcp_tools"]), "v2_non_soak/BG-01").execute()
 
 
+@pytest.mark.parametrize(
+    "row",
+    (
+        "clawprobench_native/planning_19_agent_delegation_boundary_live",
+        "clawprobench_native/planning_20_session_agent_handoff_live",
+    ),
+)
+def test_zero_child_delegation_boundary_retains_required_background(tmp_path, row):
+    runner = _runner(tmp_path / "home", lambda **_: None, row)
+    scenario = next(item for item in runner._catalog.scenarios if item.row_key == row)
+    durable = {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": []}
+    snapshots = ({"subagents": [], "events": [{"kind": "background"}], "terminal_status": "completed"},)
+    assert runner_module._delegation(scenario, 1, snapshots, durable) == {
+        "count": 0,
+        "background_count": 0,
+        "lifecycle": "none",
+        "parent_link_sha256": None,
+    }
+
+
+def test_zero_child_delegation_rejects_unmapped_background(tmp_path):
+    runner = _runner(tmp_path / "home", lambda **_: None, "v2_non_soak/AUTH-01")
+    scenario = next(item for item in runner._catalog.scenarios if item.row_key == "v2_non_soak/AUTH-01")
+    durable = {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": []}
+    snapshots = ({"subagents": [], "events": [{"kind": "background"}], "terminal_status": "completed"},)
+    with pytest.raises(V4NormalGatewayRunnerViolation):
+        runner_module._delegation(scenario, 1, snapshots, durable)
+
+
 def test_local_observations_are_selected_internally_by_immutable_row(tmp_path, monkeypatch):
     runner = _runner(tmp_path / "home", lambda **_: None, "openclaw_active/config-restart-capability-flip")
     scenario = next(item for item in runner._catalog.scenarios if item.row_key == "openclaw_active/config-restart-capability-flip")
@@ -123,9 +152,9 @@ def test_local_observations_are_selected_internally_by_immutable_row(tmp_path, m
     ]
 
 
-def test_unmapped_local_row_stays_pending_and_caller_cannot_inject_observations(tmp_path):
-    runner = _runner(tmp_path / "home", lambda **_: None, "clawprobench_native/constraints_22_message_audience_boundary_live")
-    scenario = next(item for item in runner._catalog.scenarios if item.row_key == "clawprobench_native/constraints_22_message_audience_boundary_live")
+def test_positive_only_local_row_stays_pending_and_caller_cannot_inject_observations(tmp_path):
+    runner = _runner(tmp_path / "home", lambda **_: None, "v2_non_soak/AUTH-01")
+    scenario = next(item for item in runner._catalog.scenarios if item.row_key == "v2_non_soak/AUTH-01")
     assert runner_module._local_observations(scenario, 1, tmp_path) == {}
     assert "sealed_local_observation" not in inspect.signature(V4NormalGatewayRunner.execute).parameters
     with pytest.raises(TypeError):

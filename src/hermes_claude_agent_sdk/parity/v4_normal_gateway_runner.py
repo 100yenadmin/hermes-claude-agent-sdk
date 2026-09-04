@@ -27,6 +27,7 @@ from .v4_live_map import load_v4_live_execution_map, validate_v4_live_execution_
 from .v4_live_packets import LIVE_MAP_SHA256, build_v4_live_packets
 from .v4_live_scenarios import build_v4_live_scenario_catalog
 from .v4_live_session import V4LiveSession
+from .v4_local_mechanism_executor import execute_v4_local_mechanism
 from .v4_local_path_executor import execute_v4_local_path
 from .v4_local_restart import run_v4_local_restart
 from .results import candidate_hash as result_candidate_hash
@@ -45,6 +46,22 @@ _LOCAL_EXECUTORS = {
     "openclaw_active/subagent-handoff": run_v4_background_delivery_receipt,
     "openclaw_active/subagent-fanout-synthesis": run_v4_background_delivery_receipt,
 }
+_GENERIC_LOCAL_MECHANISMS = frozenset(
+    {
+        "host_tool_pdr",
+        "host_delegate",
+        "memory_session",
+        "docs_skills",
+        "local_cross_surface",
+        "adversarial_local",
+    }
+)
+_ZERO_CHILD_BACKGROUND_ROWS = frozenset(
+    {
+        "clawprobench_native/planning_19_agent_delegation_boundary_live",
+        "clawprobench_native/planning_20_session_agent_handoff_live",
+    }
+)
 @dataclass(frozen=True, slots=True)
 class V4NormalGatewayAdmission:
     candidate_hash: str
@@ -216,7 +233,10 @@ def _delegation(scenario: Any, trial_index: int, snapshots: tuple[Mapping[str, A
     if not isinstance(durable, Mapping) or durable.get("status") != "PASS" or durable.get("count") != batch_count or durable.get("background_count") != batch_count or durable.get("invariant_violations") != []:
         raise V4NormalGatewayRunnerViolation("durable delegation observation is missing or mismatched")
     if count == 0:
-        if any(snapshot.get("subagents") for snapshot in snapshots) or any(event.get("kind") == "background" for snapshot in snapshots for event in snapshot.get("events", ())):
+        if any(snapshot.get("subagents") for snapshot in snapshots):
+            raise V4NormalGatewayRunnerViolation("unexpected child or background lifecycle was observed")
+        observed_background = any(event.get("kind") == "background" for snapshot in snapshots for event in snapshot.get("events", ()))
+        if observed_background and scenario.row_key not in _ZERO_CHILD_BACKGROUND_ROWS:
             raise V4NormalGatewayRunnerViolation("unexpected child or background lifecycle was observed")
         return {"count": 0, "background_count": 0, "lifecycle": "none", "parent_link_sha256": None}
     children = [child for snapshot in snapshots for child in snapshot.get("subagents", ())]
@@ -244,10 +264,12 @@ def _local_observations(scenario: Any, trial_index: int, task_root: Path) -> dic
     accepted from the caller and cannot replace the provider-live positive
     attempt.
     """
+    paths = tuple(path for path in scenario.mandatory_paths if path != "positive")
     executor = _LOCAL_EXECUTORS.get(scenario.row_key)
+    if executor is None and scenario.mechanism_class in _GENERIC_LOCAL_MECHANISMS and paths:
+        executor = execute_v4_local_mechanism
     if executor is None:
         return {}
-    paths = tuple(path for path in scenario.mandatory_paths if path != "positive")
     observations: dict[str, Mapping[str, Any]] = {}
     for path in paths:
         with tempfile.TemporaryDirectory(prefix="v4-local-observation-", dir=task_root) as scratch:
