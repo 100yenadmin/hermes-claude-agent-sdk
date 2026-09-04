@@ -76,7 +76,7 @@ def test_fake_normal_gateway_positive_packet_and_safe_env(tmp_path, monkeypatch)
     result = _runner(tmp_path / "home", factory).execute(); env = seen["env"]
     assert result["paths"]["positive"]["classification"] == "COMPLETE" and transport.sid not in repr(result)
     assert env["HOME"] == str(transient_home) and env["CLAUDE_CONFIG_DIR"] == str(transient_config) and env["HERMES_MODEL"] == "claude-fable-5-1" and env["HERMES_TUI_PROVIDER"] == "claude-agent-sdk"
-    assert all(name not in env for name in ("ANTHROPIC_API_KEY", "GLM_API_KEY", "EXTRA_USAGE")); assert "v4_fixture_local_state" in seen["host_tools"] and "mcp__hermes-tools__v4_fixture_local_state" in seen["mcp_tools"]
+    assert all(name not in env for name in ("ANTHROPIC_API_KEY", "GLM_API_KEY", "EXTRA_USAGE")); assert {"v4_fixture_local_state", "tool_search", "tool_describe", "tool_call"} <= seen["host_tools"] and {"mcp__hermes-tools__v4_fixture_local_state", "mcp__hermes-tools__tool_search", "mcp__hermes-tools__tool_describe", "mcp__hermes-tools__tool_call"} <= seen["mcp_tools"]
 
 
 def test_real_gateway_shape_binds_state_and_usage_to_durable_host_receipts(tmp_path, monkeypatch):

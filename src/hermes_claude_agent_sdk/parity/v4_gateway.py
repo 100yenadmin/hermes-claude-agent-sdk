@@ -18,8 +18,20 @@ MAX_EVENTS = 10_000
 MAX_QUEUE = 1_024
 MAX_TIMEOUT = 600.0
 TOOL_PREFIX = "mcp__hermes-tools__"
-HOST_TOOLS = frozenset({"memory", "session_search", "skills", "browser", "cron", "terminal", "process_manage", "delegate_task"})
-MCP_TOOLS = frozenset({"mcp__hermes-tools__memory", "mcp__hermes-tools__session_search", "mcp__hermes-tools__skills", "mcp__hermes-tools__browser", "mcp__hermes-tools__cron", "mcp__hermes-tools__terminal", "mcp__hermes-tools__process_manage", "mcp__hermes-tools__delegate_task"})
+HERMES_DISCOVERY_TOOLS = frozenset({"tool_search", "tool_describe", "tool_call"})
+HOST_TOOLS = frozenset(
+    {
+        "memory",
+        "session_search",
+        "skills",
+        "browser",
+        "cron",
+        "terminal",
+        "process_manage",
+        "delegate_task",
+    }
+) | HERMES_DISCOVERY_TOOLS
+MCP_TOOLS = frozenset(f"{TOOL_PREFIX}{name}" for name in HOST_TOOLS)
 TERMINAL_STATUSES = frozenset({"completed", "denied", "failed", "cancelled"})
 _TERMINAL_STATUS_MAP = {
     "complete": "completed",
@@ -342,4 +354,4 @@ class Gateway:
 GatewayEvent = EventProjection
 RpcFailure = GatewayRpcError
 EnvironmentBlocked = GatewayError
-__all__ = ["DuplicateTerminalError", "EnvironmentBlocked", "EventAccumulator", "EventAccumulatorError", "EventProjection", "Gateway", "GatewayClosed", "GatewayError", "GatewayEvent", "GatewayNotStarted", "GatewayProtocolError", "GatewayRpcError", "GatewayTimeout", "HOST_TOOLS", "JsonRpcTransport", "MCP_TOOLS", "MissingTerminalError", "NativeToolEvent", "OpaqueHandle", "PostTerminalEventError", "RpcFailure", "TOOL_PREFIX"]
+__all__ = ["DuplicateTerminalError", "EnvironmentBlocked", "EventAccumulator", "EventAccumulatorError", "EventProjection", "Gateway", "GatewayClosed", "GatewayError", "GatewayEvent", "GatewayNotStarted", "GatewayProtocolError", "GatewayRpcError", "GatewayTimeout", "HERMES_DISCOVERY_TOOLS", "HOST_TOOLS", "JsonRpcTransport", "MCP_TOOLS", "MissingTerminalError", "NativeToolEvent", "OpaqueHandle", "PostTerminalEventError", "RpcFailure", "TOOL_PREFIX"]

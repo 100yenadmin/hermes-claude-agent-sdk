@@ -4,7 +4,7 @@ from collections import deque
 from pathlib import Path
 from types import SimpleNamespace
 import pytest
-from hermes_claude_agent_sdk.parity.v4_gateway import MAX_FRAME_BYTES, DuplicateTerminalError, EventAccumulator, EventAccumulatorError, Gateway, GatewayProtocolError, MissingTerminalError, NativeToolEvent, OpaqueHandle, PostTerminalEventError
+from hermes_claude_agent_sdk.parity.v4_gateway import MAX_FRAME_BYTES, DuplicateTerminalError, EventAccumulator, EventAccumulatorError, Gateway, GatewayProtocolError, HERMES_DISCOVERY_TOOLS, HOST_TOOLS, MCP_TOOLS, MissingTerminalError, NativeToolEvent, OpaqueHandle, PostTerminalEventError
 def _event(kind: str, payload: dict[str, object] | None = None) -> dict[str, object]:
     return {"jsonrpc": "2.0", "method": "event", "params": {"type": kind, "payload": payload or {}}}
 class _Transport:
@@ -155,6 +155,20 @@ def test_host_tool_inventory_is_explicit_and_fail_closed() -> None:
     with pytest.raises(NativeToolEvent): accumulator.add(_event("tool.start", {"name": "browser"}))
     with pytest.raises(ValueError): EventAccumulator(host_tools=frozenset({"*"}))
     with pytest.raises(ValueError): EventAccumulator(host_tools=frozenset({"Bash"}))
+
+
+def test_default_inventory_admits_only_hermes_discovery_bridges() -> None:
+    assert HERMES_DISCOVERY_TOOLS == {"tool_search", "tool_describe", "tool_call"}
+    assert HERMES_DISCOVERY_TOOLS <= HOST_TOOLS
+    assert {f"mcp__hermes-tools__{name}" for name in HERMES_DISCOVERY_TOOLS} <= MCP_TOOLS
+    accumulator = EventAccumulator()
+    for index, name in enumerate(sorted(HERMES_DISCOVERY_TOOLS), 1):
+        accumulator.add(_event("tool.start", {"name": name, "tool_id": f"bridge-{index}"}))
+        accumulator.add(_event("tool.complete", {"name": name, "tool_id": f"bridge-{index}"}))
+    accumulator.add(_event("message.complete", {"status": "completed"}))
+    assert accumulator.finish()["terminal_status"] == "completed"
+    with pytest.raises(NativeToolEvent):
+        EventAccumulator().add(_event("tool.start", {"name": "Agent", "tool_id": "native"}))
 def test_accumulator_requires_terminal_and_is_bounded() -> None:
     accumulator = EventAccumulator(max_events=1)
     accumulator.add(_event("message.delta"))
