@@ -258,7 +258,11 @@ def _packet_attempt(attempt: Mapping[str, Any]) -> dict[str, Any]:
 def _delegation(scenario: Any, trial_index: int, snapshots: tuple[Mapping[str, Any], ...], durable: Mapping[str, Any]) -> dict[str, Any]:
     bindings = tuple(binding for binding in scenario.child_bindings if binding[1] == trial_index and binding[4] == "positive")
     count = len(bindings)
-    batch_count = 1 if scenario.mechanism_class == "host_background" and count else 0
+    # Hermes deliberately owns the dispatch mode: every model-facing,
+    # top-level delegate_task call is one durable async batch, including
+    # handoff/fanout rows whose feature classification is not
+    # ``host_background``.  A fanout still creates one batch with N children.
+    batch_count = 1 if count else 0
     if not isinstance(durable, Mapping) or durable.get("status") != "PASS" or durable.get("count") != batch_count or durable.get("background_count") != batch_count or durable.get("invariant_violations") != []:
         raise V4NormalGatewayRunnerViolation("durable delegation observation is missing or mismatched")
     if count == 0:
@@ -423,7 +427,11 @@ class V4NormalGatewayRunner:
                 host = session.collect_host_observation(database, allowed_root=self._home, expected_turn_count=scenario.turn_count)
             finally:
                 session.close()
-            expected_batches = 1 if scenario.mechanism_class == "host_background" and scenario.child_calls else 0
+            trial_child_count = sum(
+                binding[1] == trial_index and binding[4] == "positive"
+                for binding in scenario.child_bindings
+            )
+            expected_batches = 1 if trial_child_count else 0
             durable = session.collect_delegation_observation(database, allowed_root=self._home, expected_count=expected_batches)
             trace = _trace(self._contract, scenario, attempts, observed_gateway.snapshots, host)
             delegation = _delegation(scenario, trial_index, observed_gateway.snapshots, durable)

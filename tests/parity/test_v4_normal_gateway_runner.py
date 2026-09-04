@@ -207,21 +207,27 @@ def test_gateway_inventory_drift_fails_before_provider_prompt(tmp_path):
     assert "prompt.submit" not in transport.calls
 
 
-def test_sync_child_uses_observed_lifecycle_not_durable_batch_count(tmp_path, monkeypatch):
-    monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(1)); monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": [], "parent_link_sha256": None, "lifecycle": "none"})
+def test_top_level_child_binds_one_durable_batch_and_observed_lifecycle(tmp_path, monkeypatch):
+    expected_counts = []
+    monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(1))
+    def collect_durable(*_args, **kwargs):
+        expected_counts.append(kwargs.get("expected_count"))
+        return {"status": "PASS", "count": 1, "background_count": 1, "invariant_violations": [], "parent_link_sha256": "a" * 64, "lifecycle": "completed"}
+    monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", collect_durable)
     transport = _Transport(_events(_children(None, 1)))
     result = _runner(tmp_path / "home", lambda **k: Gateway(python="fake", cwd=ROOT, env=k["env"], transport=transport, host_tools=k["host_tools"], mcp_tools=k["mcp_tools"]), "v2_non_soak/ORCH-01").execute()
-    assert result["scenario_receipt"]["delegation_summary"]["count"] == 1 and result["scenario_receipt"]["delegation_summary"]["background_count"] == 0
+    assert expected_counts == [1]
+    assert result["scenario_receipt"]["delegation_summary"]["count"] == 1 and result["scenario_receipt"]["delegation_summary"]["background_count"] == 1
 
 
-def test_sync_child_accepts_real_gateway_two_phase_lifecycle(tmp_path, monkeypatch):
+def test_top_level_child_accepts_real_gateway_two_phase_lifecycle(tmp_path, monkeypatch):
     monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(1))
-    monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": [], "parent_link_sha256": None, "lifecycle": "none"})
+    monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 1, "background_count": 1, "invariant_violations": [], "parent_link_sha256": "a" * 64, "lifecycle": "completed"})
     transport = _Transport(_events(_children(None, 1, include_spawn=False)))
     result = _runner(tmp_path / "home", lambda **k: Gateway(python="fake", cwd=ROOT, env=k["env"], transport=transport, host_tools=k["host_tools"], mcp_tools=k["mcp_tools"]), "v2_non_soak/ORCH-01").execute()
     assert result["scenario_receipt"]["delegation_summary"]["count"] == 1
 def test_two_child_fanout_uses_observed_ordinals(tmp_path, monkeypatch):
-    monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(1)); monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": [], "parent_link_sha256": None, "lifecycle": "none"})
+    monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(1)); monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 1, "background_count": 1, "invariant_violations": [], "parent_link_sha256": "a" * 64, "lifecycle": "completed"})
     transport = _Transport(_events(_children(None, 2)))
     result = _runner(tmp_path / "home", lambda **k: Gateway(python="fake", cwd=ROOT, env=k["env"], transport=transport, host_tools=k["host_tools"], mcp_tools=k["mcp_tools"]), "v2_non_soak/ORCH-05").execute()
     assert result["scenario_receipt"]["delegation_summary"]["count"] == 2
