@@ -60,6 +60,22 @@ def test_children_approval_recovery_and_external_delivery_are_closed_expectation
     assert "delivery_boundary" in approval.host.required_observations
 
 
+def test_legacy_tool_delegate_fixture_allows_hermes_child_instead_of_denial(tmp_path: Path) -> None:
+    delegated = _materializer().materialize(
+        "v2_non_soak/TOOL-05",
+        trial_index=1,
+        turn_index=1,
+        task_root=tmp_path,
+    )
+    assert delegated.host.allowed_tool_names == ("mcp__hermes-tools__delegate_task",)
+    assert delegated.host.approval_choice == "allow"
+    assert delegated.host.approval_sequence == ()
+    assert delegated.host.expected_child_count == 1
+    assert delegated.fixture_tool_args is None
+    assert "mcp__hermes-tools__v4_fixture_local_state" not in delegated.prompt.ephemeral_text
+    assert "task_root=" not in delegated.prompt.ephemeral_text
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [

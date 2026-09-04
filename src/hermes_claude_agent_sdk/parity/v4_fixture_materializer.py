@@ -285,21 +285,24 @@ class V4FixtureMaterializer:
         label = recipe["turn_labels"][turn_index - 1]
         bindings = tuple(binding for binding in scenario.child_bindings if binding[1] == trial_index and binding[4] == path)
         child_ids = tuple(binding[0] for binding in bindings)
+        delegated_tool_path = bool(child_ids)
         surfaces = _BASE_SURFACES + tuple(_SURFACES_BY_MECHANISM[item["mechanism_class"]])
         if child_ids:
             surfaces += ("child",)
         if item["path_policy"] == "host_denial_local_recovery":
             surfaces += ("delivery_boundary",)
         approval = item["mechanism_class"] == "host_tool_pdr" or item["path_policy"] == "host_denial_local_recovery"
-        sequence = ("deny", "safe_recovery") if approval and path == "positive" and "recovery" in item["mandatory_paths"] else (("deny",) if approval else ())
+        sequence = ("deny", "safe_recovery") if approval and not delegated_tool_path and path == "positive" and "recovery" in item["mandatory_paths"] else (("deny",) if approval and not delegated_tool_path else ())
+        allowed_tools = ("mcp__hermes-tools__delegate_task",) if delegated_tool_path else tuple(_TOOLS_BY_MECHANISM[item["mechanism_class"]])
+        approval_choice = "allow" if delegated_tool_path else ("deny" if approval else "not_required")
         expected = V4HostSurfaceExpectations(
-            tuple(_TOOLS_BY_MECHANISM[item["mechanism_class"]]), tuple(dict.fromkeys(surfaces)),
-            "deny" if approval else "not_required", sequence, len(bindings),
+            allowed_tools, tuple(dict.fromkeys(surfaces)),
+            approval_choice, sequence, len(bindings),
             tuple(binding[2] for binding in bindings), child_ids, label,
             1 if path == "positive" else 0, False,
-            None if execution_root is None else (len(surfaces), hashlib.sha256(f"{item.row_key}|{trial_index}|{turn_index}|{path}|{label}".encode()).hexdigest()),
+            None if execution_root is None or delegated_tool_path else (len(surfaces), hashlib.sha256(f"{item.row_key}|{trial_index}|{turn_index}|{path}|{label}".encode()).hexdigest()),
         )
-        prompt = self._prompt(item, trial_index, turn_index, path, label, expected, execution_root)
+        prompt = self._prompt(item, trial_index, turn_index, path, label, expected, None if delegated_tool_path else execution_root)
         return V4FixtureMaterialization(item.row_key, expected_root, trial_index, turn_index, path, item["mechanism_class"], prompt, expected)
 
     def _prompt(self, item: V4LiveFixture, trial: int, turn: int, path: str, label: str, expected: V4HostSurfaceExpectations, task_root: str | None) -> V4PromptMaterial:
