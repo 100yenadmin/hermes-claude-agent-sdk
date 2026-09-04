@@ -86,6 +86,26 @@ def test_check_is_deterministic_and_does_not_write(tmp_path: Path) -> None:
     assert list(tmp_path.iterdir()) == []
 
 
+def test_native_read_write_canary_fences_real_host_tools(tmp_path, monkeypatch):
+    plugin = _fixture_module()
+    root = tmp_path / "native"
+    root.mkdir()
+    monkeypatch.setenv("HERMES_V4_NATIVE_FIXTURE_ROOT", str(root))
+    assert plugin.pre_tool_call("read_file", {"path": str(root / "audience_request.json")}) is None
+    assert plugin.pre_tool_call("write_file", {"path": "audience_boundary.json", "content": "{}"}) is None
+    for name, args in (
+        ("write_file", {"path": "audience_request.json"}),
+        ("read_file", {"path": "../outside"}),
+        ("terminal", {"command": "true"}),
+        ("delegate_task", {"goal": "anything"}),
+        ("write_file", {"path": "subdir/other.json"}),
+    ):
+        assert plugin.pre_tool_call(name, args)["action"] == "block"
+    (root / "link").symlink_to(tmp_path)
+    assert plugin.pre_tool_call("read_file", {"path": "link/outside"})["action"] == "block"
+    assert not (root / "audience_boundary.json").exists()
+
+
 def test_record_is_bounded_and_keeps_only_hashes_and_counts(tmp_path: Path) -> None:
     plugin = _fixture_module()
 

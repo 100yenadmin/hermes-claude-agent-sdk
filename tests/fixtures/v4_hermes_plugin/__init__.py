@@ -133,6 +133,29 @@ def fixture_tool(args: Mapping[str, Any], **_: Any) -> str:
 
 def pre_tool_call(tool_name: str, args: Mapping[str, Any], **_: Any) -> dict[str, str] | None:
     """Request the host approval gate for state mutation, never grant it."""
+    native_root = os.environ.get("HERMES_V4_NATIVE_FIXTURE_ROOT")
+    if native_root is not None:
+        # In the source-faithful read/write canary, the real Hermes file tools
+        # execute. This hook fences them before execution; it is not a fake
+        # implementation of those tools or of the native behavior under test.
+        try:
+            root = _task_root(native_root)
+            if tool_name in {"tool_search", "tool_describe"}:
+                return None
+            if tool_name not in {"read_file", "write_file"}:
+                raise _invalid()
+            raw_path = args.get("path")
+            if not isinstance(raw_path, str) or not raw_path:
+                raise _invalid()
+            path = Path(raw_path)
+            path = path if path.is_absolute() else root / path
+            if path.is_symlink() or not path.resolve().is_relative_to(root):
+                raise _invalid()
+            if tool_name == "write_file" and path.resolve() != root / "audience_boundary.json":
+                raise _invalid()
+        except (OSError, ValueError, RuntimeError):
+            return {"action": "block", "message": "native fixture boundary rejected"}
+        return None
     if tool_name != TOOL_NAME:
         return None
     try:
