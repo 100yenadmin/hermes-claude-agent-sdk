@@ -220,7 +220,7 @@ class V4GatewayObserver:
         phase = "spawn_requested" if "spawn" in lowered and "request" in lowered else "start" if lowered.endswith((".start", ".started")) else "complete" if lowered.endswith((".complete", ".completed", ".result", ".done")) else None
         if lowered in _CHILD:
             previous = self._phases.get(index) if type(index) is int else None
-            ordered = previous is None and phase == "spawn_requested" and index == len(self._phases) or previous is not None and phase is not None and ("spawn_requested", "start", "complete").index(phase) == ("spawn_requested", "start", "complete").index(previous) + 1
+            ordered = previous is None and phase in {"spawn_requested", "start"} and index == len(self._phases) or previous == "spawn_requested" and phase == "start" or previous == "start" and phase == "complete"
             if type(index) is not int or type(count) is not int or phase is None or count < 1 or not 0 <= index < count or not ordered or self._task_count not in (None, count):
                 _fail("subagent task ordinals are not contiguous")
             self._task_count = count
@@ -292,7 +292,7 @@ class V4GatewayObserver:
     def collect_delegation_observation(self) -> dict[str, object]:
         self._guard()
         children = [{"task_index": index, "task_count": self._task_count, "phases": [item["phase"] for item in self._children if item["task_index"] == index], **{key: next(iter(values)) for key in ("parent_id_sha256", "child_id_sha256", "delegation_id_sha256") if (values := {item[key] for item in self._children if item["task_index"] == index and key in item}) and len(values) == 1}} for index in sorted(self._phases)]
-        if any(child["phases"] != ["spawn_requested", "start", "complete"] for child in children) or len(children) > 1 and len({child.get("parent_id_sha256") for child in children}) != 1: _fail("child projection is not closed")
+        if any(child["phases"] not in (["start", "complete"], ["spawn_requested", "start", "complete"]) for child in children) or len(children) > 1 and len({child.get("parent_id_sha256") for child in children}) != 1: _fail("child projection is not closed")
         parents = [item["parent_id_sha256"] for item in children if "parent_id_sha256" in item]
         return {"count": len(children), "children": children, "background_count": sum("background" in str(event["kind"]).casefold() for event in self._events), "lifecycle": "none" if not children else self._terminal or "running", "parent_link_sha256": parents[0] if len(set(parents)) == 1 else None}
     def snapshot(self, *, require_terminal: bool = True) -> dict[str, object]:

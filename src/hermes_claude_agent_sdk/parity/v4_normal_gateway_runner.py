@@ -266,7 +266,14 @@ def _delegation(scenario: Any, trial_index: int, snapshots: tuple[Mapping[str, A
         return {"count": 0, "background_count": 0, "lifecycle": "none", "parent_link_sha256": None}
     children = [child for snapshot in snapshots for child in snapshot.get("subagents", ())]
     groups = {index: [child for child in children if child.get("task_index") == index] for index in range(count)}
-    if len(children) != count * 3 or set(groups) != set(range(count)) or any(len(items) != 3 or any(item.get("task_count") != count for item in items) or tuple(item.get("phase") for item in items) != ("spawn_requested", "start", "complete") for items in groups.values()):
+    if set(groups) != set(range(count)) or any(
+        any(item.get("task_count") != count for item in items)
+        or tuple(item.get("phase") for item in items) not in {
+            ("start", "complete"),
+            ("spawn_requested", "start", "complete"),
+        }
+        for items in groups.values()
+    ):
         raise V4NormalGatewayRunnerViolation("observed child lifecycle does not match the immutable map")
     if tuple(sorted(binding[2] for binding in bindings)) != tuple(range(1, count + 1)):
         raise V4NormalGatewayRunnerViolation("immutable child ordinals are not contiguous")

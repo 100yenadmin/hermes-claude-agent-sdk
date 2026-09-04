@@ -68,6 +68,21 @@ def test_observer_accepts_two_child_lifecycles_and_rejects_duplicates() -> None:
     assert [item["phase"] for item in result["subagents"]] == ["spawn_requested", "start", "complete"] * 2 and [item["task_index"] for item in result["subagents"]] == [0, 0, 0, 1, 1, 1] and observer.collect_delegation_observation()["count"] == 2
     _reject([events[0][0], events[0][0]])
     _reject([events[0][0], _event("subagent.start", {"task_index": 0, "task_count": 2, "parent_id": "q"})]); _reject([events[0][0], _event("subagent.spawn_requested", {"task_index": 1, "task_count": 2, "parent_id": "q"})])
+
+
+def test_observer_accepts_real_gateway_two_phase_child_lifecycle() -> None:
+    fake = _FakeGateway([
+        _event("subagent.start", {"task_index": 0, "task_count": 1, "parent_id": "p", "child_session_id": "c", "delegation_id": "d"}),
+        _event("subagent.complete", {"task_index": 0, "task_count": 1, "parent_id": "p", "child_session_id": "c", "delegation_id": "d", "status": "completed"}),
+        _event("message.complete", {"status": "completed"}),
+    ])
+    observer = V4GatewayObserver(fake)
+    observer.start()
+    for _ in range(3):
+        observer.next_event()
+    result = observer.snapshot()
+    assert [item["phase"] for item in result["subagents"]] == ["start", "complete"]
+    assert observer.collect_delegation_observation()["count"] == 1
 def test_observer_pairs_same_name_tools_by_id() -> None:
     observer = V4GatewayObserver(_FakeGateway([_event("tool.start", {"name": "fixture_tool", "tool_call_id": "a"}), _event("tool.start", {"name": "fixture_tool", "tool_call_id": "b"}), _event("tool.complete", {"name": "fixture_tool", "tool_call_id": "b"}), _event("tool.complete", {"name": "fixture_tool", "tool_call_id": "a"}), _event("message.complete", {"status": "completed"})]), allowed_tool_names={"fixture_tool"}); observer.start(); [observer.next_event() for _ in range(5)]
     assert observer.snapshot()["tools"] == {"started": ["fixture_tool", "fixture_tool"], "completed": ["fixture_tool", "fixture_tool"]}

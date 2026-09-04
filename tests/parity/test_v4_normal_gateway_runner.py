@@ -32,11 +32,13 @@ class _Transport:
 def _runner(home, factory, row="v2_non_soak/AUTH-01"):
     return V4NormalGatewayRunner(candidate=_candidate(), preflight_projections=_preflights(_candidate()), profile_id="isolated", inventory_hash="5" * 64, hermes_home=home, contract=ROOT / "qa/parity-contract-v4.yaml", live_map=ROOT / "qa/parity-v4-live-execution-map.yaml", fixture_manifest=ROOT / "qa/parity-v4-live-fixtures.yaml", gateway_factory=factory, row_key=row, trial_index=1)
 def _events(extra=()): return [_event("message.start"), _event("message.state"), *extra, _event("message.usage"), _event("message.complete", {"status": "completed"})]
-def _children(transport, count, background=False):
+def _children(transport, count, background=False, include_spawn=True):
     parent, events = "p" + format(id(transport), "x"), []
     for index in range(count):
         child = "c" + format(id(transport), "x") + str(index); payload = {"task_index": index, "task_count": count, "parent_id": parent, "child_id": child, "delegation_id": child}
-        events.extend([_event("subagent.spawn_requested", payload), _event("subagent.start", payload), _event("subagent.complete", payload)])
+        if include_spawn:
+            events.append(_event("subagent.spawn_requested", payload))
+        events.extend([_event("subagent.start", payload), _event("subagent.complete", payload)])
     if background: events.append(_event("background"))
     return events
 def test_construction_is_inert_and_incompatible_identity_precedes_start(tmp_path):
@@ -136,6 +138,14 @@ def test_sync_child_uses_observed_lifecycle_not_durable_batch_count(tmp_path, mo
     transport = _Transport(_events(_children(None, 1)))
     result = _runner(tmp_path / "home", lambda **k: Gateway(python="fake", cwd=ROOT, env=k["env"], transport=transport, host_tools=k["host_tools"], mcp_tools=k["mcp_tools"]), "v2_non_soak/ORCH-01").execute()
     assert result["scenario_receipt"]["delegation_summary"]["count"] == 1 and result["scenario_receipt"]["delegation_summary"]["background_count"] == 0
+
+
+def test_sync_child_accepts_real_gateway_two_phase_lifecycle(tmp_path, monkeypatch):
+    monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(1))
+    monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": [], "parent_link_sha256": None, "lifecycle": "none"})
+    transport = _Transport(_events(_children(None, 1, include_spawn=False)))
+    result = _runner(tmp_path / "home", lambda **k: Gateway(python="fake", cwd=ROOT, env=k["env"], transport=transport, host_tools=k["host_tools"], mcp_tools=k["mcp_tools"]), "v2_non_soak/ORCH-01").execute()
+    assert result["scenario_receipt"]["delegation_summary"]["count"] == 1
 def test_two_child_fanout_uses_observed_ordinals(tmp_path, monkeypatch):
     monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(1)); monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": [], "parent_link_sha256": None, "lifecycle": "none"})
     transport = _Transport(_events(_children(None, 2)))
