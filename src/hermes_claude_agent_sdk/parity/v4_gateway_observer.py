@@ -173,6 +173,12 @@ class V4GatewayObserver:
     def _call_frame(self, method: str, decision: str | None, value: object) -> None:
         if method == "session.create":
             self._session(value)
+        elif method == "session.resume":
+            # The request is bound to the durable stored handle; a successful
+            # resume returns a fresh process-local handle that owns all later
+            # calls and events in this observer lifecycle.
+            self._session_hash = None
+            self._session(value)
         if method == "approval.respond" and decision is not None:
             self._response(decision, value)
     def call(self, method: str, params: Mapping[str, Any] | None = None, *, timeout: float = 30.0, projector: Callable[[object], object] | None = None) -> Mapping[str, Any]:

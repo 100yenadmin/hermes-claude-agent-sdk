@@ -34,13 +34,22 @@ from .v4_live_session import V4LiveSession
 from .v4_local_mechanism_executor import execute_v4_local_mechanism
 from .v4_local_path_executor import execute_v4_local_path
 from .v4_local_restart import run_v4_local_restart
-from .hashing import canonical_json_bytes
+from .hashing import canonical_json_bytes, sha256_value
 from .results import candidate_hash as result_candidate_hash
 
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 _SAFE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@/+#\-]{0,255}$")
 _CANONICAL = {"message.start": "start", "session.start": "start", "run.start": "start", "message.state": "state", "session.state": "state", "message.usage": "usage", "session.usage": "usage", "tool.request": "tool_requested", "tool.requested": "tool_requested", "tool.start": "tool_requested", "tool.complete": "tool_result", "tool.completed": "tool_result", "approval.request": "approval_requested", "approval.requested": "approval_requested", "approval.responded": "approval_decision", "approval.decision": "approval_decision", "compaction": "compaction", "background": "background", "subagent.start": "background", "restart": "restart", "message.complete": "terminal", "session.complete": "terminal", "run.complete": "terminal", "task.complete": "terminal", "terminal": "terminal"}
-_NON_CONTRACT_GATEWAY_EVENTS = frozenset({"session.info", "session.title", "sessions.changed", "status.update"})
+_NON_CONTRACT_GATEWAY_EVENTS = frozenset(
+    {
+        "session.info",
+        "session.title",
+        "sessions.changed",
+        "status.update",
+        "subagent.spawn_requested",
+        "subagent.complete",
+    }
+)
 _STRIP = frozenset({"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GLM_API_KEY", "ZAI_API_KEY", "EXTRA_USAGE", "CLAUDE_CODE_EXTRA_USAGE", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP", "PYTHONEXECUTABLE"})
 class V4NormalGatewayRunnerViolation(ValueError):
     """Admission, observation, or packet composition failed closed."""
@@ -68,6 +77,8 @@ _ZERO_CHILD_BACKGROUND_ROWS = frozenset(
         "clawprobench_native/planning_20_session_agent_handoff_live",
     }
 )
+_RESTART_ROW = "openclaw_active/config-restart-capability-flip"
+_RESTART_REMOVED_TOOL = "v4_fixture_local_state"
 @dataclass(frozen=True, slots=True)
 class V4NormalGatewayAdmission:
     candidate_hash: str
@@ -161,6 +172,37 @@ def _stage_plugin(source: Path, home: Path) -> None:
             raise V4NormalGatewayRunnerViolation("fixture plugin contains an unsupported entry")
 
 
+def _disable_fixture_plugin_for_restart(home: Path) -> tuple[Path, Path]:
+    """Move only the task-local fixture plugin outside the discovered directory."""
+
+    source = home / "plugins" / "v4_hermes_fixture"
+    destination = home / ".v4-restart-disabled" / "v4_hermes_fixture"
+    if (
+        not source.is_dir()
+        or source.is_symlink()
+        or destination.exists()
+        or destination.is_symlink()
+    ):
+        raise V4NormalGatewayRunnerViolation(
+            "fixture plugin cannot be disabled for restart"
+        )
+    destination.parent.mkdir(parents=True)
+    source.rename(destination)
+    return source, destination
+
+
+def _restore_fixture_plugin_after_restart(paths: tuple[Path, Path]) -> None:
+    """Restore the exact task-local fixture plugin after the successor closes."""
+
+    source, disabled = paths
+    if source.exists() or source.is_symlink() or not disabled.is_dir() or disabled.is_symlink():
+        raise V4NormalGatewayRunnerViolation(
+            "fixture plugin cannot be restored after restart"
+        )
+    source.parent.mkdir(parents=True, exist_ok=True)
+    disabled.rename(source)
+
+
 class _ObservedGateway:
     """Rotate sanitized observers at turn boundaries over one real Gateway."""
 
@@ -211,6 +253,7 @@ def _trace(
     attempts: list[Mapping[str, Any]],
     snapshots: tuple[Mapping[str, Any], ...],
     host: Mapping[str, Any],
+    restart: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     row = next(item for item in contract["source_rows"] if f"{item['source_pack']}/{item['source_item_id']}" == scenario.row_key)
     expected = tuple(row["expected_trace"])
@@ -249,6 +292,9 @@ def _trace(
             latest = usage.get("latest") if isinstance(usage, Mapping) else None
             if isinstance(latest, Mapping):
                 component, component_name = latest, "runtime_usage"
+        elif kind == "restart" and isinstance(restart, Mapping):
+            if restart.get("present") is True:
+                component, component_name = restart, "runtime_restart"
         if component is None or component_name is None:
             raise V4NormalGatewayRunnerViolation("observed Hermes evidence lacks a required projection")
         digest = _digest(component.get("sha256"), f"host {component_name} proof")
@@ -259,7 +305,11 @@ def _trace(
 
 
 def _packet_attempt(attempt: Mapping[str, Any]) -> dict[str, Any]:
-    events = [event for event in attempt["events"] if event.get("kind") != "subagent.complete" and event.get("kind") not in _NON_CONTRACT_GATEWAY_EVENTS]
+    events = [
+        event
+        for event in attempt["events"]
+        if event.get("kind") not in _NON_CONTRACT_GATEWAY_EVENTS
+    ]
     return {**attempt, "event_count": len(events), "event_kinds": {kind: sum(event.get("kind") == kind for event in events) for kind in {event.get("kind") for event in events}}, "events": events}
 
 
@@ -427,6 +477,7 @@ class V4NormalGatewayRunner:
         if self._executed:
             raise V4NormalGatewayRunnerViolation("runner is single-use")
         self._executed = True
+        disabled_fixture: tuple[Path, Path] | None = None
         try:
             row_key = row_key or self._bound_row_key
             trial_index = trial_index if trial_index is not None else self._bound_trial_index
@@ -442,8 +493,26 @@ class V4NormalGatewayRunner:
             env = _safe_env(self._home)
             if gateway is not None and self._factory is not None:
                 raise V4NormalGatewayRunnerViolation("gateway and gateway_factory are mutually exclusive")
+            supplied_gateway = gateway
+
+            def new_gateway() -> V4LiveGateway:
+                if self._factory is not None:
+                    return self._factory(
+                        env=env,
+                        cwd=self._cwd or self._map_path.parent,
+                        host_tools=self._inventory.host_event_names,
+                        mcp_tools=self._inventory.mcp_event_names,
+                    )
+                return Gateway(
+                    python=self._python,
+                    cwd=self._cwd or self._map_path.parent,
+                    env=env,
+                    host_tools=self._inventory.host_event_names,
+                    mcp_tools=self._inventory.mcp_event_names,
+                )
+
             if gateway is None:
-                gateway = self._factory(env=env, cwd=self._cwd or self._map_path.parent, host_tools=self._inventory.host_event_names, mcp_tools=self._inventory.mcp_event_names) if self._factory is not None else Gateway(python=self._python, cwd=self._cwd or self._map_path.parent, env=env, host_tools=self._inventory.host_event_names, mcp_tools=self._inventory.mcp_event_names)
+                gateway = new_gateway()
             if isinstance(gateway, Gateway) and gateway.command[1:] != ("-u", "-m", "tui_gateway.entry"):
                 raise V4NormalGatewayRunnerViolation("normal Gateway command is not tui_gateway.entry")
             trial_child_count = sum(
@@ -457,14 +526,81 @@ class V4NormalGatewayRunner:
                 expected_terminal_count=expected_terminals,
                 expected_task_count=trial_child_count or None,
             )
+            observed_gateways = [observed_gateway]
             session = V4LiveSession(gateway=observed_gateway, candidate=self._candidate, preflight_projections=self._preflights, live_map=self._map, map_path=self._map_path, expected_live_map_sha256=LIVE_MAP_SHA256, planned_calls=scenario.turn_count, planned_turns=scenario.turn_count)
             attempts: list[dict[str, Any]] = []
+            restart_observation: dict[str, Any] | None = None
             database = db_path or self._home / "state.db"
             try:
                 session.start()
-                session.verify_tool_inventory(tuple(self._inventory.executable_names))
+                initial_inventory = session.verify_tool_inventory(
+                    tuple(self._inventory.executable_names)
+                )
                 fixture = next(item for item in self._materializer.fixtures if item.row_key == row_key)
                 for turn in range(1, fixture.turn_count + 1):
+                    if row_key == _RESTART_ROW and turn == 2:
+                        if supplied_gateway is not None and self._factory is None:
+                            raise V4NormalGatewayRunnerViolation(
+                                "restart row requires a successor Gateway factory"
+                            )
+                        before_handle = session.stored_handle.sha256
+                        session.close()
+                        disabled_fixture = _disable_fixture_plugin_for_restart(
+                            self._home
+                        )
+                        successor_gateway = new_gateway()
+                        if (
+                            isinstance(successor_gateway, Gateway)
+                            and successor_gateway.command[1:]
+                            != ("-u", "-m", "tui_gateway.entry")
+                        ):
+                            raise V4NormalGatewayRunnerViolation(
+                                "normal Gateway command is not tui_gateway.entry"
+                            )
+                        successor_observed = _ObservedGateway(
+                            successor_gateway,
+                            self._task_root,
+                            expected_terminal_count=1,
+                        )
+                        observed_gateways.append(successor_observed)
+                        session = session.restart(gateway=successor_observed)
+                        session.start()
+                        successor_inventory = tuple(
+                            name
+                            for name in initial_inventory
+                            if name != _RESTART_REMOVED_TOOL
+                        )
+                        if (
+                            len(successor_inventory) + 1 != len(initial_inventory)
+                            or _RESTART_REMOVED_TOOL not in initial_inventory
+                        ):
+                            raise V4NormalGatewayRunnerViolation(
+                                "restart capability delta is not exact"
+                            )
+                        observed_successor_inventory = session.verify_tool_inventory(
+                            successor_inventory
+                        )
+                        after_handle = session.stored_handle.sha256
+                        if before_handle != after_handle:
+                            raise V4NormalGatewayRunnerViolation(
+                                "restart changed the stored session identity"
+                            )
+                        restart_core = {
+                            "present": True,
+                            "stored_identity_continued": True,
+                            "before_inventory_sha256": sha256_value(initial_inventory),
+                            "after_inventory_sha256": sha256_value(
+                                observed_successor_inventory
+                            ),
+                            "removed_tool_sha256": sha256_value(
+                                _RESTART_REMOVED_TOOL
+                            ),
+                            "removed_tool_count": 1,
+                        }
+                        restart_observation = {
+                            **restart_core,
+                            "sha256": sha256_value(restart_core),
+                        }
                     material = self._materializer.materialize(row_key=row_key, trial_index=trial_index, turn_index=turn, path="positive", task_root=self._task_root if scenario.mechanism_class == "host_tool_pdr" else None)
                     attempts.append(session.run_turn(material.prompt.text, source_pack=scenario.source_pack, source_item_id=scenario.source_item_id, path="positive", trial_index=trial_index, approval_choice=material.host.approval_choice, planned_calls=1, expect_followup=bool(trial_child_count)))
                 if trial_child_count:
@@ -474,17 +610,34 @@ class V4NormalGatewayRunner:
                 session.close()
             expected_batches = 1 if trial_child_count else 0
             durable = session.collect_delegation_observation(database, allowed_root=self._home, expected_count=expected_batches)
-            trace = _trace(self._contract, scenario, attempts, observed_gateway.snapshots, host)
-            delegation = _delegation(scenario, trial_index, observed_gateway.snapshots, durable)
+            snapshots = tuple(
+                snapshot
+                for observed in observed_gateways
+                for snapshot in observed.snapshots
+            )
+            trace = _trace(
+                self._contract,
+                scenario,
+                attempts,
+                snapshots,
+                host,
+                restart_observation,
+            )
+            delegation = _delegation(scenario, trial_index, snapshots, durable)
             packet_attempts = [_packet_attempt(attempt) for attempt in attempts]
             trial_candidate_hash = result_candidate_hash(catalog_hash=V3_RESULT_CATALOG_HASH, plugin_sha=self._candidate["plugin_sha"], host_sha=self._candidate["host_sha"], sdk_version=self._candidate["sdk_version"], profile_hash=self._candidate["profile_sha256"], runner_version=self._candidate["runner_version"], inventory_hash=self._inventory_hash)
             receipt = {"schema_version": 1, "candidate": self._candidate, "preflight_projections": self._preflights, "attempts": packet_attempts, "host_observation": host, "profile_id": self._profile_id, "inventory_hash": self._inventory_hash, "stream_projection": {"schema_version": 1, "name": "stream", "candidate_hash": self._candidate_hash, "trial_candidate_hash": trial_candidate_hash, "trial_index": trial_index, "status": "PASS", "source": {"executable": "normal_gateway", "source_ref": "v4_gateway_observer", "test_id": "positive_turn"}, "observation": {"event_count": sum(item["event_count"] for item in attempts), "provider_calls": scenario.turn_count}}, "scenario_trace": trace, "delegation": delegation}
+            if restart_observation is not None:
+                receipt["restart_observation"] = restart_observation
             local_observations = _local_observations(scenario, trial_index, self._task_root)
             return build_v4_live_packets(self._contract, scenario, receipt, local_observations, live_map=self._map, map_path=self._map_path, scenario_catalog=self._catalog)
         except V4NormalGatewayRunnerViolation:
             raise
         except Exception as exc:
             raise V4NormalGatewayRunnerViolation("v4 normal Gateway execution failed closed") from exc
+        finally:
+            if disabled_fixture is not None:
+                _restore_fixture_plugin_after_restart(disabled_fixture)
     run = execute
 run_v4_normal_gateway = V4NormalGatewayRunner
 NormalGatewayRunner = V4NormalGatewayRunner

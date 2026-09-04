@@ -16,7 +16,17 @@ class _FakeGateway:
     def call(self, method, params=None, *, projector=None, **kwargs):
         params = dict(params or {})
         self.calls.append((method, params))
-        result = {"session_id": "session-secret"} if method == "session.create" else {"resolved": 1}
+        if method == "session.create":
+            result = {"session_id": "session-secret"}
+        elif method == "session.resume":
+            result = {
+                "session_id": "resumed-session-secret",
+                "stored_session_id": params["session_id"],
+            }
+        elif method == "tools.show":
+            result = {"sections": [], "total": 0}
+        else:
+            result = {"resolved": 1}
         if callable(projector): projector(result)
         return {"ok": True, "result_kind": "object", "result_bytes": 16, "result_sha256": "a" * 64}
     def next_event(self, *, projector=None, **kwargs):
@@ -160,6 +170,16 @@ def test_turn_complete_allows_session_list_refresh_but_rejects_turn_events() -> 
     assert observer.snapshot()["terminal_status"] == "completed"
     with pytest.raises(V4GatewayObserverViolation, match="after terminal"):
         observer.next_event()
+
+
+def test_observer_rebinds_live_identity_after_stored_session_resume() -> None:
+    observer = V4GatewayObserver(_FakeGateway([]))
+    observer.start()
+    observer.call(
+        "session.resume",
+        {"session_id": "stored-session-secret", "cols": 80},
+    )
+    observer.call("tools.show", {"session_id": "resumed-session-secret"})
 
 def test_fixture_snapshot_is_bounded_and_sanitized(tmp_path: Path) -> None:
     state = tmp_path / ".hermes_v4_fixture_state.json"

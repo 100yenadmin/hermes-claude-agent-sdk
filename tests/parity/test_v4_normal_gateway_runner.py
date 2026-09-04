@@ -8,6 +8,7 @@ import pytest
 
 from hermes_claude_agent_sdk.parity import v4_normal_gateway_runner as runner_module
 from hermes_claude_agent_sdk.parity.v4_gateway import Gateway
+from hermes_claude_agent_sdk.parity.hashing import sha256_value
 from hermes_claude_agent_sdk.parity.v4_gateway_inventory import (
     build_v4_gateway_inventory,
 )
@@ -55,14 +56,20 @@ def _inventory():
 
 
 class _Transport:
-    def __init__(self, events, tool_names=None):
+    def __init__(self, events, tool_names=None, stored_session_id=None):
         self.events, self.calls, self.started = deque([_event("gateway.ready"), *events]), [], False; self.sid = "s" + format(id(self), "x")
         self.tool_names = tuple(tool_names or _inventory().executable_names)
+        self.stored_session_id = stored_session_id or self.sid
     def start(self): self.started = True
     def send(self, frame):
         method = frame["method"]; self.calls.append(method)
         if method == "session.create":
-            result = {"session_id": self.sid, "stored_session_id": self.sid}
+            result = {"session_id": self.sid, "stored_session_id": self.stored_session_id}
+        elif method == "session.resume":
+            result = {
+                "session_id": self.sid,
+                "stored_session_id": frame["params"]["session_id"],
+            }
         elif method == "tools.show":
             result = {
                 "sections": [
@@ -189,6 +196,119 @@ def test_real_gateway_shape_binds_state_and_usage_to_durable_host_receipts(tmp_p
     assert result["scenario_receipt"]["scenario_trace_hash"] != "0" * 64
 
 
+def test_restart_row_restarts_gateway_resumes_identity_and_flips_host_inventory(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(
+        V4LiveSession,
+        "collect_host_observation",
+        lambda *_a, **_k: _host(2),
+    )
+    monkeypatch.setattr(
+        V4LiveSession,
+        "collect_delegation_observation",
+        lambda *_a, **_k: {
+            "status": "PASS",
+            "count": 0,
+            "background_count": 0,
+            "invariant_violations": [],
+            "parent_link_sha256": None,
+            "lifecycle": "none",
+        },
+    )
+
+    def local_restart(*, row_key, trial_index, path, task_root):
+        terminal = "denied" if path == "denial" else "completed"
+        events = [
+            {
+                "kind": kind,
+                "byte_length": index,
+                "sha256": str(index) * 64,
+                "terminal_status": terminal if kind == "terminal" else None,
+            }
+            for index, kind in enumerate(("start", "restart", "terminal"), 1)
+        ]
+        observation = {
+            "identity": {
+                "row_key": row_key,
+                "path": path,
+                "trial_index": trial_index,
+            },
+            "surface": "host_local",
+            "observation_count": 1,
+        }
+        return {
+            "schema_version": 1,
+            "status": "PASS",
+            "path": path,
+            "host_local": True,
+            "provider_calls": 0,
+            "terminal_status": terminal,
+            "events": events,
+            "observation": observation,
+            "proof_hashes": {
+                "primary": sha256_value(observation),
+                "secondary": sha256_value(
+                    {"identity": observation["identity"], "events": events}
+                ),
+            },
+        }
+
+    monkeypatch.setitem(
+        runner_module._LOCAL_EXECUTORS,
+        "openclaw_active/config-restart-capability-flip",
+        local_restart,
+    )
+    def turn_events(index):
+        return [
+            _event("message.start", {"turn_index": index}),
+            _event("message.state", {"turn_index": index}),
+            _event("message.usage", {"turn_index": index}),
+            _event(
+                "message.complete",
+                {"status": "completed", "turn_index": index},
+            ),
+        ]
+
+    stored = "restart-stored-fixture"
+    initial_names = _inventory().executable_names
+    transports = [
+        _Transport(turn_events(1), initial_names, stored),
+        _Transport(
+            turn_events(2),
+            tuple(name for name in initial_names if name != "v4_fixture_local_state"),
+            stored,
+        ),
+    ]
+
+    def factory(**kwargs):
+        transport = transports.pop(0)
+        return Gateway(
+            python="fake",
+            cwd=ROOT,
+            env=kwargs["env"],
+            transport=transport,
+            host_tools=kwargs["host_tools"],
+            mcp_tools=kwargs["mcp_tools"],
+        )
+
+    home = tmp_path / "home"
+    result = _runner(
+        home,
+        factory,
+        "openclaw_active/config-restart-capability-flip",
+    ).execute()
+
+    assert transports == []
+    assert [event["kind"] for event in result["paths"]["positive"]["trial"].normalized_events] == [
+        "start",
+        "restart",
+        "terminal",
+    ]
+    assert (home / "plugins" / "v4_hermes_fixture").is_dir()
+    assert not (home / ".v4-restart-disabled" / "v4_hermes_fixture").exists()
+
+
 def test_real_gateway_tool_start_projects_as_requested_tool(tmp_path, monkeypatch):
     host = _host(1)
     host["runtime_state"] = {"present": True, "schema_version": 1, "sha256": "9" * 64}
@@ -273,6 +393,7 @@ def test_top_level_child_accepts_real_gateway_two_phase_lifecycle(tmp_path, monk
 
 def test_openclaw_handoff_trace_uses_hermes_subagent_start_as_background(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_AGENT_HOST_ROOT", "/Users/m1/repos/hermes-agent-runtime-plugin-api")
+    monkeypatch.setattr(runner_module, "_local_observations", lambda *_a, **_k: {})
     monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(2))
     monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: _durable())
     transport = _Transport(_async_child_events(1, include_spawn=False))

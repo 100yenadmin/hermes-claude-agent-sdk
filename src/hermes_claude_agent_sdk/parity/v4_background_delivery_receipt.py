@@ -147,9 +147,16 @@ def run_v4_background_delivery_receipt(row_key: str, trial_index: int, path: str
     host_value = os.environ.get("HERMES_AGENT_HOST_ROOT")
     if not host_value or not Path(host_value).is_dir():
         raise V4BackgroundDeliveryViolation("HERMES_AGENT_HOST_ROOT is not configured")
-    plugin = _fixture()
-    old_env = {key: os.environ.get(key) for key in ("HERMES_HOME", "HERMES_BUNDLED_PLUGINS", "HERMES_INTERACTIVE")}
     old_path = list(sys.path)
+    host_root = Path(host_value).resolve()
+    if str(host_root) not in sys.path:
+        sys.path.insert(0, str(host_root))
+    try:
+        plugin = _fixture()
+    except Exception:
+        sys.path[:] = old_path
+        raise
+    old_env = {key: os.environ.get(key) for key in ("HERMES_HOME", "HERMES_BUNDLED_PLUGINS", "HERMES_INTERACTIVE")}
     old_create: Any = None
     old_manager: Any = None
     parent: Any = None
@@ -174,9 +181,6 @@ def run_v4_background_delivery_receipt(row_key: str, trial_index: int, path: str
         )
         try:
             os.environ.update({"HERMES_HOME": str(home), "HERMES_BUNDLED_PLUGINS": str(bundled), "HERMES_INTERACTIVE": "0"})
-            host_root = Path(host_value).resolve()
-            if str(host_root) not in sys.path:
-                sys.path.insert(0, str(host_root))
             from gateway.wake import persist_delegation_delivery
             from hermes_cli import plugins as plugins_mod
             from hermes_cli.plugins import PluginManager

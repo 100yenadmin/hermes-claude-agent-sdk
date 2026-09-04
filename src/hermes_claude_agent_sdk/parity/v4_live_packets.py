@@ -33,6 +33,17 @@ _TRACE = frozenset({"schema_version", "row_key", "predecessor_execution_id", "pa
 _TRACE_EVENT = frozenset({"kind", "byte_length", "sha256", "terminal_status", "evidence"})
 _TRACE_ATTEMPT_EVIDENCE = frozenset({"source", "attempt_index", "source_sha256"})
 _TRACE_HOST_EVIDENCE = frozenset({"source", "component", "source_sha256"})
+_RESTART = frozenset(
+    {
+        "present",
+        "stored_identity_continued",
+        "before_inventory_sha256",
+        "after_inventory_sha256",
+        "removed_tool_sha256",
+        "removed_tool_count",
+        "sha256",
+    }
+)
 _TERMINALS = frozenset({"completed", "denied", "failed", "cancelled"})
 _CONTENT = frozenset({"message.delta", "message.content", "content", "text", "message.text"})
 class V4LivePacketViolation(ValueError):
@@ -225,7 +236,31 @@ def _attempt(value: Any, scenario: V4LiveScenario, candidate_hash: str) -> tuple
     if approval["decision_count"] != sum(count for kind, count in raw_counts.items() if kind.casefold() not in _CONTENT and _kind(kind) == "approval_requested"):
         raise V4LivePacketViolation("approval request count does not match event projection")
     return result, candidate, events, content
-def _scenario_trace(value: Any, scenario: V4LiveScenario, expected_trace: Sequence[str], attempts: Sequence[Mapping[str, Any]], host: Mapping[str, Any]) -> tuple[tuple[dict[str, Any], ...], str]:
+def _restart(value: Any) -> dict[str, Any]:
+    result = _copy(value, "restart_observation")
+    if (
+        set(result) != _RESTART
+        or result["present"] is not True
+        or result["stored_identity_continued"] is not True
+        or result["removed_tool_count"] != 1
+    ):
+        raise V4LivePacketViolation("restart observation is not closed")
+    for field in (
+        "before_inventory_sha256",
+        "after_inventory_sha256",
+        "removed_tool_sha256",
+        "sha256",
+    ):
+        _digest(result[field], f"restart_observation.{field}")
+    if result["before_inventory_sha256"] == result["after_inventory_sha256"]:
+        raise V4LivePacketViolation("restart capability inventory did not change")
+    core = {key: value for key, value in result.items() if key != "sha256"}
+    if sha256_value(core) != result["sha256"]:
+        raise V4LivePacketViolation("restart observation digest is mismatched")
+    return result
+
+
+def _scenario_trace(value: Any, scenario: V4LiveScenario, expected_trace: Sequence[str], attempts: Sequence[Mapping[str, Any]], host: Mapping[str, Any], restart: Mapping[str, Any] | None = None) -> tuple[tuple[dict[str, Any], ...], str]:
     trace = _copy(value, "scenario_trace")
     if set(trace) != _TRACE or trace["schema_version"] != 1 or trace["row_key"] != scenario.row_key or trace["predecessor_execution_id"] != scenario.predecessor_execution_id or trace["path"] != "positive" or trace["trial_index"] != attempts[0]["identity"]["trial_index"] or not isinstance(trace["events"], list) or len(trace["events"]) != len(expected_trace):
         raise V4LivePacketViolation("scenario trace envelope is not closed or row-bound")
@@ -246,7 +281,7 @@ def _scenario_trace(value: Any, scenario: V4LiveScenario, expected_trace: Sequen
                 raise V4LivePacketViolation("scenario trace component is absent or mismatched")
             source_key = ("attempt", digest)
         elif evidence.get("source") == "host_observation":
-            if set(evidence) != _TRACE_HOST_EVIDENCE or evidence.get("component") not in {"runtime_state", "runtime_usage"} or evidence["source_sha256"] != digest:
+            if set(evidence) != _TRACE_HOST_EVIDENCE or evidence.get("component") not in {"runtime_state", "runtime_usage", "runtime_restart"} or evidence["source_sha256"] != digest:
                 raise V4LivePacketViolation("scenario trace evidence is not a host-bound projection")
             component_name = evidence["component"]
             if component_name == "runtime_state":
@@ -254,12 +289,17 @@ def _scenario_trace(value: Any, scenario: V4LiveScenario, expected_trace: Sequen
                 expected_kind = "state"
                 if not isinstance(source, Mapping) or source.get("present") is not True:
                     raise V4LivePacketViolation("scenario trace host state evidence is absent")
-            else:
+            elif component_name == "runtime_usage":
                 usage = host.get("runtime_usage")
                 source = usage.get("latest") if isinstance(usage, Mapping) else None
                 expected_kind = "usage"
                 if not isinstance(source, Mapping):
                     raise V4LivePacketViolation("scenario trace host usage evidence is absent")
+            else:
+                source = restart
+                expected_kind = "restart"
+                if not isinstance(source, Mapping) or source.get("present") is not True:
+                    raise V4LivePacketViolation("scenario trace host restart evidence is absent")
             if kind != expected_kind or source.get("sha256") != digest or len(canonical_json_bytes(source)) != item["byte_length"] or item["terminal_status"] is not None:
                 raise V4LivePacketViolation("scenario trace host component is mismatched")
             source_key = (f"host:{component_name}", digest)
@@ -380,6 +420,8 @@ def build_v4_live_packets(contract: Mapping[str, Any], scenario: V4LiveScenario 
             raise V4LivePacketViolation("scenario row is not bound to the immutable contract")
         receipt = _copy(positive_receipt, "positive_receipt")
         fields = {"schema_version", "candidate", "preflight_projections", "attempts", "host_observation", "profile_id", "inventory_hash", "stream_projection", "scenario_trace", "delegation"}
+        if selected.row_key == "openclaw_active/config-restart-capability-flip":
+            fields.add("restart_observation")
         if set(receipt) != fields or receipt["schema_version"] != 1:
             raise V4LivePacketViolation("positive receipt fields are not closed")
         candidate, candidate_hash = _candidate(receipt["candidate"])
@@ -404,11 +446,12 @@ def build_v4_live_packets(contract: Mapping[str, Any], scenario: V4LiveScenario 
             raise V4LivePacketViolation("positive preflight identity is not exact")
         _id(receipt["profile_id"], "profile_id"); _digest(receipt["inventory_hash"], "inventory_hash")
         host, host_proofs = _host(receipt["host_observation"], selected.turn_count, selected.turn_count)
-        scenario_events, scenario_trace_hash = _scenario_trace(receipt["scenario_trace"], selected, row["expected_trace"], attempts, host)
+        restart = _restart(receipt["restart_observation"]) if "restart_observation" in receipt else None
+        scenario_events, scenario_trace_hash = _scenario_trace(receipt["scenario_trace"], selected, row["expected_trace"], attempts, host, restart)
         delegation = _delegation(receipt["delegation"], selected, first_identity["trial_index"])
         content_hash = sha256_value(tuple(content_hashes))
         catalog_hash = chosen_catalog.catalog_sha256
-        core = {"schema_version": 1, "row_key": selected.row_key, "predecessor_execution_id": selected.predecessor_execution_id, "trial_index": first_identity["trial_index"], "scenario_catalog_hash": catalog_hash, "live_map_sha256": LIVE_MAP_SHA256, "candidate_hash": candidate_hash, "preflight_hash": first_identity["preflight_hash"], "attempt_hashes": [sha256_value(item) for item in attempts], "approval_projection_hashes": [sha256_value(item["approval"]) for item in attempts], "host_observation_hash": sha256_value(host), "scenario_trace_hash": scenario_trace_hash, "content_projection_hash": content_hash, "delegation_summary": delegation, "delegation_summary_hash": sha256_value(delegation), "turn_count": selected.turn_count, "provider_calls": selected.turn_count}
+        core = {"schema_version": 1, "row_key": selected.row_key, "predecessor_execution_id": selected.predecessor_execution_id, "trial_index": first_identity["trial_index"], "scenario_catalog_hash": catalog_hash, "live_map_sha256": LIVE_MAP_SHA256, "candidate_hash": candidate_hash, "preflight_hash": first_identity["preflight_hash"], "attempt_hashes": [sha256_value(item) for item in attempts], "approval_projection_hashes": [sha256_value(item["approval"]) for item in attempts], "host_observation_hash": sha256_value(host), "restart_observation_hash": sha256_value(restart) if restart is not None else None, "scenario_trace_hash": scenario_trace_hash, "content_projection_hash": content_hash, "delegation_summary": delegation, "delegation_summary_hash": sha256_value(delegation), "turn_count": selected.turn_count, "provider_calls": selected.turn_count}
         scenario_hash = sha256_value(core)
         observations = {} if path_observations is None else dict(path_observations)
         if "positive" in observations or set(observations) - set(selected.mandatory_paths):

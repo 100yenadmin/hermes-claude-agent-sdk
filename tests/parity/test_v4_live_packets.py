@@ -65,6 +65,28 @@ def _inputs(row_key="openclaw_active/source-docs-discovery-report"):
     trial_hash = candidate_hash(catalog_hash=V3_RESULT_CATALOG_HASH, plugin_sha=candidate["plugin_sha"], host_sha=candidate["host_sha"], sdk_version=candidate["sdk_version"], profile_hash=candidate["profile_sha256"], runner_version=candidate["runner_version"], inventory_hash="5" * 64)
     stream = {"schema_version": 1, "name": "stream", "candidate_hash": v4_hash, "trial_candidate_hash": trial_hash, "trial_index": scenario.trial_indexes[0], "status": "PASS", "source": {"executable": "pytest", "source_ref": "tests/stream.py", "test_id": "stream:scenario"}, "observation": {"stream_count": 1, "content_hash": "e" * 64}}
     receipt = {"schema_version": 1, "candidate": candidate, "preflight_projections": preflights, "attempts": attempts, "host_observation": _host(scenario.turn_count), "profile_id": "isolated", "inventory_hash": "5" * 64, "stream_projection": stream, "scenario_trace": _scenario_trace(contract, scenario, attempts), "delegation": _delegation(scenario)}
+    if row_key == "openclaw_active/config-restart-capability-flip":
+        restart_core = {
+            "present": True,
+            "stored_identity_continued": True,
+            "before_inventory_sha256": sha256_value(("before",)),
+            "after_inventory_sha256": sha256_value(("after",)),
+            "removed_tool_sha256": sha256_value("v4_fixture_local_state"),
+            "removed_tool_count": 1,
+        }
+        restart = {**restart_core, "sha256": sha256_value(restart_core)}
+        receipt["restart_observation"] = restart
+        receipt["scenario_trace"]["events"][1] = {
+            "kind": "restart",
+            "byte_length": len(canonical_json_bytes(restart)),
+            "sha256": restart["sha256"],
+            "terminal_status": None,
+            "evidence": {
+                "source": "host_observation",
+                "component": "runtime_restart",
+                "source_sha256": restart["sha256"],
+            },
+        }
     return contract, live_map, catalog, scenario, receipt
 def test_one_positive_bundle_and_pending_local_paths_without_triple_counting():
     contract, live_map, _, scenario, receipt = _inputs()
@@ -204,6 +226,43 @@ def test_positive_scenario_trace_binds_each_turn_and_content(row_key):
     assert [event["kind"] for event in bundle["paths"]["positive"]["trial"].normalized_events] == expected
     assert len(bundle["scenario_receipt"]["attempt_hashes"]) == scenario.turn_count
     assert bundle["scenario_receipt"]["content_projection_hash"] != sha256_value(())
+
+
+def test_restart_observation_fails_closed_on_inventory_or_digest_drift():
+    contract, live_map, _, scenario, receipt = _inputs(
+        "openclaw_active/config-restart-capability-flip"
+    )
+    unchanged = copy.deepcopy(receipt)
+    unchanged["restart_observation"]["after_inventory_sha256"] = unchanged[
+        "restart_observation"
+    ]["before_inventory_sha256"]
+    core = {
+        key: value
+        for key, value in unchanged["restart_observation"].items()
+        if key != "sha256"
+    }
+    unchanged["restart_observation"]["sha256"] = sha256_value(core)
+    with pytest.raises(V4LivePacketViolation, match="inventory did not change"):
+        build_v4_live_packets(
+            contract,
+            scenario,
+            unchanged,
+            live_map=live_map,
+            map_path=MAP,
+        )
+
+    tampered = copy.deepcopy(receipt)
+    tampered["restart_observation"]["removed_tool_count"] = 2
+    with pytest.raises(V4LivePacketViolation, match="not closed"):
+        build_v4_live_packets(
+            contract,
+            scenario,
+            tampered,
+            live_map=live_map,
+            map_path=MAP,
+        )
+
+
 def test_delegation_summary_is_explicit_and_scenario_bound():
     contract, live_map, _, scenario, receipt = _inputs("v2_non_soak/ORCH-01")
     with pytest.raises(V4LivePacketViolation):
