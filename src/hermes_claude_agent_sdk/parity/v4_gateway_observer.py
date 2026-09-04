@@ -207,7 +207,7 @@ class V4GatewayObserver:
             name = _id(_find(value, ("name", "tool_name", "tool")), "tool name")
             if name not in self._allowed:
                 _fail("tool name is outside the permitted inventory")
-            call_hash = identity_hash("tool_call_id", _id(_find(value, ("tool_call_id", "call_id")), "tool call"))
+            call_hash = identity_hash("tool_call_id", _id(_find(value, ("tool_id", "tool_call_id", "call_id")), "tool call"))
             if lowered in _START:
                 if call_hash in self._active_tools: _fail("tool call id was started twice")
                 self._active_tools[call_hash] = name

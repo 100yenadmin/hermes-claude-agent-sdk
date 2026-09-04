@@ -73,6 +73,18 @@ def test_observer_pairs_same_name_tools_by_id() -> None:
     assert observer.snapshot()["tools"] == {"started": ["fixture_tool", "fixture_tool"], "completed": ["fixture_tool", "fixture_tool"]}
 
 
+def test_observer_accepts_normal_hermes_gateway_tool_id() -> None:
+    observer = V4GatewayObserver(_FakeGateway([
+        _event("tool.start", {"name": "fixture_tool", "tool_id": "gateway-call"}),
+        _event("tool.complete", {"name": "fixture_tool", "tool_id": "gateway-call"}),
+        _event("message.complete", {"status": "completed"}),
+    ]), allowed_tool_names={"fixture_tool"})
+    observer.start()
+    for _ in range(3):
+        observer.next_event()
+    assert observer.snapshot()["tools"] == {"started": ["fixture_tool"], "completed": ["fixture_tool"]}
+
+
 def test_turn_complete_is_terminal_and_rejects_trailing_events() -> None:
     observer = V4GatewayObserver(
         _FakeGateway([
