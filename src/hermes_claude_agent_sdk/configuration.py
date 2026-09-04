@@ -11,7 +11,7 @@ from .billing import plan_sdk_env_overrides
 
 
 _MAX_TEXT = 4_096
-_MAX_PROMPT_SNAPSHOT = 32_000
+_MAX_PROMPT_SNAPSHOT_UTF8_BYTES = 1_048_576
 _PERMISSION_MODES = {
     "default",
     "acceptEdits",
@@ -79,7 +79,14 @@ class SDKSessionConfiguration:
         safe_model = _optional_text(model, field="model")
         if not isinstance(prompt_snapshot, str):
             raise TypeError("prompt_snapshot must be text")
-        if len(prompt_snapshot) > _MAX_PROMPT_SNAPSHOT or "\x00" in prompt_snapshot:
+        try:
+            prompt_snapshot_bytes = len(prompt_snapshot.encode("utf-8"))
+        except UnicodeError:
+            raise ValueError("prompt_snapshot is invalid") from None
+        if (
+            prompt_snapshot_bytes > _MAX_PROMPT_SNAPSHOT_UTF8_BYTES
+            or "\x00" in prompt_snapshot
+        ):
             raise ValueError("prompt_snapshot is invalid")
         safe_resume = _optional_text(
             resume_external_session_id, field="resume_external_session_id"

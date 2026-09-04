@@ -194,6 +194,27 @@ def test_option_fields_are_zero_native_and_use_the_exact_prompt_snapshot():
     } & set(fields)
 
 
+def test_full_hermes_prompt_snapshot_is_preserved_with_a_bounded_utf8_limit():
+    prompt_snapshot = "Hermes-owned context. " * 5_250
+
+    configuration = SDKSessionConfiguration.create(
+        cwd="/synthetic/workspace",
+        model="claude-fable-5-1",
+        prompt_snapshot=prompt_snapshot,
+    )
+
+    assert len(prompt_snapshot) > 100_000
+    assert configuration.option_fields()["system_prompt"] == prompt_snapshot
+
+
+def test_prompt_snapshot_over_one_megabyte_is_rejected():
+    with pytest.raises(ValueError, match="prompt_snapshot is invalid"):
+        SDKSessionConfiguration.create(
+            cwd="/synthetic/workspace",
+            prompt_snapshot="p" * (1_048_576 + 1),
+        )
+
+
 def test_nonempty_setting_sources_are_rejected_fail_closed():
     with pytest.raises(ValueError, match="setting_sources must be empty"):
         SDKSessionConfiguration.create(
