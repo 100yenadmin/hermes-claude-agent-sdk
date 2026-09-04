@@ -53,13 +53,15 @@ ACTIVE_SOURCE_IDS = (
 
 _FOCUSED_NODES: dict[str, tuple[str, ...]] = {
     "model-switch-tool-continuity": (
-        "tests/test_runtime_sdk_integration.py::test_model_switch_requires_a_new_runtime_and_preserves_tool_schema",
+        "tests/test_runtime_sdk_integration.py::test_unsupported_model_switch_fails_before_client_or_query",
     ),
     "compaction-retry-mutating-tool": (
         "tests/test_runtime_sdk_integration.py::test_compaction_retry_keeps_mutation_exactly_once",
     ),
     "subagent-stale-child-links": (
-        "tests/test_sdk_session.py::test_idle_result_bursts_are_ordered_deduplicated_and_do_not_expose_session_ids",
+        "tests/parity/test_v4_provider_free_delegation_runtime.py::test_real_aiaagent_single_child_is_provider_free_and_non_recursive",
+        "tests/parity/test_v4_provider_free_delegation_runtime.py::test_real_aiaagent_fanout_is_one_batch_with_two_provider_free_children",
+        "tests/test_sdk_session.py::test_post_terminal_sdk_output_is_a_protocol_failure_without_background_delivery",
         "tests/test_runtime_sdk_integration.py::test_queued_idle_burst_is_released_only_after_parent_terminal_is_observed",
     ),
 }
@@ -268,8 +270,9 @@ def _failed(reason: str, *, turn_count: int, billing: str = "none") -> Execution
     )
 
 
-def _safe_environment() -> dict[str, str]:
+def _safe_environment(*, host_root: Path) -> dict[str, str]:
     environment = {
+        "HERMES_AGENT_HOST_ROOT": str(host_root),
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
         "PYTHONDONTWRITEBYTECODE": "1",
         "PYTHONHASHSEED": "0",
@@ -378,7 +381,12 @@ def _complete_bundle(
     return ExecutionBundle(outcomes=outcomes, turn_count=turn_count)
 
 
-def _run_focused(context: ExecutionContext, nodes: Sequence[str]) -> ActiveCaseResult:
+def _run_focused(
+    context: ExecutionContext,
+    nodes: Sequence[str],
+    *,
+    host_root: Path,
+) -> ActiveCaseResult:
     try:
         completed = subprocess.run(
             (
@@ -392,7 +400,7 @@ def _run_focused(context: ExecutionContext, nodes: Sequence[str]) -> ActiveCaseR
                 *nodes,
             ),
             cwd=context.repo_root,
-            env=_safe_environment(),
+            env=_safe_environment(host_root=host_root),
             shell=False,
             check=False,
             capture_output=True,
@@ -1139,7 +1147,7 @@ async def active_agentic_suite(context: ExecutionContext) -> ExecutionBundle:
         return _blocked("active_source_mapping_missing")
     if context.capability.execution_id != f"active-{source_id}":
         return _blocked("active_catalog_execution_mismatch")
-    if source_id in _DELEGATION_SOURCE_IDS:
+    if source_id in _DELEGATION_SOURCE_IDS and source_id not in _FOCUSED_NODES:
         return _blocked("installed_hermes_delegate_evidence_required")
     root = Path(context.repo_root).expanduser().resolve()
     blocked = _exact_source_preflight(context, root)
@@ -1154,7 +1162,7 @@ async def active_agentic_suite(context: ExecutionContext) -> ExecutionBundle:
 
     nodes = _FOCUSED_NODES.get(source_id)
     if nodes is not None:
-        result = _run_focused(context, nodes)
+        result = _run_focused(context, nodes, host_root=host_root)
     else:
         if source_id not in _LIVE_SOURCE_IDS:
             return _blocked("active_executor_mapping_missing")

@@ -802,7 +802,6 @@ def test_delegation_rows_fail_closed_before_any_runtime_preflight(
     for source_id in (
         "subagent-handoff",
         "subagent-fanout-synthesis",
-        "subagent-stale-child-links",
     ):
         capability = catalog.by_id[f"active:{source_id}"]
         context = ExecutionContext(
@@ -830,6 +829,86 @@ def test_delegation_rows_fail_closed_before_any_runtime_preflight(
             and outcome.reason_code == "installed_hermes_delegate_evidence_required"
             for outcome in bundle.outcomes.values()
         )
+
+
+def test_stale_child_links_uses_provider_free_hermes_focused_evidence(
+    catalog, candidate_fields, monkeypatch, tmp_path
+) -> None:
+    seen: dict[str, object] = {}
+
+    monkeypatch.setenv("HERMES_AGENT_HOST_ROOT", str(tmp_path))
+    monkeypatch.setattr(active_suite_module, "_exact_source_preflight", lambda *_: None)
+    monkeypatch.setattr(active_suite_module, "_exact_git_checkout", lambda *_: True)
+
+    def focused(context, nodes, *, host_root):
+        seen["context"] = context
+        seen["nodes"] = tuple(nodes)
+        seen["host_root"] = host_root
+        return active_suite_module.ActiveCaseResult(
+            ExecutionClassification.COMPLETE,
+            None,
+            "none",
+            0,
+            "a" * 64,
+            "b" * 64,
+        )
+
+    monkeypatch.setattr(active_suite_module, "_run_focused", focused)
+    capability = catalog.by_id["active:subagent-stale-child-links"]
+    context = ExecutionContext(
+        capability=capability,
+        path="positive",
+        trial_index=1,
+        profile_id=candidate_fields["profile_id"],
+        profile_hash=candidate_fields["profile_hash"],
+        plugin_sha=candidate_fields["plugin_sha"],
+        host_sha=candidate_fields["host_sha"],
+        sdk_version=candidate_fields["sdk_version"],
+        runner_version=candidate_fields["runner_version"],
+        inventory_hash=candidate_fields["inventory_hash"],
+        contract_hash=catalog.contract_hash,
+        catalog_hash=catalog.catalog_hash,
+        remaining_turn_budget=100,
+        repo_root=str(Path(catalog.path).parent.parent),
+    )
+
+    bundle = asyncio.run(active_agentic_suite(context))
+
+    assert all(
+        outcome.classification
+        in {ExecutionClassification.COMPLETE, ExecutionClassification.EXPECTED_NEGATIVE}
+        and outcome.primary_proof_hash
+        and outcome.secondary_proof_hash
+        for outcome in bundle.outcomes.values()
+    ), [
+        (
+            path,
+            outcome.classification.value,
+            outcome.reason_code,
+            bool(outcome.primary_proof_hash),
+            bool(outcome.secondary_proof_hash),
+        )
+        for path, outcome in bundle.outcomes.items()
+    ]
+    assert seen["host_root"] == tmp_path
+    assert seen["nodes"] == active_suite_module._FOCUSED_NODES[
+        "subagent-stale-child-links"
+    ]
+    assert all(
+        node.startswith("tests/parity/test_v4_provider_free_delegation_runtime.py::")
+        or node
+        in {
+            "tests/test_sdk_session.py::test_post_terminal_sdk_output_is_a_protocol_failure_without_background_delivery",
+            "tests/test_runtime_sdk_integration.py::test_queued_idle_burst_is_released_only_after_parent_terminal_is_observed",
+        }
+        for node in seen["nodes"]
+    )
+
+
+def test_model_switch_focused_node_tracks_exact_fable_selection_test() -> None:
+    assert active_suite_module._FOCUSED_NODES["model-switch-tool-continuity"] == (
+        "tests/test_runtime_sdk_integration.py::test_unsupported_model_switch_fails_before_client_or_query",
+    )
 
 
 def test_operational_parity_sources_have_no_native_background_route() -> None:
