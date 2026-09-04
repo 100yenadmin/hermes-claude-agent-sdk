@@ -50,6 +50,11 @@ class _SessionTransport:
 
 
 class _AsyncDelegationTransport(_SessionTransport):
+    def __init__(self, *, usage_event: bool = True, terminal_usage: bool = True) -> None:
+        super().__init__()
+        self.usage_event = usage_event
+        self.terminal_usage = terminal_usage
+
     def send(self, frame: dict[str, object]) -> dict[str, object]:
         method = frame["method"]
         params = frame.get("params", {})
@@ -61,15 +66,20 @@ class _AsyncDelegationTransport(_SessionTransport):
             result = {"status": "streaming"}
             if method == "prompt.submit":
                 self._turn += 1
-                self._events.extend([
+                delivery = [
                     _event("message.start", {"session_id": self._live_id()}),
                     _event("subagent.start", {"task_index": 0, "task_count": 1}),
-                    _event("message.complete", {"status": "completed", "session_id": self._live_id()}),
+                    _event("message.complete", {"status": "completed", "session_id": self._live_id(), "usage": {"calls": 1}}),
                     _event("subagent.complete", {"task_index": 0, "task_count": 1}),
                     _event("message.start", {"session_id": self._live_id()}),
-                    _event("session.usage", {"session_id": self._live_id()}),
-                    _event("message.complete", {"status": "completed", "session_id": self._live_id()}),
-                ])
+                ]
+                if self.usage_event:
+                    delivery.append(_event("session.usage", {"session_id": self._live_id()}))
+                terminal = {"status": "completed", "session_id": self._live_id()}
+                if self.terminal_usage:
+                    terminal["usage"] = {"calls": 2}
+                delivery.append(_event("message.complete", terminal))
+                self._events.extend(delivery)
         return {"jsonrpc": "2.0", "id": frame["id"], "result": result}
 
 def _session(transport: _SessionTransport, **kwargs: Any) -> V4LiveSession:
@@ -151,6 +161,50 @@ def test_live_session_counts_hermes_generated_delegation_delivery_as_parent_turn
         "message.complete": 1,
     }
     session.close()
+
+
+def test_live_session_accepts_fast_delivery_usage_from_terminal_frame() -> None:
+    transport = _AsyncDelegationTransport(usage_event=False)
+    session = _session(transport, planned_calls=2, planned_turns=2)
+    session.start()
+    session.run_turn(
+        "delegate one bounded task",
+        source_pack="v2_non_soak",
+        source_item_id="TOOL-05",
+        path="positive",
+        trial_index=1,
+        approval_choice="allow",
+        expect_followup=True,
+    )
+    delivered = session.observe_delivery_turn(
+        source_pack="v2_non_soak",
+        source_item_id="TOOL-05",
+        trial_index=1,
+    )
+    assert delivered["provider_calls"] == 1
+    assert "session.usage" not in delivered["event_kinds"]
+    session.close()
+
+
+def test_live_session_rejects_delivery_without_tick_or_terminal_usage() -> None:
+    transport = _AsyncDelegationTransport(usage_event=False, terminal_usage=False)
+    session = _session(transport, planned_calls=2, planned_turns=2)
+    session.start()
+    session.run_turn(
+        "delegate one bounded task",
+        source_pack="v2_non_soak",
+        source_item_id="TOOL-05",
+        path="positive",
+        trial_index=1,
+        approval_choice="allow",
+        expect_followup=True,
+    )
+    with pytest.raises(V4LiveSessionViolation):
+        session.observe_delivery_turn(
+            source_pack="v2_non_soak",
+            source_item_id="TOOL-05",
+            trial_index=1,
+        )
 
 def test_live_session_restart_resumes_exact_stored_identity_without_exposing_it() -> None:
     first_transport = _SessionTransport()

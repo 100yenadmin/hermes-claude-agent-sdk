@@ -218,7 +218,7 @@ class V4LiveExecutor:
         return projection
 
     def _execute_turn(self, prompt: str | None, *, session_id: str, approval_choice: str, submit_prompt: bool = True, expect_followup: bool = False) -> dict[str, Any]:
-        terminal: str | None = None; events: list[EventProjection] = []; accumulator = EventAccumulator(); approval_receipts: list[dict[str, dict[str, object]]] = []
+        terminal: str | None = None; terminal_usage_present = False; events: list[EventProjection] = []; accumulator = EventAccumulator(); approval_receipts: list[dict[str, dict[str, object]]] = []
         decision = approval_choice.casefold(); decision_class = "allow" if decision in {"allow", "approve", "yes"} else "deny" if decision in {"deny", "reject", "no", "cancel"} else "other"
         if submit_prompt:
             if not isinstance(prompt, str):
@@ -231,7 +231,15 @@ class V4LiveExecutor:
             if isinstance(returned_session, str) and returned_session != session_id: raise V4LiveExecutorViolation("prompt response session identity does not match")
         while terminal is None:
             captured: dict[str, Mapping[str, Any]] = {}; projection = self._next(session_id, approval_choice, decision_class, accumulator, captured, approval_receipts, timeout=600.0 if not submit_prompt else None); events.append(projection)
-            if projection.terminal_status is not None: terminal = projection.terminal_status
+            if projection.terminal_status is not None:
+                terminal = projection.terminal_status
+                raw = captured.get("value")
+                params = raw.get("params") if isinstance(raw, Mapping) else None
+                payload = params.get("payload") if isinstance(params, Mapping) else None
+                terminal_usage_present = (
+                    isinstance(payload, Mapping)
+                    and isinstance(payload.get("usage"), Mapping)
+                )
             if len(events) > MAX_EVENTS: raise V4LiveExecutorViolation("event sequence exceeds the bounded count")
         if not expect_followup:
             try: trailing = self._gateway.next_event(timeout=0.01)
@@ -244,7 +252,11 @@ class V4LiveExecutor:
         if not submit_prompt:
             kinds = [event.event_type for event in events]
             starts = [index for index, kind in enumerate(kinds) if kind == "message.start"]
-            if not starts or not any(kind in {"message.usage", "session.usage"} for kind in kinds[starts[0] + 1:]):
+            usage_tick_present = any(
+                kind in {"message.usage", "session.usage"}
+                for kind in kinds[starts[0] + 1:]
+            )
+            if not starts or not (usage_tick_present or terminal_usage_present):
                 raise V4LiveExecutorViolation("automatic Hermes delivery turn lacks start or usage proof")
             self._provider_calls = 1
         classification = "COMPLETE"
