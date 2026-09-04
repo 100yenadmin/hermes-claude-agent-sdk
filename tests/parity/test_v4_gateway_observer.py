@@ -72,8 +72,8 @@ def test_observer_accepts_two_child_lifecycles_and_rejects_duplicates() -> None:
 
 def test_observer_accepts_real_gateway_two_phase_child_lifecycle() -> None:
     fake = _FakeGateway([
-        _event("subagent.start", {"task_index": 0, "task_count": 1, "parent_id": "p", "child_session_id": "c", "delegation_id": "d"}),
-        _event("subagent.complete", {"task_index": 0, "task_count": 1, "parent_id": "p", "child_session_id": "c", "delegation_id": "d", "status": "completed"}),
+        _event("subagent.start", {"task_index": 0, "task_count": 1, "parent_id": "p", "subagent_id": "runtime-child", "child_session_id": "persisted-child", "delegation_id": "d"}),
+        _event("subagent.complete", {"task_index": 0, "task_count": 1, "parent_id": "p", "subagent_id": "runtime-child", "child_session_id": "persisted-child", "delegation_id": "d", "status": "completed"}),
         _event("message.complete", {"status": "completed"}),
     ])
     observer = V4GatewayObserver(fake)
@@ -82,6 +82,7 @@ def test_observer_accepts_real_gateway_two_phase_child_lifecycle() -> None:
         observer.next_event()
     result = observer.snapshot()
     assert [item["phase"] for item in result["subagents"]] == ["start", "complete"]
+    assert result["subagents"][0]["child_id_sha256"] == identity_hash("child_id", "persisted-child")
     assert observer.collect_delegation_observation()["count"] == 1
 def test_observer_pairs_same_name_tools_by_id() -> None:
     observer = V4GatewayObserver(_FakeGateway([_event("tool.start", {"name": "fixture_tool", "tool_call_id": "a"}), _event("tool.start", {"name": "fixture_tool", "tool_call_id": "b"}), _event("tool.complete", {"name": "fixture_tool", "tool_call_id": "b"}), _event("tool.complete", {"name": "fixture_tool", "tool_call_id": "a"}), _event("message.complete", {"status": "completed"})]), allowed_tool_names={"fixture_tool"}); observer.start(); [observer.next_event() for _ in range(5)]

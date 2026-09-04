@@ -17,7 +17,7 @@ _APPROVAL = frozenset(("approval.request", "approval.requested"))
 _START = frozenset(("tool.start", "tool.started"))
 _COMPLETE = frozenset(("tool.complete", "tool.completed", "tool.result"))
 _CHILD = frozenset(("subagent.spawn_requested", "subagent.start", "subagent.complete"))
-_ALIASES = {"parent_id": "parent_id", "parent_session_id": "parent_id", "parent": "parent_id", "child_id": "child_id", "child_session_id": "child_id", "child": "child_id", "subagent_id": "child_id", "delegation_id": "delegation_id", "delegation": "delegation_id"}
+_ALIASES = {"parent_id": "parent_id", "parent_session_id": "parent_id", "parent": "parent_id", "child_id": "child_id", "child_session_id": "child_id", "child": "child_id", "delegation_id": "delegation_id", "delegation": "delegation_id"}
 class V4GatewayObserverViolation(ValueError): pass
 def _fail(message: str) -> None:
     raise V4GatewayObserverViolation(message)
