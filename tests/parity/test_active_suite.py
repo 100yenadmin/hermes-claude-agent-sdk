@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -41,6 +42,26 @@ def test_active_execution_inventory_is_exactly_eleven_plus_thin_approval() -> No
 
 def test_delegation_prompt_is_not_defined_in_the_direct_suite() -> None:
     assert not hasattr(active_suite_module, "_FANOUT_DELEGATION_PROMPT")
+
+
+def test_focused_environment_replaces_ambient_pythonpath(
+    monkeypatch, tmp_path
+) -> None:
+    plugin_root = tmp_path / "plugin"
+    host_root = tmp_path / "host"
+    monkeypatch.setenv("PYTHONPATH", "/untrusted/ambient/path")
+    monkeypatch.setenv("LANG", "en_US.UTF-8")
+
+    environment = active_suite_module._safe_environment(
+        plugin_root=plugin_root,
+        host_root=host_root,
+    )
+
+    assert environment["PYTHONPATH"] == os.pathsep.join(
+        (str(plugin_root / "src"), str(host_root))
+    )
+    assert "/untrusted/ambient/path" not in environment["PYTHONPATH"]
+    assert environment["LANG"] == "en_US.UTF-8"
 
 
 def test_active_normalized_events_preserve_catalog_order_for_every_path(catalog) -> None:
@@ -840,9 +861,10 @@ def test_stale_child_links_uses_provider_free_hermes_focused_evidence(
     monkeypatch.setattr(active_suite_module, "_exact_source_preflight", lambda *_: None)
     monkeypatch.setattr(active_suite_module, "_exact_git_checkout", lambda *_: True)
 
-    def focused(context, nodes, *, host_root):
+    def focused(context, nodes, *, plugin_root, host_root):
         seen["context"] = context
         seen["nodes"] = tuple(nodes)
+        seen["plugin_root"] = plugin_root
         seen["host_root"] = host_root
         return active_suite_module.ActiveCaseResult(
             ExecutionClassification.COMPLETE,
@@ -891,6 +913,7 @@ def test_stale_child_links_uses_provider_free_hermes_focused_evidence(
         for path, outcome in bundle.outcomes.items()
     ]
     assert seen["host_root"] == tmp_path
+    assert seen["plugin_root"] == Path(catalog.path).parent.parent
     assert seen["nodes"] == active_suite_module._FOCUSED_NODES[
         "subagent-stale-child-links"
     ]

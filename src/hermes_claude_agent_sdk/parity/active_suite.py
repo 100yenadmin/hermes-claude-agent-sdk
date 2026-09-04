@@ -270,14 +270,15 @@ def _failed(reason: str, *, turn_count: int, billing: str = "none") -> Execution
     )
 
 
-def _safe_environment(*, host_root: Path) -> dict[str, str]:
+def _safe_environment(*, plugin_root: Path, host_root: Path) -> dict[str, str]:
     environment = {
         "HERMES_AGENT_HOST_ROOT": str(host_root),
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "PYTHONPATH": os.pathsep.join((str(plugin_root / "src"), str(host_root))),
         "PYTHONDONTWRITEBYTECODE": "1",
         "PYTHONHASHSEED": "0",
     }
-    for key in ("HOME", "LANG", "LC_ALL", "TMPDIR", "PYTHONPATH", "VIRTUAL_ENV"):
+    for key in ("HOME", "LANG", "LC_ALL", "TMPDIR", "VIRTUAL_ENV"):
         value = os.environ.get(key)
         if value:
             environment[key] = value
@@ -385,6 +386,7 @@ def _run_focused(
     context: ExecutionContext,
     nodes: Sequence[str],
     *,
+    plugin_root: Path,
     host_root: Path,
 ) -> ActiveCaseResult:
     try:
@@ -400,7 +402,7 @@ def _run_focused(
                 *nodes,
             ),
             cwd=context.repo_root,
-            env=_safe_environment(host_root=host_root),
+            env=_safe_environment(plugin_root=plugin_root, host_root=host_root),
             shell=False,
             check=False,
             capture_output=True,
@@ -1162,7 +1164,12 @@ async def active_agentic_suite(context: ExecutionContext) -> ExecutionBundle:
 
     nodes = _FOCUSED_NODES.get(source_id)
     if nodes is not None:
-        result = _run_focused(context, nodes, host_root=host_root)
+        result = _run_focused(
+            context,
+            nodes,
+            plugin_root=root,
+            host_root=host_root,
+        )
     else:
         if source_id not in _LIVE_SOURCE_IDS:
             return _blocked("active_executor_mapping_missing")
