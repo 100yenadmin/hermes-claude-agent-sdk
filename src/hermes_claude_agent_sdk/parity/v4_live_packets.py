@@ -97,7 +97,7 @@ def _kind(value: Any) -> str:
     exact = {
         "start": "start", "message.start": "start", "session.start": "start", "run.start": "start", "task.start": "start",
         "state": "state", "message.state": "state", "session.state": "state",
-        "usage": "usage", "message.usage": "usage", "session.usage": "usage", "compaction": "compaction", "background": "background", "restart": "restart",
+        "usage": "usage", "message.usage": "usage", "session.usage": "usage", "compaction": "compaction", "background": "background", "subagent.start": "background", "restart": "restart",
         "approval.request": "approval_requested", "approval.requested": "approval_requested", "approval_requested": "approval_requested", "approval.decision": "approval_decision", "approval.decided": "approval_decision", "approval.responded": "approval_decision", "approval_decision": "approval_decision",
         "tool.request": "tool_requested", "tool.requested": "tool_requested", "tool.start": "tool_requested", "tool_requested": "tool_requested", "tool.result": "tool_result", "tool.complete": "tool_result", "tool.completed": "tool_result", "tool_result": "tool_result",
         "terminal": "terminal", "message.complete": "terminal", "session.complete": "terminal", "run.complete": "terminal", "task.complete": "terminal",

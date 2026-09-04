@@ -269,6 +269,31 @@ def test_top_level_child_accepts_real_gateway_two_phase_lifecycle(tmp_path, monk
     transport = _Transport(_async_child_events(1, include_spawn=False))
     result = _runner(tmp_path / "home", lambda **k: Gateway(python="fake", cwd=ROOT, env=k["env"], transport=transport, host_tools=k["host_tools"], mcp_tools=k["mcp_tools"]), "v2_non_soak/ORCH-01").execute()
     assert result["scenario_receipt"]["delegation_summary"]["count"] == 1
+
+
+def test_openclaw_handoff_trace_uses_hermes_subagent_start_as_background(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_AGENT_HOST_ROOT", "/Users/m1/repos/hermes-agent-runtime-plugin-api")
+    monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(2))
+    monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: _durable())
+    transport = _Transport(_async_child_events(1, include_spawn=False))
+    result = _runner(
+        tmp_path / "home",
+        lambda **k: Gateway(
+            python="fake",
+            cwd=ROOT,
+            env=k["env"],
+            transport=transport,
+            host_tools=k["host_tools"],
+            mcp_tools=k["mcp_tools"],
+        ),
+        "openclaw_active/subagent-handoff",
+    ).execute()
+    assert [
+        event["kind"]
+        for event in result["paths"]["positive"]["trial"].normalized_events
+    ] == ["start", "background", "terminal"]
+
+
 def test_two_child_fanout_uses_observed_ordinals(tmp_path, monkeypatch):
     monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(2)); monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: _durable())
     transport = _Transport(_async_child_events(2, include_parent=False))

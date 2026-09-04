@@ -39,7 +39,7 @@ from .results import candidate_hash as result_candidate_hash
 
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 _SAFE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@/+#\-]{0,255}$")
-_CANONICAL = {"message.start": "start", "session.start": "start", "run.start": "start", "message.state": "state", "session.state": "state", "message.usage": "usage", "session.usage": "usage", "tool.request": "tool_requested", "tool.requested": "tool_requested", "tool.start": "tool_requested", "tool.complete": "tool_result", "tool.completed": "tool_result", "approval.request": "approval_requested", "approval.requested": "approval_requested", "approval.responded": "approval_decision", "approval.decision": "approval_decision", "compaction": "compaction", "background": "background", "restart": "restart", "message.complete": "terminal", "session.complete": "terminal", "run.complete": "terminal", "task.complete": "terminal", "terminal": "terminal"}
+_CANONICAL = {"message.start": "start", "session.start": "start", "run.start": "start", "message.state": "state", "session.state": "state", "message.usage": "usage", "session.usage": "usage", "tool.request": "tool_requested", "tool.requested": "tool_requested", "tool.start": "tool_requested", "tool.complete": "tool_result", "tool.completed": "tool_result", "approval.request": "approval_requested", "approval.requested": "approval_requested", "approval.responded": "approval_decision", "approval.decision": "approval_decision", "compaction": "compaction", "background": "background", "subagent.start": "background", "restart": "restart", "message.complete": "terminal", "session.complete": "terminal", "run.complete": "terminal", "task.complete": "terminal", "terminal": "terminal"}
 _NON_CONTRACT_GATEWAY_EVENTS = frozenset({"session.info", "session.title", "sessions.changed", "status.update"})
 _STRIP = frozenset({"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GLM_API_KEY", "ZAI_API_KEY", "EXTRA_USAGE", "CLAUDE_CODE_EXTRA_USAGE", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP", "PYTHONEXECUTABLE"})
 class V4NormalGatewayRunnerViolation(ValueError):
@@ -259,7 +259,7 @@ def _trace(
 
 
 def _packet_attempt(attempt: Mapping[str, Any]) -> dict[str, Any]:
-    events = [event for event in attempt["events"] if not str(event.get("kind", "")).startswith("subagent.") and event.get("kind") not in _NON_CONTRACT_GATEWAY_EVENTS]
+    events = [event for event in attempt["events"] if event.get("kind") != "subagent.complete" and event.get("kind") not in _NON_CONTRACT_GATEWAY_EVENTS]
     return {**attempt, "event_count": len(events), "event_kinds": {kind: sum(event.get("kind") == kind for event in events) for kind in {event.get("kind") for event in events}}, "events": events}
 
 
