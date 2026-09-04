@@ -74,6 +74,9 @@ def test_legacy_tool_delegate_fixture_allows_hermes_child_instead_of_denial(tmp_
     assert delegated.fixture_tool_args is None
     assert "mcp__hermes-tools__v4_fixture_local_state" not in delegated.prompt.ephemeral_text
     assert "task_root=" not in delegated.prompt.ephemeral_text
+    assert "background=false" in delegated.prompt.ephemeral_text
+    background = _materializer().materialize("v2_non_soak/BG-01", trial_index=1, turn_index=1)
+    assert "background=true" in background.prompt.ephemeral_text
 
 
 @pytest.mark.parametrize(

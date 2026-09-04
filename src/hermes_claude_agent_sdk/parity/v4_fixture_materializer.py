@@ -317,6 +317,11 @@ class V4FixtureMaterializer:
                 f"Approval choice is {expected.approval_choice}; expected child count is {expected.expected_child_count}.",
                 "Keep any approval denial and safe local recovery in this one parent turn; preserve one parent call.",
         ]
+        if expected.expected_child_count:
+            if item["mechanism_class"] == "host_background":
+                lines.append("Invoke Hermes delegate_task with background=true and expose the Hermes-owned background settlement lifecycle.")
+            else:
+                lines.append(f"Invoke Hermes delegate_task synchronously with background=false and wait for exactly {expected.expected_child_count} local child result(s) before answering.")
         if task_root is not None and expected.fixture_tool_args is not None:
             count, digest = expected.fixture_tool_args
             sequence = "record (host denial expected), then check (safe recovery)" if expected.approval_sequence == ("deny", "safe_recovery") else "record (host denial expected)"
