@@ -231,6 +231,19 @@ def test_executor_rejects_terminal_duplicates_and_post_terminal_events() -> None
     assert [method for method, _ in missing.calls] == ["session.create", "prompt.submit"]
 
 
+def test_executor_allows_bounded_post_terminal_session_list_refresh() -> None:
+    trailing_control = _FakeTransport(
+        [
+            _event("message.complete", {"status": "completed"}),
+            _event("sessions.changed"),
+            _event("sessions.changed"),
+        ]
+    )
+    receipt = _executor(trailing_control).run("fixture")
+    assert receipt["terminal_status"] == "completed"
+    assert receipt["event_count"] == 1
+
+
 def test_executor_is_single_use_and_rejects_unsafe_receipt_inputs() -> None:
     fake = _FakeTransport([_event("message.complete", {"status": "denied"})])
     executor = _executor(fake)

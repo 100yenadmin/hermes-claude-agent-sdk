@@ -24,6 +24,8 @@ _APPROVAL = frozenset({"approval.request", "approval.requested"})
 _RESULT_KINDS = frozenset({"null", "boolean", "number", "string", "array", "object"})
 _MAX_RESULT_BYTES = 1_048_576
 CONTROL_CALL_LIMIT = 16
+POST_TERMINAL_CONTROL_LIMIT = 8
+_POST_TERMINAL_CONTROL = frozenset({"sessions.changed"})
 class V4LiveExecutorViolation(ValueError):
     """An attempt cannot be admitted or did not close safely."""
 class V4LiveGateway(Protocol):
@@ -242,9 +244,15 @@ class V4LiveExecutor:
                 )
             if len(events) > MAX_EVENTS: raise V4LiveExecutorViolation("event sequence exceeds the bounded count")
         if not expect_followup:
-            try: trailing = self._gateway.next_event(timeout=0.01)
-            except (GatewayClosed, GatewayTimeout, TimeoutError): trailing = None
-            if trailing is not None: raise V4LiveExecutorViolation("event arrived after terminal")
+            for _ in range(POST_TERMINAL_CONTROL_LIMIT):
+                try: trailing = self._gateway.next_event(timeout=0.01)
+                except (GatewayClosed, GatewayTimeout, TimeoutError): trailing = None
+                if trailing is None:
+                    break
+                if getattr(trailing, "event_type", None) not in _POST_TERMINAL_CONTROL:
+                    raise V4LiveExecutorViolation("event arrived after terminal")
+            else:
+                raise V4LiveExecutorViolation("post-terminal control event bound exhausted")
         if terminal != "completed":
             raise V4LiveExecutorViolation(
                 "positive provider execution did not complete"

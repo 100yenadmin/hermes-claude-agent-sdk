@@ -145,14 +145,17 @@ def test_observer_accepts_normal_hermes_gateway_tool_id() -> None:
     assert observer.snapshot()["tools"] == {"started": ["fixture_tool"], "completed": ["fixture_tool"]}
 
 
-def test_turn_complete_is_terminal_and_rejects_trailing_events() -> None:
+def test_turn_complete_allows_session_list_refresh_but_rejects_turn_events() -> None:
     observer = V4GatewayObserver(
         _FakeGateway([
             _event("turn.complete", {"status": "completed"}),
+            _event("sessions.changed"),
             _event("message.delta"),
         ])
     )
     observer.start()
+    observer.next_event()
+    assert observer.snapshot()["terminal_status"] == "completed"
     observer.next_event()
     assert observer.snapshot()["terminal_status"] == "completed"
     with pytest.raises(V4GatewayObserverViolation, match="after terminal"):
