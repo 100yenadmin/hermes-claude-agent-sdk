@@ -85,6 +85,38 @@ def test_host_projection_accepts_extra_assistant_rows_with_valid_terminal_invari
     receipt["host_observation"] = _host(scenario.turn_count, assistant_count=scenario.turn_count + 1)
     bundle = build_v4_live_packets(contract, scenario, receipt, live_map=live_map, map_path=MAP)
     assert bundle["paths"]["positive"]["classification"] == "COMPLETE"
+
+
+def test_control_receipt_can_carry_approval_decision_without_duplicate_gateway_event():
+    contract, live_map, _, scenario, receipt = _inputs("v2_non_soak/TOOL-05")
+    request = {
+        "kind": "approval.request",
+        "byte_length": 37,
+        "sha256": "a7".ljust(64, "0"),
+        "terminal_status": None,
+    }
+    attempt = receipt["attempts"][0]
+    attempt["events"].insert(-1, request)
+    attempt["event_count"] = len(attempt["events"])
+    attempt["event_kinds"] = {
+        event["kind"]: sum(item["kind"] == event["kind"] for item in attempt["events"])
+        for event in attempt["events"]
+    }
+    attempt["approval"] = {
+        "decision_class": "deny",
+        "request_count": 1,
+        "decision_count": 1,
+        "requests": [{key: request[key] for key in ("kind", "byte_length", "sha256")}],
+        "decisions": [{
+            "decision_class": "deny",
+            "ok": True,
+            "result_kind": "object",
+            "result_bytes": 18,
+            "result_sha256": "b7".ljust(64, "0"),
+        }],
+    }
+    bundle = build_v4_live_packets(contract, scenario, receipt, live_map=live_map, map_path=MAP)
+    assert bundle["paths"]["positive"]["classification"] == "COMPLETE"
 def test_explicit_denial_recovery_are_zero_turn_host_local_paths():
     contract, live_map, _, scenario, receipt = _inputs()
     expected = next(row["expected_trace"] for row in contract["source_rows"] if f"{row['source_pack']}/{row['source_item_id']}" == scenario.row_key)

@@ -147,8 +147,10 @@ def _events(value: Any, classification: str) -> tuple[tuple[dict[str, Any], ...]
     if len(terminals) != 1 or expected is not None and terminals[0] != expected or classification == "VERIFIED_FAILURE" and terminals[0] not in {"failed", "cancelled"}:
         raise V4LivePacketViolation("terminal outcome does not match classification")
     mapped = {name: sum(item["kind"] == name for item in result) for name in ("approval_requested", "approval_decision", "tool_requested", "tool_result")}
-    if mapped["approval_requested"] != mapped["approval_decision"] or mapped["tool_requested"] != mapped["tool_result"]:
-        raise V4LivePacketViolation("event request/result pairing is incomplete")
+    if mapped["tool_requested"] != mapped["tool_result"]:
+        raise V4LivePacketViolation("tool event request/result pairing is incomplete")
+    if mapped["approval_decision"] not in {0, mapped["approval_requested"]}:
+        raise V4LivePacketViolation("approval event request/decision pairing is incomplete")
     return tuple(result), counts, tuple(content)
 def _approval(value: Any) -> dict[str, Any]:
     result = _copy(value, "attempt.approval")
