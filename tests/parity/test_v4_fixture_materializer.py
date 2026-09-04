@@ -83,6 +83,35 @@ def test_legacy_tool_delegate_fixture_allows_hermes_child_instead_of_denial(tmp_
     assert "without polling" in background.prompt.ephemeral_text
 
 
+def test_zero_child_delegate_rows_do_not_expose_hermes_delegation() -> None:
+    materializer = _materializer()
+    fixtures = [
+        fixture
+        for fixture in materializer.fixtures
+        if fixture["mechanism_class"] in {"host_delegate", "host_background"}
+        and fixture["child_calls"] == 0
+    ]
+    assert {fixture.row_key for fixture in fixtures} == {
+        "v2_non_soak/OPS-02",
+        "v2_non_soak/OPS-04",
+        "openclaw_active/config-restart-capability-flip",
+        "clawprobench_native/planning_19_agent_delegation_boundary_live",
+        "clawprobench_native/planning_20_session_agent_handoff_live",
+    }
+    for fixture in fixtures:
+        value = materializer.materialize(
+            fixture,
+            trial_index=fixture["trial_indexes"][0],
+            turn_index=1,
+        )
+        assert value.host.expected_child_count == 0
+        assert value.host.allowed_tool_names == ()
+        assert value.host.approval_choice == "not_required"
+        assert "delegate" not in value.host.required_observations
+        assert "background" not in value.host.required_observations
+        assert "Do not invoke delegate_task" in value.prompt.ephemeral_text
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [

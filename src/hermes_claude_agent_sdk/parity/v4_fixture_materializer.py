@@ -286,14 +286,25 @@ class V4FixtureMaterializer:
         bindings = tuple(binding for binding in scenario.child_bindings if binding[1] == trial_index and binding[4] == path)
         child_ids = tuple(binding[0] for binding in bindings)
         delegated_tool_path = bool(child_ids)
-        surfaces = _BASE_SURFACES + tuple(_SURFACES_BY_MECHANISM[item["mechanism_class"]])
+        delegated_mechanism = item["mechanism_class"] in {"host_delegate", "host_background"}
+        surfaces = _BASE_SURFACES
+        if not delegated_mechanism or delegated_tool_path:
+            surfaces += tuple(_SURFACES_BY_MECHANISM[item["mechanism_class"]])
         if child_ids:
             surfaces += ("child",)
         if item["path_policy"] == "host_denial_local_recovery":
             surfaces += ("delivery_boundary",)
-        approval = item["mechanism_class"] == "host_tool_pdr" or item["path_policy"] == "host_denial_local_recovery"
+        if delegated_tool_path:
+            allowed_tools = ("mcp__hermes-tools__delegate_task",)
+        elif delegated_mechanism:
+            allowed_tools = ()
+        else:
+            allowed_tools = tuple(_TOOLS_BY_MECHANISM[item["mechanism_class"]])
+        approval = bool(allowed_tools) and (
+            item["mechanism_class"] == "host_tool_pdr"
+            or item["path_policy"] == "host_denial_local_recovery"
+        )
         sequence = ("deny", "safe_recovery") if approval and not delegated_tool_path and path == "positive" and "recovery" in item["mandatory_paths"] else (("deny",) if approval and not delegated_tool_path else ())
-        allowed_tools = ("mcp__hermes-tools__delegate_task",) if delegated_tool_path else tuple(_TOOLS_BY_MECHANISM[item["mechanism_class"]])
         approval_choice = "allow" if delegated_tool_path else ("deny" if approval else "not_required")
         expected = V4HostSurfaceExpectations(
             allowed_tools, tuple(dict.fromkeys(surfaces)),
@@ -326,6 +337,11 @@ class V4FixtureMaterializer:
                 lines.append("Acknowledge the dispatch in this turn. Hermes will inject the durable completion as one follow-up turn; expose settlement there without polling.")
             else:
                 lines.append("Acknowledge the dispatch in this turn. Hermes will inject the completed child result(s) as one durable follow-up turn for synthesis; do not poll or submit another task.")
+        elif item["mechanism_class"] in {"host_delegate", "host_background"}:
+            lines.append(
+                "Do not invoke delegate_task; this row declares no child or background work. "
+                "Complete locally without external delivery."
+            )
         if task_root is not None and expected.fixture_tool_args is not None:
             count, digest = expected.fixture_tool_args
             sequence = "record (host denial expected), then check (safe recovery)" if expected.approval_sequence == ("deny", "safe_recovery") else "record (host denial expected)"
