@@ -90,6 +90,38 @@ def test_real_gateway_shape_binds_state_and_usage_to_durable_host_receipts(tmp_p
     assert result["scenario_receipt"]["scenario_trace_hash"] != "0" * 64
 
 
+def test_real_gateway_tool_start_projects_as_requested_tool(tmp_path, monkeypatch):
+    host = _host(1)
+    host["runtime_state"] = {"present": True, "schema_version": 1, "sha256": "9" * 64}
+    monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: host)
+    monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": [], "parent_link_sha256": None, "lifecycle": "none"})
+    transport = _Transport([
+        _event("message.start"),
+        _event("tool.start", {"name": "tool_describe", "tool_id": "bridge-1"}),
+        _event("tool.complete", {"name": "tool_describe", "tool_id": "bridge-1"}),
+        _event("message.complete", {"status": "completed"}),
+    ])
+    result = _runner(
+        tmp_path / "home",
+        lambda **kwargs: Gateway(
+            python="fake",
+            cwd=ROOT,
+            env=kwargs["env"],
+            transport=transport,
+            host_tools=kwargs["host_tools"],
+            mcp_tools=kwargs["mcp_tools"],
+        ),
+        "v2_non_soak/TOOL-02",
+    ).execute()
+    assert [event["kind"] for event in result["paths"]["positive"]["trial"].normalized_events] == [
+        "start",
+        "tool_requested",
+        "tool_result",
+        "state",
+        "terminal",
+    ]
+
+
 def test_safe_env_strips_python_startup_overrides(tmp_path, monkeypatch):
     for name in ("PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP", "PYTHONEXECUTABLE"):
         monkeypatch.setenv(name, f"/ambient/{name.casefold()}")
