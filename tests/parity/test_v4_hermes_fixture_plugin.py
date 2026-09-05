@@ -185,6 +185,38 @@ def test_native_skills_allow_only_isolated_readiness_reads(tmp_path, monkeypatch
     assert plugin.pre_tool_call("skill_view", {"name": "weather"})["action"] == "block"
 
 
+def test_native_session_search_is_explicit_local_and_read_only(tmp_path, monkeypatch):
+    plugin = _fixture_module()
+    home, root = tmp_path / "home", tmp_path / "workspace"
+    home.mkdir()
+    root.mkdir()
+    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setenv("HERMES_V4_NATIVE_FIXTURE_ROOT", str(root))
+    args = {"query": "test", "limit": 3}
+    assert plugin.pre_tool_call("session_search", args)["action"] == "block"
+    monkeypatch.setenv("HERMES_V4_NATIVE_MEMORY", "isolated-search-v1")
+    assert plugin.pre_tool_call("session_search", args) is None
+    assert not (home / "state.db").exists()  # Admission does not perform search.
+    for changed in (
+        {"query": ""}, {"query": "other"}, {"limit": True}, {"limit": 4},
+        {"profile": "default"}, {"profile": None}, {"session_id": "foreign"},
+        {"around_message_id": 1}, {"sort": "newest"},
+    ):
+        assert plugin.pre_tool_call("session_search", dict(args, **changed))["action"] == "block"
+    for name, values in (
+        ("memory", {"action": "add", "content": "test"}),
+        ("terminal", {"command": "true"}),
+        ("write_file", {"path": "input.json"}),
+    ):
+        assert plugin.pre_tool_call(name, values)["action"] == "block"
+    (home / "state.db").symlink_to(tmp_path / "outside.db")
+    assert plugin.pre_tool_call("session_search", args)["action"] == "block"
+    monkeypatch.setenv("HERMES_HOME", str(root))
+    assert plugin.pre_tool_call("session_search", args)["action"] == "block"
+    monkeypatch.delenv("HERMES_HOME")
+    assert plugin.pre_tool_call("session_search", args)["action"] == "block"
+
+
 def _oneshot_fixture(tmp_path, monkeypatch):
     home, root = tmp_path / "home", tmp_path / "workspace"
     home.mkdir()

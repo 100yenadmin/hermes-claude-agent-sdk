@@ -199,6 +199,18 @@ def _native_oneshot_store(tool_name: str, args: Mapping[str, Any], root: Path) -
     return not store.exists()
 
 
+def _native_session_search(tool_name: str, args: Mapping[str, Any], root: Path) -> bool:
+    """Admit one real read-only search, never a cross-profile/session read."""
+    if tool_name != "session_search" or os.environ.get("HERMES_V4_NATIVE_MEMORY") != "isolated-search-v1":
+        return False
+    if set(args) != {"query", "limit"} or args["query"] != "test" or type(args["limit"]) is not int or args["limit"] != 3:
+        return False
+    home = _task_root(os.environ.get("HERMES_HOME"))
+    if home != root.parent / "home" or root.name != "workspace":
+        return False
+    return not (home / "state.db").is_symlink()
+
+
 def pre_tool_call(tool_name: str, args: Mapping[str, Any], **_: Any) -> dict[str, str] | None:
     """Request the host approval gate for state mutation, never grant it."""
     native_root = os.environ.get("HERMES_V4_NATIVE_FIXTURE_ROOT")
@@ -209,6 +221,8 @@ def pre_tool_call(tool_name: str, args: Mapping[str, Any], **_: Any) -> dict[str
         try:
             root = _task_root(native_root)
             if tool_name in {"tool_search", "tool_describe"}:
+                return None
+            if _native_session_search(tool_name, args, root):
                 return None
             if _native_oneshot_store(tool_name, args, root):
                 return None
