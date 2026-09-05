@@ -138,7 +138,10 @@ def _tool_check(value: object, prefix: str, hosts: frozenset[str] = HOST_TOOLS, 
                 elif local: raise NativeToolEvent("tool request is outside the Hermes MCP namespace")
         for key, child in value.items():
             if key in {"payload", "content", "content_block", "delta", "event", "request", "result", "tool"}:
-                _tool_check(child, prefix, hosts, mcps, depth=depth + 1, toolish=local)
+                # A result's name describes returned data (for example a skill),
+                # not the executing tool. Explicit nested tool/Agent event types
+                # are still checked, as is the enclosing tool's inventory name.
+                _tool_check(child, prefix, hosts, mcps, depth=depth + 1, toolish=local and key != "result")
     elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
         for child in list(value)[:64]: _tool_check(child, prefix, hosts, mcps, depth=depth + 1, toolish=toolish)
 def _event_projection(frame: Mapping[str, Any], encoded: bytes, prefix: str = TOOL_PREFIX, hosts: frozenset[str] = HOST_TOOLS, mcps: frozenset[str] = MCP_TOOLS) -> "EventProjection":

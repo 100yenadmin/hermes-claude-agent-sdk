@@ -157,6 +157,22 @@ def test_host_tool_inventory_is_explicit_and_fail_closed() -> None:
     with pytest.raises(ValueError): EventAccumulator(host_tools=frozenset({"Bash"}))
 
 
+@pytest.mark.parametrize("skill_name", ("weather", "slack"))
+def test_hermes_skill_result_name_is_data_not_a_tool_name(skill_name: str) -> None:
+    tools = frozenset({"skill_view"})
+    mcps = frozenset({"mcp__hermes-tools__skill_view"})
+    # _on_tool_complete JSON-decodes skill_view's result into this payload.
+    payload = {"name": "skill_view", "args": {"name": skill_name},
+               "result": {"success": True, "name": skill_name, "content": "fixture"}}
+    EventAccumulator(host_tools=tools, mcp_tools=mcps).add(_event("tool.complete", payload))
+    with pytest.raises(NativeToolEvent):
+        EventAccumulator(host_tools=tools, mcp_tools=mcps).add(
+            _event("tool.complete", dict(payload, name="unknown_tool")))
+    with pytest.raises(NativeToolEvent):
+        EventAccumulator(host_tools=tools, mcp_tools=mcps).add(
+            _event("tool.complete", dict(payload, result={"content": [{"type": "tool_use", "name": "Agent"}]})))
+
+
 def test_default_inventory_admits_only_hermes_discovery_bridges() -> None:
     assert HERMES_DISCOVERY_TOOLS == {"tool_search", "tool_describe", "tool_call"}
     assert HERMES_DISCOVERY_TOOLS <= HOST_TOOLS
