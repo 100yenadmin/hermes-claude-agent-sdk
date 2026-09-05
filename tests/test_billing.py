@@ -141,7 +141,7 @@ def test_extract_system_and_rate_limit_evidence_is_bounded_and_serializable() ->
     assert SYNTHETIC_API_KEY not in json.dumps(system.to_dict(), sort_keys=True)
 
 
-@pytest.mark.parametrize("window", ("five_hour", "seven_day", "seven_day_opus", "seven_day_sonnet"))
+@pytest.mark.parametrize("window", ("five_hour", "seven_day", "seven_day_opus", "seven_day_sonnet", "seven_day_overage_included"))
 def test_recognized_non_overage_evidence_is_included(window: str) -> None:
     result = classify_sdk_billing(
         SDKBillingEvidence(
@@ -158,7 +158,7 @@ def test_recognized_non_overage_evidence_is_included(window: str) -> None:
     assert result.to_dict()["billing_mode"] == BillingMode.SUBSCRIPTION_INCLUDED.value
 
 
-@pytest.mark.parametrize("window", ("seven_day_opus", "seven_day_sonnet"))
+@pytest.mark.parametrize("window", ("seven_day_opus", "seven_day_sonnet", "seven_day_overage_included"))
 def test_pinned_sdk_model_window_event_is_non_overage(window: str) -> None:
     from claude_agent_sdk.types import RateLimitEvent, RateLimitInfo
 
@@ -171,7 +171,7 @@ def test_pinned_sdk_model_window_event_is_non_overage(window: str) -> None:
     assert result.mode is BillingMode.SUBSCRIPTION_INCLUDED
 
 
-@pytest.mark.parametrize("window", ("seven_day_opus", "seven_day_sonnet"))
+@pytest.mark.parametrize("window", ("seven_day_opus", "seven_day_sonnet", "seven_day_overage_included"))
 @pytest.mark.parametrize("unsafe", (
     {"is_using_overage": True}, {"overage_status": "allowed"},
     {"api_key_source": "metered"},
@@ -235,6 +235,15 @@ def test_unknown_signal_value_does_not_downgrade_to_included() -> None:
     assert not result.allowed
     assert result.block_reason is BillingBlockReason.UNKNOWN_EVIDENCE
     assert result.mode is BillingMode.UNKNOWN
+
+
+def test_unknown_window_still_blocks_non_overage_subscription_evidence() -> None:
+    result = classify_sdk_billing(SDKBillingEvidence(
+        api_key_source="none", is_using_overage=False,
+        rate_limit_type="future_unknown_window",
+    ))
+    assert not result.allowed
+    assert result.block_reason is BillingBlockReason.UNKNOWN_EVIDENCE
 
 
 def test_billing_module_has_no_process_environment_dependency() -> None:

@@ -136,6 +136,17 @@ class _Client:
             ):
                 init_data["model"] = "claude-fable-5"
             await self._messages.put(SystemMessage("init", init_data))
+            if self.mode == "fable_included_window":
+                # Categories captured from the installed-Hermes billing failure.
+                for info in (
+                    {"raw": {"isUsingOverage": False},
+                     "overage_status": "rejected", "rate_limit_type": "five_hour"},
+                    {"raw": {"isUsingOverage": False},
+                     "rate_limit_type": "seven_day_overage_included"},
+                ):
+                    await self._messages.put({
+                        "type": "rate_limit_event", "rate_limit_info": info,
+                    })
             assistant_model = (
                 None
                 if self.mode in {"missing_model", "model_ambiguous_same_canonical"}
@@ -660,6 +671,22 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
         assert clients[0].queries == ["hello runtime"]
         assert clients[0].disconnected == 1
 
+    asyncio.run(scenario())
+
+
+def test_observed_fable_included_window_settles_usage_state_and_terminal() -> None:
+    async def scenario():
+        clients: list[_Client] = []
+        runtime = _runtime("fable_included_window", clients)
+        events = await _collect(runtime, _request(), _Host())
+        await runtime.close()
+        assert [event.kind.value for event in events] == [
+            "content", "content", "usage", "session_state", "completed",
+        ]
+        assert events[2].receipt.billing_mode == "subscription_included"
+        assert events[2].receipt.cost_status == "included"
+        assert events[-1].result["completed"] is True
+        assert len(clients[0].queries) == 1
     asyncio.run(scenario())
 
 

@@ -90,6 +90,9 @@ _SAFE_RATE_LIMIT_TYPES = frozenset(
         "five_hour", "five-hour", "seven_day", "seven-day",
         # The pinned SDK distinguishes these subscription windows from overage.
         "seven_day_opus", "seven_day_sonnet",
+        # Bundled CLI 2.1.258 emits this Fable subscription window even though
+        # SDK 0.2.151 omits it from RateLimitType. Paid-use signals still veto it.
+        "seven_day_overage_included",
     }
 )
 
