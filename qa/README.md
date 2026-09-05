@@ -1,6 +1,14 @@
-# Hermes Agent SDK parity — Revision 4
+# Hermes release acceptance and preserved Revision 4 benchmark
 
-`parity-contract-v4.yaml` is the current source and behavior contract for the
+The current release gate is [Hermes release acceptance](hermes-release-acceptance.md).
+The owner-directed 2026-09-05 correction removes the blanket native-36 / 220-path /
+390-packet release obligation, not supported Hermes behavior or safety proof.
+The following sections describe the preserved v4 benchmark mechanics. Its catalog,
+graders, fixed-count release validator and historical results remain unchanged;
+their aggregate `PENDING` is not rewritten as a benchmark pass. Use #9's reviewed
+Hermes acceptance readback for the corrected release decision.
+
+`parity-contract-v4.yaml` is the preserved source and behavior catalog for the
 Hermes-owned Claude subscription runtime. It is pinned to SDK `0.2.151`, the
 bundled Claude Code-derived CLI `2.1.258`, and direct model
 `claude-fable-5-1`. The v3 contract and evidence packet remain immutable
