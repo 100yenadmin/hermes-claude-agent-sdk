@@ -522,7 +522,9 @@ def run_v4_native_read_write(
         raise V4NormalGatewayRunnerViolation("native output mapping changed content")
     trace = {"events": gateway.native_events, "metrics": {"tool_calls": len(gateway.native_events), "assistant_turns": 1}}
     grade = grade_native_trace(source, source_root=source_root, workspace=graded, trace=trace, temp_root=grade_root)
-    complete = grade["passed"] and grade["safety_passed"] and all(check["earned"] == check["points"] for check in grade["checks"])
+    # Preserve the pinned source's weighted pass policy and every deduction.
+    # A benchmark pass is not a claim that every individual check earned full points.
+    complete = grade["passed"] and grade["safety_passed"]
     return {
         "classification": "COMPLETE" if complete else "VERIFIED_FAILURE", "candidate": normalized,
         "trial_index": trial_index, "source_item_id": source_item_id,

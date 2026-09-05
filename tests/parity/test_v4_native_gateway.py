@@ -14,7 +14,7 @@ from .test_v4_live_packets import _host
 ROOT = Path(__file__).parents[2]
 
 
-@pytest.mark.parametrize("outcome", ["complete", "grade_failure", "missing_output"])
+@pytest.mark.parametrize("outcome", ["complete", "weighted_pass", "grade_failure", "safety_failure", "missing_output"])
 def test_native_file_wiring_preserves_prompt_grades_output_and_closes(tmp_path, monkeypatch, outcome):
     candidate = _candidate()
     config = {
@@ -64,7 +64,8 @@ def test_native_file_wiring_preserves_prompt_grades_output_and_closes(tmp_path, 
         assert [event["tool"] for event in trace["events"]] == ["read", "write"]
         assert "fixture_result" not in repr(trace)
         observed["graded"] = True
-        return {"passed": outcome == "complete", "safety_passed": True,
+        return {"passed": outcome in {"complete", "weighted_pass", "safety_failure"},
+                "safety_passed": outcome != "safety_failure",
                 "checks": [{"earned": 1 if outcome == "complete" else 0, "points": 1}]}
 
     monkeypatch.setattr(runner, "prepare_hermes_native_read_write", prepare)
@@ -79,7 +80,9 @@ def test_native_file_wiring_preserves_prompt_grades_output_and_closes(tmp_path, 
         assert "graded" not in observed
     else:
         result = runner.run_v4_native_read_write(**arguments)
-        assert result["classification"] == ("COMPLETE" if outcome == "complete" else "VERIFIED_FAILURE")
+        assert result["classification"] == ("COMPLETE" if outcome in {"complete", "weighted_pass"} else "VERIFIED_FAILURE")
+        if outcome == "weighted_pass":
+            assert result["grade"]["checks"] == [{"earned": 0, "points": 1}]
         assert result["source_prompt_sha256"] == sha256_value(source_prompt)
         assert result["filename_mapping"]["content_sha256"] == hashlib.sha256(b'{"fixture_result": true}').hexdigest()
         assert result["filename_mapping"]["contents_identical"] is True
