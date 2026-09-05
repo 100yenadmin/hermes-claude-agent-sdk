@@ -1,0 +1,2602 @@
+{
+  "schema_version": 1,
+  "fragment_kind": "openclaw_active_source_pack",
+  "pack_id": "openclaw_active",
+  "status": "PENDING",
+  "source_pack": {
+    "id": "openclaw_active",
+    "expected_count": 12,
+    "row_ids": [
+      "OPENCLAW-ACTIVE-01",
+      "OPENCLAW-ACTIVE-02",
+      "OPENCLAW-ACTIVE-03",
+      "OPENCLAW-ACTIVE-04",
+      "OPENCLAW-ACTIVE-05",
+      "OPENCLAW-ACTIVE-06",
+      "OPENCLAW-ACTIVE-07",
+      "OPENCLAW-ACTIVE-08",
+      "OPENCLAW-ACTIVE-09",
+      "OPENCLAW-ACTIVE-10",
+      "OPENCLAW-ACTIVE-11",
+      "OPENCLAW-ACTIVE-12"
+    ],
+    "row_ids_sha256": "8b3f885205c2953987a93bb7cb68d7ef7823e46dc4cbbaf9cea2ce1bbf1a4f82",
+    "source": {
+      "kind": "git_commit",
+      "repo_id": "openclaw",
+      "commit_sha": "ea806575e6450e4d1efdfc72c19f04be982a1b9b",
+      "source_ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts",
+      "artifact_sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
+    },
+    "provenance": {
+      "origin_id": "openclaw-v2026-8-1",
+      "license_id": "MIT",
+      "attribution_ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:LICENSE"
+    }
+  },
+  "source_accounting": {
+    "expected_count": 12,
+    "retained_count": 12,
+    "row_ids_sha256": "8b3f885205c2953987a93bb7cb68d7ef7823e46dc4cbbaf9cea2ce1bbf1a4f82",
+    "source_fragment_ref": "evidence:hermes-agent-sdk-parity-v3/drafts/openclaw-active12-catalog-rows.json",
+    "source_fragment_sha256": "256470ebf77ce3cb60aa2e1351ac5cc82c735641e005cd0fa494da848ffa4721",
+    "source_fragment_map_sha256": "48be92637b115489c56c45049d14090734988f8c22f4e9b9adc55e96c3e9284a",
+    "provenance_ref": "evidence:hermes-agent-sdk-parity-v3/drafts/source-pack-provenance.json",
+    "provenance_sha256": "0cecf675e9c96cbc29d26794e235fe690b6e62cc8a91030ba009f3d60bd6638a"
+  },
+  "design_binding": {
+    "overlay_ref": "evidence:hermes-agent-sdk-parity-v3/drafts/schema-result-cli-design-v4.md",
+    "overlay_sha256": "63e2f7981549c5cbfd2aa0c2e49141a76af35743d80d9a13e4a35e832af43874",
+    "predecessor_design_sha256": "d364eaa396ef18b1978ab33f2b85b1e16115c5766f707dbd8a29de6c4b136ade"
+  },
+  "trace_registry": {
+    "ref": "src:hermes-claude-agent-sdk-v3-pack-openclaw@03f47af78d8ec7a0ec842d91a9051559357008a8:src/hermes_claude_agent_sdk/parity/canonical.py",
+    "sha256": "a951daaa06c5f09057abfd2d2871a9668dd91632edeced7181a2b4fea7b358b6",
+    "codes": [
+      "registration.accepted",
+      "selection.accepted",
+      "preflight.pass",
+      "preflight.fail",
+      "approval.requested",
+      "approval.granted",
+      "approval.denied",
+      "approval.late_rejected",
+      "tool.requested",
+      "tool.executed",
+      "tool.denied",
+      "tool.cancelled",
+      "tool.failed",
+      "tool.recovered",
+      "host.execute_tool",
+      "host.execute_tool_failed",
+      "state.bound",
+      "state.invalid",
+      "resume.supplied",
+      "resume.accepted",
+      "resume.rejected",
+      "session.opened",
+      "session.restarted",
+      "session.isolated",
+      "compaction.started",
+      "compaction.completed",
+      "compaction.failed",
+      "compaction.watchdog",
+      "usage.included",
+      "usage.blocked",
+      "usage.unknown",
+      "sdk.precompact",
+      "sdk.compact_boundary",
+      "sdk.result",
+      "sdk.tool_use",
+      "sdk.tool_result",
+      "sdk.resume",
+      "sdk.query",
+      "path.positive.begin",
+      "path.positive.end",
+      "path.denial.begin",
+      "path.denial.end",
+      "path.recovery.begin",
+      "path.recovery.end",
+      "terminal.complete",
+      "terminal.cancelled",
+      "terminal.failed",
+      "recovery.started",
+      "recovery.completed",
+      "recovery.failed",
+      "inventory.exact",
+      "inventory.drift",
+      "package.imported",
+      "package.uninstalled",
+      "package.reinstalled",
+      "ledger.covered",
+      "ledger.equivalent",
+      "ledger.upgrade_required",
+      "ledger.not_applicable"
+    ]
+  },
+  "gap_registry": [
+    {
+      "code": "GAP-FIXTURE-MANIFEST",
+      "status": "PENDING",
+      "blocking": true,
+      "meaning": "No immutable scenario fixture manifest is supplied."
+    },
+    {
+      "code": "GAP-REQUEST-CORRELATION",
+      "status": "PENDING",
+      "blocking": true,
+      "meaning": "No safe request correlation digest is supplied."
+    },
+    {
+      "code": "GAP-RUNTIME-PROOF",
+      "status": "PENDING",
+      "blocking": true,
+      "meaning": "No execution result is part of this source-accounting pack."
+    },
+    {
+      "code": "GAP-SCOPE-METADATA",
+      "status": "PENDING",
+      "blocking": true,
+      "meaning": "No source-backed session scope or partition assignment is supplied."
+    },
+    {
+      "code": "GAP-SDK-CORRELATION",
+      "status": "PENDING",
+      "blocking": true,
+      "meaning": "No SDK event correlation is asserted for these OpenClaw scenarios."
+    },
+    {
+      "code": "GAP-SOURCE-ROLE-CONFLICT",
+      "status": "PENDING",
+      "blocking": true,
+      "meaning": "A source recovery declaration conflicts with the required recovery role."
+    },
+    {
+      "code": "GAP-STATE-EVIDENCE",
+      "status": "PENDING",
+      "blocking": true,
+      "meaning": "No runtime state transition observation is supplied."
+    },
+    {
+      "code": "GAP-TOOL-INVENTORY",
+      "status": "PENDING",
+      "blocking": true,
+      "meaning": "No declared tool names or schema digests are supplied."
+    },
+    {
+      "code": "GAP-TRACE-MAPPING",
+      "status": "PENDING",
+      "blocking": true,
+      "meaning": "Source tokens require reviewed mapping to the closed trace registry."
+    }
+  ],
+  "gap_counts": {
+    "rows": 12,
+    "pending_rows": 12,
+    "pending_gap_items": 98,
+    "source_role_conflict_rows": 2
+  },
+  "rows": [
+    {
+      "id": "CAP-OPENCLAW-01",
+      "source_rows": [
+        {
+          "pack_id": "openclaw_active",
+          "row_id": "OPENCLAW-ACTIVE-01"
+        }
+      ],
+      "scenario_id": "SCN-OPENCLAW-01",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L6-11",
+      "lane": "openclaw",
+      "surface": "approval",
+      "owner": "exact_pair",
+      "owner_issue": {
+        "owner": "exact_pair",
+        "issue_ref": "issue:12",
+        "status": "PENDING"
+      },
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "positive_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.positive.begin",
+          "approval.requested",
+          "approval.granted",
+          "tool.requested",
+          "tool.executed",
+          "terminal.complete",
+          "path.positive.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "pending",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "granted",
+          "tool": "executed",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "denial_path": {
+        "required": true,
+        "expected_outcome": "EXPECTED_NEGATIVE",
+        "trace_codes": [
+          "path.denial.begin",
+          "approval.requested",
+          "approval.denied",
+          "terminal.failed",
+          "path.denial.end"
+        ],
+        "terminal": {
+          "kind": "failed",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "pending",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "failed",
+          "approval": "denied",
+          "tool": "denied",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "recovery_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.recovery.begin",
+          "recovery.started",
+          "approval.granted",
+          "tool.requested",
+          "tool.executed",
+          "recovery.completed",
+          "terminal.complete",
+          "path.recovery.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "failed",
+          "approval": "denied",
+          "tool": "none",
+          "resume": "supplied",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "granted",
+          "tool": "executed",
+          "resume": "accepted",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "state_before": {
+        "lifecycle": "fresh",
+        "approval": "pending",
+        "tool": "none",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 0,
+        "boundary_sha256": null
+      },
+      "state_after": {
+        "lifecycle": "completed",
+        "approval": "granted",
+        "tool": "executed",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 0,
+        "boundary_sha256": null
+      },
+      "expected_trace": [
+        "path.positive.begin",
+        "approval.requested",
+        "approval.granted",
+        "tool.requested",
+        "tool.executed",
+        "terminal.complete",
+        "path.positive.end"
+      ],
+      "terminal_role": "plugin",
+      "primary_proof": {
+        "kind": "focused_test",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/runtime/approval-turn-tool-followthrough.yaml#L10-14",
+        "sha256": "ec46f647caaf288b17b711d36931eec492f05eb96257d36cb5f12fd9c6d30a26"
+      },
+      "secondary_proof": [
+        {
+          "kind": "deterministic",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L6-11",
+          "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
+        }
+      ],
+      "repeat_policy": {
+        "mode": "consecutive_3",
+        "reason": "consequential"
+      },
+      "sdk_classification": "not_runtime_applicable",
+      "required": true,
+      "admission_status": "PENDING",
+      "admission_gaps": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ],
+      "mapping_gap_codes": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ]
+    },
+    {
+      "id": "CAP-OPENCLAW-02",
+      "source_rows": [
+        {
+          "pack_id": "openclaw_active",
+          "row_id": "OPENCLAW-ACTIVE-02"
+        }
+      ],
+      "scenario_id": "SCN-OPENCLAW-02",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L12-16",
+      "lane": "openclaw",
+      "surface": "selection",
+      "owner": "exact_pair",
+      "owner_issue": {
+        "owner": "exact_pair",
+        "issue_ref": "issue:12",
+        "status": "PENDING"
+      },
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "positive_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.positive.begin",
+          "selection.accepted",
+          "tool.requested",
+          "tool.executed",
+          "terminal.complete",
+          "path.positive.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "executed",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "denial_path": {
+        "required": true,
+        "expected_outcome": "EXPECTED_NEGATIVE",
+        "trace_codes": [
+          "path.denial.begin",
+          "selection.accepted",
+          "preflight.fail",
+          "terminal.failed",
+          "path.denial.end"
+        ],
+        "terminal": {
+          "kind": "failed",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "failed",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "recovery_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.recovery.begin",
+          "session.opened",
+          "selection.accepted",
+          "tool.requested",
+          "tool.executed",
+          "recovery.completed",
+          "terminal.complete",
+          "path.recovery.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "supplied",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "executed",
+          "resume": "accepted",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "state_before": {
+        "lifecycle": "fresh",
+        "approval": "not_required",
+        "tool": "none",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 0,
+        "boundary_sha256": null
+      },
+      "state_after": {
+        "lifecycle": "completed",
+        "approval": "not_required",
+        "tool": "executed",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 0,
+        "boundary_sha256": null
+      },
+      "expected_trace": [
+        "path.positive.begin",
+        "selection.accepted",
+        "tool.requested",
+        "tool.executed",
+        "terminal.complete",
+        "path.positive.end"
+      ],
+      "terminal_role": "plugin",
+      "primary_proof": {
+        "kind": "focused_test",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/models/model-switch-tool-continuity.yaml#L12-16",
+        "sha256": "76d421f03e575c6d29bb57c19fe4ec7977d2008b882b32e764af2382f7730a03"
+      },
+      "secondary_proof": [
+        {
+          "kind": "deterministic",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L12-16",
+          "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
+        }
+      ],
+      "repeat_policy": {
+        "mode": "consecutive_3",
+        "reason": "consequential"
+      },
+      "sdk_classification": "not_runtime_applicable",
+      "required": true,
+      "admission_status": "PENDING",
+      "admission_gaps": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ],
+      "mapping_gap_codes": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ]
+    },
+    {
+      "id": "CAP-OPENCLAW-03",
+      "source_rows": [
+        {
+          "pack_id": "openclaw_active",
+          "row_id": "OPENCLAW-ACTIVE-03"
+        }
+      ],
+      "scenario_id": "SCN-OPENCLAW-03",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L18-21",
+      "lane": "openclaw",
+      "surface": "tool",
+      "owner": "exact_pair",
+      "owner_issue": {
+        "owner": "exact_pair",
+        "issue_ref": "issue:12",
+        "status": "PENDING"
+      },
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "positive_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.positive.begin",
+          "tool.requested",
+          "tool.executed",
+          "terminal.complete",
+          "path.positive.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "executed",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "denial_path": {
+        "required": true,
+        "expected_outcome": "EXPECTED_NEGATIVE",
+        "trace_codes": [
+          "path.denial.begin",
+          "preflight.fail",
+          "tool.denied",
+          "terminal.failed",
+          "path.denial.end"
+        ],
+        "terminal": {
+          "kind": "failed",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "denied",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "recovery_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.recovery.begin",
+          "recovery.started",
+          "recovery.completed",
+          "terminal.complete",
+          "path.recovery.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "recovered",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "state_before": {
+        "lifecycle": "fresh",
+        "approval": "not_required",
+        "tool": "none",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 0,
+        "boundary_sha256": null
+      },
+      "state_after": {
+        "lifecycle": "completed",
+        "approval": "not_required",
+        "tool": "executed",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 0,
+        "boundary_sha256": null
+      },
+      "expected_trace": [
+        "path.positive.begin",
+        "tool.requested",
+        "tool.executed",
+        "terminal.complete",
+        "path.positive.end"
+      ],
+      "terminal_role": "plugin",
+      "primary_proof": {
+        "kind": "focused_test",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/workspace/source-docs-discovery-report.yaml#L12-16",
+        "sha256": "cd428226e5991e21b9d6046ca52cb92a3691991f4680dee7ea300b40f926ace5"
+      },
+      "secondary_proof": [
+        {
+          "kind": "deterministic",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L18-21",
+          "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
+        }
+      ],
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "sdk_classification": "not_runtime_applicable",
+      "required": true,
+      "admission_status": "PENDING",
+      "admission_gaps": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ],
+      "mapping_gap_codes": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ]
+    },
+    {
+      "id": "CAP-OPENCLAW-04",
+      "source_rows": [
+        {
+          "pack_id": "openclaw_active",
+          "row_id": "OPENCLAW-ACTIVE-04"
+        }
+      ],
+      "scenario_id": "SCN-OPENCLAW-04",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L22-26",
+      "lane": "openclaw",
+      "surface": "tool",
+      "owner": "exact_pair",
+      "owner_issue": {
+        "owner": "exact_pair",
+        "issue_ref": "issue:12",
+        "status": "PENDING"
+      },
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "positive_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.positive.begin",
+          "tool.requested",
+          "tool.executed",
+          "terminal.complete",
+          "path.positive.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "executed",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "denial_path": {
+        "required": true,
+        "expected_outcome": "EXPECTED_NEGATIVE",
+        "trace_codes": [
+          "path.denial.begin",
+          "preflight.fail",
+          "tool.failed",
+          "terminal.failed",
+          "path.denial.end"
+        ],
+        "terminal": {
+          "kind": "failed",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "failed",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "recovery_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.recovery.begin",
+          "recovery.started",
+          "recovery.completed",
+          "terminal.complete",
+          "path.recovery.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "failed",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "recovered",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "state_before": {
+        "lifecycle": "fresh",
+        "approval": "not_required",
+        "tool": "none",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 0,
+        "boundary_sha256": null
+      },
+      "state_after": {
+        "lifecycle": "completed",
+        "approval": "not_required",
+        "tool": "executed",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 0,
+        "boundary_sha256": null
+      },
+      "expected_trace": [
+        "path.positive.begin",
+        "tool.requested",
+        "tool.executed",
+        "terminal.complete",
+        "path.positive.end"
+      ],
+      "terminal_role": "plugin",
+      "primary_proof": {
+        "kind": "focused_test",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/media/image-understanding-attachment.yaml#L12-16",
+        "sha256": "2c53c86375748a03ac9d1808bb5c0c55a145e65ce0df385a26fd055d76d91d16"
+      },
+      "secondary_proof": [
+        {
+          "kind": "deterministic",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L22-26",
+          "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
+        }
+      ],
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "sdk_classification": "not_runtime_applicable",
+      "required": true,
+      "admission_status": "PENDING",
+      "admission_gaps": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION",
+        "GAP-SOURCE-ROLE-CONFLICT"
+      ],
+      "mapping_gap_codes": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION",
+        "GAP-SOURCE-ROLE-CONFLICT"
+      ]
+    },
+    {
+      "id": "CAP-OPENCLAW-05",
+      "source_rows": [
+        {
+          "pack_id": "openclaw_active",
+          "row_id": "OPENCLAW-ACTIVE-05"
+        }
+      ],
+      "scenario_id": "SCN-OPENCLAW-05",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L27-31",
+      "lane": "openclaw",
+      "surface": "compaction",
+      "owner": "exact_pair",
+      "owner_issue": {
+        "owner": "exact_pair",
+        "issue_ref": "issue:12",
+        "status": "PENDING"
+      },
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "positive_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.positive.begin",
+          "compaction.started",
+          "compaction.completed",
+          "tool.requested",
+          "tool.executed",
+          "terminal.complete",
+          "path.positive.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 1,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "running",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "executed",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 1,
+          "boundary_sha256": null
+        }
+      },
+      "denial_path": {
+        "required": true,
+        "expected_outcome": "EXPECTED_NEGATIVE",
+        "trace_codes": [
+          "path.denial.begin",
+          "preflight.fail",
+          "tool.denied",
+          "terminal.failed",
+          "path.denial.end"
+        ],
+        "terminal": {
+          "kind": "failed",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "running",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "denied",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "recovery_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.recovery.begin",
+          "compaction.started",
+          "compaction.completed",
+          "recovery.started",
+          "tool.requested",
+          "tool.executed",
+          "recovery.completed",
+          "terminal.complete",
+          "path.recovery.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 1,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "supplied",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "executed",
+          "resume": "accepted",
+          "billing": "not_applicable",
+          "side_effect_count": 1,
+          "boundary_sha256": null
+        }
+      },
+      "state_before": {
+        "lifecycle": "running",
+        "approval": "not_required",
+        "tool": "none",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 0,
+        "boundary_sha256": null
+      },
+      "state_after": {
+        "lifecycle": "completed",
+        "approval": "not_required",
+        "tool": "executed",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 1,
+        "boundary_sha256": null
+      },
+      "expected_trace": [
+        "path.positive.begin",
+        "compaction.started",
+        "compaction.completed",
+        "tool.requested",
+        "tool.executed",
+        "terminal.complete",
+        "path.positive.end"
+      ],
+      "terminal_role": "plugin",
+      "primary_proof": {
+        "kind": "focused_test",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/runtime/compaction-retry-mutating-tool.yaml#L12-18",
+        "sha256": "a8588c75d31c02cff8880da8a89b1d05c2d619b1dce6ab04e5ea983463088715"
+      },
+      "secondary_proof": [
+        {
+          "kind": "deterministic",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L27-31",
+          "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
+        }
+      ],
+      "repeat_policy": {
+        "mode": "consecutive_3",
+        "reason": "consequential"
+      },
+      "sdk_classification": "not_runtime_applicable",
+      "required": true,
+      "admission_status": "PENDING",
+      "admission_gaps": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ],
+      "mapping_gap_codes": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ]
+    },
+    {
+      "id": "CAP-OPENCLAW-06",
+      "source_rows": [
+        {
+          "pack_id": "openclaw_active",
+          "row_id": "OPENCLAW-ACTIVE-06"
+        }
+      ],
+      "scenario_id": "SCN-OPENCLAW-06",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L32-36",
+      "lane": "openclaw",
+      "surface": "recovery",
+      "owner": "exact_pair",
+      "owner_issue": {
+        "owner": "exact_pair",
+        "issue_ref": "issue:12",
+        "status": "PENDING"
+      },
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "positive_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.positive.begin",
+          "tool.requested",
+          "tool.executed",
+          "terminal.complete",
+          "path.positive.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 1,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "executed",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 1,
+          "boundary_sha256": null
+        }
+      },
+      "denial_path": {
+        "required": true,
+        "expected_outcome": "EXPECTED_NEGATIVE",
+        "trace_codes": [
+          "path.denial.begin",
+          "preflight.fail",
+          "tool.denied",
+          "terminal.failed",
+          "path.denial.end"
+        ],
+        "terminal": {
+          "kind": "failed",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "denied",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "recovery_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.recovery.begin",
+          "recovery.started",
+          "recovery.completed",
+          "terminal.complete",
+          "path.recovery.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "supplied",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "recovered",
+          "resume": "accepted",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "state_before": {
+        "lifecycle": "fresh",
+        "approval": "not_required",
+        "tool": "none",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 0,
+        "boundary_sha256": null
+      },
+      "state_after": {
+        "lifecycle": "completed",
+        "approval": "not_required",
+        "tool": "executed",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 1,
+        "boundary_sha256": null
+      },
+      "expected_trace": [
+        "path.positive.begin",
+        "tool.requested",
+        "tool.executed",
+        "terminal.complete",
+        "path.positive.end"
+      ],
+      "terminal_role": "plugin",
+      "primary_proof": {
+        "kind": "focused_test",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/agents/subagent-handoff.yaml#L10-14",
+        "sha256": "eb2f1f012baf85c9e7315ba7fbd85fbca70490b276dfc5a71645ce8b4dd52439"
+      },
+      "secondary_proof": [
+        {
+          "kind": "deterministic",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L32-36",
+          "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
+        }
+      ],
+      "repeat_policy": {
+        "mode": "consecutive_3",
+        "reason": "consequential"
+      },
+      "sdk_classification": "not_runtime_applicable",
+      "required": true,
+      "admission_status": "PENDING",
+      "admission_gaps": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION",
+        "GAP-SOURCE-ROLE-CONFLICT"
+      ],
+      "mapping_gap_codes": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION",
+        "GAP-SOURCE-ROLE-CONFLICT"
+      ]
+    },
+    {
+      "id": "CAP-OPENCLAW-07",
+      "source_rows": [
+        {
+          "pack_id": "openclaw_active",
+          "row_id": "OPENCLAW-ACTIVE-07"
+        }
+      ],
+      "scenario_id": "SCN-OPENCLAW-07",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L37-41",
+      "lane": "openclaw",
+      "surface": "recovery",
+      "owner": "exact_pair",
+      "owner_issue": {
+        "owner": "exact_pair",
+        "issue_ref": "issue:12",
+        "status": "PENDING"
+      },
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "positive_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.positive.begin",
+          "tool.requested",
+          "tool.executed",
+          "tool.requested",
+          "tool.executed",
+          "terminal.complete",
+          "path.positive.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 2,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "executed",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 2,
+          "boundary_sha256": null
+        }
+      },
+      "denial_path": {
+        "required": true,
+        "expected_outcome": "EXPECTED_NEGATIVE",
+        "trace_codes": [
+          "path.denial.begin",
+          "preflight.fail",
+          "tool.denied",
+          "terminal.failed",
+          "path.denial.end"
+        ],
+        "terminal": {
+          "kind": "failed",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "denied",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "recovery_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.recovery.begin",
+          "recovery.started",
+          "recovery.completed",
+          "terminal.complete",
+          "path.recovery.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "supplied",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "recovered",
+          "resume": "accepted",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "state_before": {
+        "lifecycle": "fresh",
+        "approval": "not_required",
+        "tool": "none",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 0,
+        "boundary_sha256": null
+      },
+      "state_after": {
+        "lifecycle": "completed",
+        "approval": "not_required",
+        "tool": "executed",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 2,
+        "boundary_sha256": null
+      },
+      "expected_trace": [
+        "path.positive.begin",
+        "tool.requested",
+        "tool.executed",
+        "tool.requested",
+        "tool.executed",
+        "terminal.complete",
+        "path.positive.end"
+      ],
+      "terminal_role": "plugin",
+      "primary_proof": {
+        "kind": "focused_test",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/agents/subagent-fanout-synthesis.yaml#L12-16",
+        "sha256": "10530a410b992f3e0a91a16d768cada88b65ed0f6b89a5bd13bde2397b3da523"
+      },
+      "secondary_proof": [
+        {
+          "kind": "deterministic",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L37-41",
+          "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
+        }
+      ],
+      "repeat_policy": {
+        "mode": "consecutive_3",
+        "reason": "consequential"
+      },
+      "sdk_classification": "not_runtime_applicable",
+      "required": true,
+      "admission_status": "PENDING",
+      "admission_gaps": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ],
+      "mapping_gap_codes": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ]
+    },
+    {
+      "id": "CAP-OPENCLAW-08",
+      "source_rows": [
+        {
+          "pack_id": "openclaw_active",
+          "row_id": "OPENCLAW-ACTIVE-08"
+        }
+      ],
+      "scenario_id": "SCN-OPENCLAW-08",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L42-46",
+      "lane": "openclaw",
+      "surface": "isolation",
+      "owner": "exact_pair",
+      "owner_issue": {
+        "owner": "exact_pair",
+        "issue_ref": "issue:12",
+        "status": "PENDING"
+      },
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "positive_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.positive.begin",
+          "session.restarted",
+          "session.isolated",
+          "terminal.complete",
+          "path.positive.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "denial_path": {
+        "required": true,
+        "expected_outcome": "EXPECTED_NEGATIVE",
+        "trace_codes": [
+          "path.denial.begin",
+          "state.invalid",
+          "terminal.failed",
+          "path.denial.end"
+        ],
+        "terminal": {
+          "kind": "failed",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "recovery_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.recovery.begin",
+          "session.opened",
+          "session.restarted",
+          "session.isolated",
+          "terminal.complete",
+          "path.recovery.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "supplied",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "accepted",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "state_before": {
+        "lifecycle": "fresh",
+        "approval": "not_required",
+        "tool": "none",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 0,
+        "boundary_sha256": null
+      },
+      "state_after": {
+        "lifecycle": "completed",
+        "approval": "not_required",
+        "tool": "none",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 0,
+        "boundary_sha256": null
+      },
+      "expected_trace": [
+        "path.positive.begin",
+        "session.restarted",
+        "session.isolated",
+        "terminal.complete",
+        "path.positive.end"
+      ],
+      "terminal_role": "plugin",
+      "primary_proof": {
+        "kind": "focused_test",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/agents/subagent-stale-child-links.yaml#L11-16",
+        "sha256": "1c190d81182d2195c8385ba227107d47a84b1b3279c55d58f93e05f3b177de53"
+      },
+      "secondary_proof": [
+        {
+          "kind": "deterministic",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L42-46",
+          "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
+        }
+      ],
+      "repeat_policy": {
+        "mode": "consecutive_3",
+        "reason": "consequential"
+      },
+      "sdk_classification": "not_runtime_applicable",
+      "required": true,
+      "admission_status": "PENDING",
+      "admission_gaps": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ],
+      "mapping_gap_codes": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ]
+    },
+    {
+      "id": "CAP-OPENCLAW-09",
+      "source_rows": [
+        {
+          "pack_id": "openclaw_active",
+          "row_id": "OPENCLAW-ACTIVE-09"
+        }
+      ],
+      "scenario_id": "SCN-OPENCLAW-09",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L47-51",
+      "lane": "openclaw",
+      "surface": "resume",
+      "owner": "exact_pair",
+      "owner_issue": {
+        "owner": "exact_pair",
+        "issue_ref": "issue:12",
+        "status": "PENDING"
+      },
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "positive_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.positive.begin",
+          "state.bound",
+          "session.opened",
+          "tool.requested",
+          "tool.executed",
+          "terminal.complete",
+          "path.positive.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 1,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "executed",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 1,
+          "boundary_sha256": null
+        }
+      },
+      "denial_path": {
+        "required": true,
+        "expected_outcome": "EXPECTED_NEGATIVE",
+        "trace_codes": [
+          "path.denial.begin",
+          "state.invalid",
+          "tool.failed",
+          "terminal.failed",
+          "path.denial.end"
+        ],
+        "terminal": {
+          "kind": "failed",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "failed",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "recovery_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.recovery.begin",
+          "recovery.started",
+          "recovery.completed",
+          "terminal.complete",
+          "path.recovery.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "supplied",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "recovered",
+          "resume": "accepted",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "state_before": {
+        "lifecycle": "fresh",
+        "approval": "not_required",
+        "tool": "none",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 0,
+        "boundary_sha256": null
+      },
+      "state_after": {
+        "lifecycle": "completed",
+        "approval": "not_required",
+        "tool": "executed",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 1,
+        "boundary_sha256": null
+      },
+      "expected_trace": [
+        "path.positive.begin",
+        "state.bound",
+        "session.opened",
+        "tool.requested",
+        "tool.executed",
+        "terminal.complete",
+        "path.positive.end"
+      ],
+      "terminal_role": "plugin",
+      "primary_proof": {
+        "kind": "focused_test",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/memory/memory-recall.yaml#L3-30",
+        "sha256": "ffef855249cc48096a563105d5c99d7ef1be0e32183cb9f51b848ed96af2213c"
+      },
+      "secondary_proof": [
+        {
+          "kind": "deterministic",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L47-51",
+          "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
+        }
+      ],
+      "repeat_policy": {
+        "mode": "once",
+        "reason": "stable"
+      },
+      "sdk_classification": "not_runtime_applicable",
+      "required": true,
+      "admission_status": "PENDING",
+      "admission_gaps": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ],
+      "mapping_gap_codes": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ]
+    },
+    {
+      "id": "CAP-OPENCLAW-10",
+      "source_rows": [
+        {
+          "pack_id": "openclaw_active",
+          "row_id": "OPENCLAW-ACTIVE-10"
+        }
+      ],
+      "scenario_id": "SCN-OPENCLAW-10",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L52-56",
+      "lane": "openclaw",
+      "surface": "isolation",
+      "owner": "exact_pair",
+      "owner_issue": {
+        "owner": "exact_pair",
+        "issue_ref": "issue:12",
+        "status": "PENDING"
+      },
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "positive_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.positive.begin",
+          "session.isolated",
+          "tool.requested",
+          "tool.executed",
+          "terminal.complete",
+          "path.positive.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "executed",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "denial_path": {
+        "required": true,
+        "expected_outcome": "EXPECTED_NEGATIVE",
+        "trace_codes": [
+          "path.denial.begin",
+          "state.invalid",
+          "tool.denied",
+          "terminal.failed",
+          "path.denial.end"
+        ],
+        "terminal": {
+          "kind": "failed",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "denied",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "recovery_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.recovery.begin",
+          "session.isolated",
+          "recovery.completed",
+          "terminal.complete",
+          "path.recovery.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "supplied",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "recovered",
+          "resume": "accepted",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "state_before": {
+        "lifecycle": "fresh",
+        "approval": "not_required",
+        "tool": "none",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 0,
+        "boundary_sha256": null
+      },
+      "state_after": {
+        "lifecycle": "completed",
+        "approval": "not_required",
+        "tool": "executed",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 0,
+        "boundary_sha256": null
+      },
+      "expected_trace": [
+        "path.positive.begin",
+        "session.isolated",
+        "tool.requested",
+        "tool.executed",
+        "terminal.complete",
+        "path.positive.end"
+      ],
+      "terminal_role": "plugin",
+      "primary_proof": {
+        "kind": "focused_test",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/memory/thread-memory-isolation.yaml#L12-16",
+        "sha256": "e0a9413ce93397740b1ac042d888118e35bbab91c9bb18a6e5dc8374c1e6187d"
+      },
+      "secondary_proof": [
+        {
+          "kind": "deterministic",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L52-56",
+          "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
+        }
+      ],
+      "repeat_policy": {
+        "mode": "consecutive_3",
+        "reason": "consequential"
+      },
+      "sdk_classification": "not_runtime_applicable",
+      "required": true,
+      "admission_status": "PENDING",
+      "admission_gaps": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ],
+      "mapping_gap_codes": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ]
+    },
+    {
+      "id": "CAP-OPENCLAW-11",
+      "source_rows": [
+        {
+          "pack_id": "openclaw_active",
+          "row_id": "OPENCLAW-ACTIVE-11"
+        }
+      ],
+      "scenario_id": "SCN-OPENCLAW-11",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L57-61",
+      "lane": "openclaw",
+      "surface": "recovery",
+      "owner": "exact_pair",
+      "owner_issue": {
+        "owner": "exact_pair",
+        "issue_ref": "issue:12",
+        "status": "PENDING"
+      },
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "positive_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.positive.begin",
+          "preflight.fail",
+          "session.restarted",
+          "session.opened",
+          "tool.requested",
+          "tool.executed",
+          "terminal.complete",
+          "path.positive.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 1,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "denied",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "granted",
+          "tool": "executed",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 1,
+          "boundary_sha256": null
+        }
+      },
+      "denial_path": {
+        "required": true,
+        "expected_outcome": "EXPECTED_NEGATIVE",
+        "trace_codes": [
+          "path.denial.begin",
+          "preflight.fail",
+          "tool.denied",
+          "terminal.failed",
+          "path.denial.end"
+        ],
+        "terminal": {
+          "kind": "failed",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "denied",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "failed",
+          "approval": "denied",
+          "tool": "denied",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "recovery_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.recovery.begin",
+          "recovery.started",
+          "session.restarted",
+          "session.opened",
+          "tool.requested",
+          "tool.executed",
+          "recovery.completed",
+          "terminal.complete",
+          "path.recovery.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 2,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "failed",
+          "approval": "denied",
+          "tool": "none",
+          "resume": "supplied",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "granted",
+          "tool": "executed",
+          "resume": "accepted",
+          "billing": "not_applicable",
+          "side_effect_count": 2,
+          "boundary_sha256": null
+        }
+      },
+      "state_before": {
+        "lifecycle": "fresh",
+        "approval": "denied",
+        "tool": "none",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 0,
+        "boundary_sha256": null
+      },
+      "state_after": {
+        "lifecycle": "completed",
+        "approval": "granted",
+        "tool": "executed",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 1,
+        "boundary_sha256": null
+      },
+      "expected_trace": [
+        "path.positive.begin",
+        "preflight.fail",
+        "session.restarted",
+        "session.opened",
+        "tool.requested",
+        "tool.executed",
+        "terminal.complete",
+        "path.positive.end"
+      ],
+      "terminal_role": "plugin",
+      "primary_proof": {
+        "kind": "focused_test",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/config/config-restart-capability-flip.yaml#L12-16",
+        "sha256": "1c5f8632d514777124f3951393c91080038048c3a2306d7c82085d78bf9835c8"
+      },
+      "secondary_proof": [
+        {
+          "kind": "deterministic",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L57-61",
+          "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
+        }
+      ],
+      "repeat_policy": {
+        "mode": "consecutive_3",
+        "reason": "consequential"
+      },
+      "sdk_classification": "not_runtime_applicable",
+      "required": true,
+      "admission_status": "PENDING",
+      "admission_gaps": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ],
+      "mapping_gap_codes": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ]
+    },
+    {
+      "id": "CAP-OPENCLAW-12",
+      "source_rows": [
+        {
+          "pack_id": "openclaw_active",
+          "row_id": "OPENCLAW-ACTIVE-12"
+        }
+      ],
+      "scenario_id": "SCN-OPENCLAW-12",
+      "source_location": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L62-66",
+      "lane": "openclaw",
+      "surface": "tool",
+      "owner": "exact_pair",
+      "owner_issue": {
+        "owner": "exact_pair",
+        "issue_ref": "issue:12",
+        "status": "PENDING"
+      },
+      "consumers": [
+        "inventory",
+        "run",
+        "grade"
+      ],
+      "positive_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.positive.begin",
+          "tool.requested",
+          "tool.executed",
+          "tool.requested",
+          "tool.executed",
+          "tool.requested",
+          "tool.executed",
+          "tool.requested",
+          "tool.executed",
+          "terminal.complete",
+          "path.positive.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 1,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "executed",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 1,
+          "boundary_sha256": null
+        }
+      },
+      "denial_path": {
+        "required": true,
+        "expected_outcome": "EXPECTED_NEGATIVE",
+        "trace_codes": [
+          "path.denial.begin",
+          "preflight.fail",
+          "tool.denied",
+          "terminal.failed",
+          "path.denial.end"
+        ],
+        "terminal": {
+          "kind": "failed",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 0,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "fresh",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "denied",
+          "resume": "absent",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        }
+      },
+      "recovery_path": {
+        "required": true,
+        "expected_outcome": "PASS",
+        "trace_codes": [
+          "path.recovery.begin",
+          "recovery.started",
+          "recovery.completed",
+          "terminal.complete",
+          "path.recovery.end"
+        ],
+        "terminal": {
+          "kind": "complete",
+          "count": 1
+        },
+        "tool_calls": [],
+        "side_effect_count": 1,
+        "sdk_events": [],
+        "state_before": {
+          "lifecycle": "failed",
+          "approval": "not_required",
+          "tool": "none",
+          "resume": "supplied",
+          "billing": "not_applicable",
+          "side_effect_count": 0,
+          "boundary_sha256": null
+        },
+        "state_after": {
+          "lifecycle": "completed",
+          "approval": "not_required",
+          "tool": "recovered",
+          "resume": "accepted",
+          "billing": "not_applicable",
+          "side_effect_count": 1,
+          "boundary_sha256": null
+        }
+      },
+      "state_before": {
+        "lifecycle": "fresh",
+        "approval": "not_required",
+        "tool": "none",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 0,
+        "boundary_sha256": null
+      },
+      "state_after": {
+        "lifecycle": "completed",
+        "approval": "not_required",
+        "tool": "executed",
+        "resume": "absent",
+        "billing": "not_applicable",
+        "side_effect_count": 1,
+        "boundary_sha256": null
+      },
+      "expected_trace": [
+        "path.positive.begin",
+        "tool.requested",
+        "tool.executed",
+        "tool.requested",
+        "tool.executed",
+        "tool.requested",
+        "tool.executed",
+        "tool.requested",
+        "tool.executed",
+        "terminal.complete",
+        "path.positive.end"
+      ],
+      "terminal_role": "plugin",
+      "primary_proof": {
+        "kind": "focused_test",
+        "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:qa/scenarios/agents/instruction-followthrough-repo-contract.yaml#L12-17",
+        "sha256": "46a0f72c65434bccc988eaae1e09a4dffa3ef64fefcf524400ae3878525d52c2"
+      },
+      "secondary_proof": [
+        {
+          "kind": "deterministic",
+          "ref": "src:openclaw@ea806575e6450e4d1efdfc72c19f04be982a1b9b:extensions/qa-lab/src/agentic-parity.ts#L62-66",
+          "sha256": "853619648d445c52be584e58f732db80d425606ee3956305e2163a82d020c136"
+        }
+      ],
+      "repeat_policy": {
+        "mode": "consecutive_3",
+        "reason": "consequential"
+      },
+      "sdk_classification": "not_runtime_applicable",
+      "required": true,
+      "admission_status": "PENDING",
+      "admission_gaps": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ],
+      "mapping_gap_codes": [
+        "GAP-TRACE-MAPPING",
+        "GAP-TOOL-INVENTORY",
+        "GAP-SDK-CORRELATION",
+        "GAP-STATE-EVIDENCE",
+        "GAP-SCOPE-METADATA",
+        "GAP-RUNTIME-PROOF",
+        "GAP-FIXTURE-MANIFEST",
+        "GAP-REQUEST-CORRELATION"
+      ]
+    }
+  ],
+  "proof_boundary": "Source-accounting declarations only. This pack proves pinned source identity, license metadata, source-row accounting, and sanitized expected-path shape. It does not prove implementation, tool inventory, runtime execution, external service behavior, SDK compatibility, parity, release, or external readiness."
+}

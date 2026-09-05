@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/100yenadmin/hermes-claude-agent-sdk/qa/runtime-release-ready-receipt.schema.json",
+  "title": "Hermes Agent SDK parity v3 release-ready artifact receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "issue",
+    "status",
+    "artifact_immutable",
+    "plugin_sha",
+    "host_sha",
+    "sdk_version",
+    "wheel_sha256",
+    "contract_hash",
+    "catalog_hash"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "issue": {"const": 9},
+    "status": {"const": "release_ready"},
+    "artifact_immutable": {"const": true},
+    "plugin_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "host_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "sdk_version": {"const": "0.2.144"},
+    "wheel_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "contract_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "catalog_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

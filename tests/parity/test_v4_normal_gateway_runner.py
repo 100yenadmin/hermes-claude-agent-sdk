@@ -1,0 +1,555 @@
+from __future__ import annotations
+
+import inspect
+import time
+from collections import deque
+from pathlib import Path
+
+import pytest
+
+from hermes_claude_agent_sdk.parity import v4_normal_gateway_runner as runner_module
+from hermes_claude_agent_sdk.parity.v4_gateway import Gateway
+from hermes_claude_agent_sdk.parity.hashing import sha256_value
+from hermes_claude_agent_sdk.parity.v4_gateway_inventory import (
+    build_v4_gateway_inventory,
+)
+from hermes_claude_agent_sdk.parity.v4_live_session import V4LiveSession
+from hermes_claude_agent_sdk.parity.v4_live_scenarios import build_v4_live_scenario_catalog
+from hermes_claude_agent_sdk.parity.v4_normal_gateway_runner import (
+    V4NormalGatewayRunner,
+    V4NormalGatewayRunnerViolation,
+)
+
+from .test_v4_live_executor import _candidate, _event, _preflights
+from .test_v4_live_packets import _host
+
+ROOT = Path(__file__).parents[2]
+
+
+def _schema(name):
+    return {
+        "type": "function",
+        "function": {"name": name, "parameters": {"type": "object"}},
+    }
+
+
+def _inventory():
+    candidate = _candidate()
+    return build_v4_gateway_inventory(
+        profile_id="isolated",
+        profile_sha256=candidate["profile_sha256"],
+        host_sha=candidate["host_sha"],
+        delivered_schemas=[
+            _schema(name)
+            for name in (
+                "delegate_task",
+                "read_file",
+                "tool_call",
+                "tool_describe",
+                "tool_search",
+                "v4_fixture_local_state",
+            )
+        ],
+        executable_schemas=[
+            _schema(name)
+            for name in ("delegate_task", "read_file", "v4_fixture_local_state")
+        ],
+    )
+
+
+class _Transport:
+    def __init__(self, events, tool_names=None, stored_session_id=None):
+        self.events, self.calls, self.started = deque([_event("gateway.ready"), *events]), [], False; self.sid = "s" + format(id(self), "x")
+        self.tool_names = tuple(tool_names or _inventory().executable_names)
+        self.stored_session_id = stored_session_id or self.sid
+    def start(self): self.started = True
+    def send(self, frame):
+        method = frame["method"]; self.calls.append(method)
+        if method == "session.create":
+            result = {"session_id": self.sid, "stored_session_id": self.stored_session_id}
+        elif method == "session.resume":
+            result = {
+                "session_id": self.sid,
+                "session_key": frame["params"]["session_id"],
+            }
+        elif method == "tools.show":
+            result = {
+                "sections": [
+                    {
+                        "name": "test",
+                        "tools": [
+                            {"name": name, "description": ""}
+                            for name in sorted(self.tool_names)
+                        ],
+                    }
+                ],
+                "total": len(self.tool_names),
+            }
+        else:
+            result = {}
+        return {"jsonrpc": "2.0", "id": frame["id"], "result": result}
+    def recv(self, timeout):
+        if self.events: return self.events.popleft()
+        time.sleep(min(timeout, 0.01))
+        raise TimeoutError
+    def close(self): pass
+def _runner(home, factory, row="v2_non_soak/AUTH-01"):
+    return V4NormalGatewayRunner(candidate=_candidate(), preflight_projections=_preflights(_candidate()), profile_id="isolated", tool_inventory=_inventory(), hermes_home=home, contract=ROOT / "qa/parity-contract-v4.yaml", live_map=ROOT / "qa/parity-v4-live-execution-map.yaml", fixture_manifest=ROOT / "qa/parity-v4-live-fixtures.yaml", gateway_factory=factory, row_key=row, trial_index=1)
+def _events(extra=()): return [_event("message.start"), _event("message.state"), *extra, _event("message.usage"), _event("message.complete", {"status": "completed"})]
+def _children(transport, count, background=False, include_spawn=True, include_parent=True):
+    parent, events = "p" + format(id(transport), "x"), []
+    for index in range(count):
+        child = "c" + format(id(transport), "x") + str(index); payload = {"task_index": index, "task_count": count, "child_id": child, "delegation_id": child}
+        if include_parent:
+            payload["parent_id"] = parent
+        if include_spawn:
+            events.append(_event("subagent.spawn_requested", payload))
+        events.extend([_event("subagent.start", payload), _event("subagent.complete", payload)])
+    if background: events.append(_event("background"))
+    return events
+
+
+def _async_child_events(count, background=False, include_spawn=True, include_parent=True):
+    parent, initial, settled = "parent-fixture", [], []
+    for index in range(count):
+        child = f"child-fixture-{index}"
+        payload = {"task_index": index, "task_count": count, "child_id": child, "delegation_id": child}
+        if include_parent:
+            payload["parent_id"] = parent
+        if include_spawn:
+            initial.append(_event("subagent.spawn_requested", payload))
+        initial.append(_event("subagent.start", payload))
+        settled.append(_event("subagent.complete", payload))
+    if background:
+        initial.append(_event("background"))
+    return [
+        _event("message.start", {"turn_index": 1}),
+        _event("message.state", {"turn_index": 1}),
+        *initial,
+        _event("message.usage", {"turn_index": 1}),
+        _event("message.complete", {"status": "completed", "turn_index": 1}),
+        *settled,
+        _event("message.start", {"turn_index": 2}),
+        _event("message.state", {"turn_index": 2}),
+        _event("session.usage", {"turn_index": 2}),
+        _event("message.complete", {"status": "completed", "turn_index": 2}),
+    ]
+
+
+def _durable(count=1, *, parent_link=True):
+    return {
+        "status": "PASS",
+        "count": count,
+        "background_count": count,
+        "invariant_violations": [],
+        "parent_link_sha256": "a" * 64 if parent_link else None,
+        "lifecycle": "completed",
+        "delivery_state": "delivered",
+        "parent_delivery_count": count,
+        "parent_delivery_sha256": "b" * 64,
+    }
+def test_construction_is_inert_and_incompatible_identity_precedes_start(tmp_path):
+    calls = []; runner = _runner(tmp_path / "home", lambda **_: calls.append(True)); assert calls == [] and not (tmp_path / "home").exists(); assert runner.admission.turn_count == 1
+    bad = _candidate(); bad["sdk_version"] = "bad"
+    with pytest.raises(V4NormalGatewayRunnerViolation): V4NormalGatewayRunner(candidate=bad, preflight_projections=_preflights(bad), profile_id="isolated", tool_inventory=_inventory(), hermes_home=tmp_path / "bad")
+
+
+def test_stage_plugin_excludes_transient_python_bytecode(tmp_path):
+    source = tmp_path / "source-plugin"
+    source.mkdir()
+    (source / "__init__.py").write_text("PLUGIN_API_VERSION = 1\n", encoding="utf-8")
+    (source / "plugin.yaml").write_text("name: fixture\n", encoding="utf-8")
+    cache = source / "__pycache__"
+    cache.mkdir()
+    (cache / "__init__.cpython-313.pyc").write_bytes(b"transient")
+
+    home = tmp_path / "home"
+    runner_module._stage_plugin(source, home)
+
+    staged = home / "plugins" / "v4_hermes_fixture"
+    assert (staged / "__init__.py").read_text(encoding="utf-8") == (
+        "PLUGIN_API_VERSION = 1\n"
+    )
+    assert (staged / "plugin.yaml").read_text(encoding="utf-8") == "name: fixture\n"
+    assert not (staged / "__pycache__").exists()
+
+
+def test_fake_normal_gateway_positive_packet_and_safe_env(tmp_path, monkeypatch):
+    monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(1))
+    monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": [], "parent_link_sha256": None, "lifecycle": "none"})
+    transient_home = tmp_path / "transient-home"
+    transient_config = tmp_path / "transient-config"
+    monkeypatch.setenv("HOME", str(transient_home)); monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(transient_config)); monkeypatch.setenv("ANTHROPIC_API_KEY", "redacted"); monkeypatch.setenv("GLM_API_KEY", "redacted"); monkeypatch.setenv("EXTRA_USAGE", "redacted")
+    transport, seen = _Transport(_events()), {}
+    def factory(**kwargs): seen.update(kwargs); return Gateway(python="fake", cwd=ROOT, env=kwargs["env"], transport=transport, host_tools=kwargs["host_tools"], mcp_tools=kwargs["mcp_tools"])
+    result = _runner(tmp_path / "home", factory).execute(); env = seen["env"]
+    assert result["paths"]["positive"]["classification"] == "COMPLETE" and transport.sid not in repr(result)
+    assert env["HOME"] == str(transient_home) and env["CLAUDE_CONFIG_DIR"] == str(transient_config) and env["HERMES_MODEL"] == "claude-fable-5-1" and env["HERMES_TUI_PROVIDER"] == "claude-agent-sdk"
+    assert all(name not in env for name in ("ANTHROPIC_API_KEY", "GLM_API_KEY", "EXTRA_USAGE")); assert {"v4_fixture_local_state", "tool_search", "tool_describe", "tool_call"} <= seen["host_tools"] and {"mcp__hermes-tools__v4_fixture_local_state", "mcp__hermes-tools__tool_search", "mcp__hermes-tools__tool_describe", "mcp__hermes-tools__tool_call"} <= seen["mcp_tools"]
+
+
+def test_real_gateway_shape_binds_state_and_usage_to_durable_host_receipts(tmp_path, monkeypatch):
+    host = _host(1)
+    host["runtime_state"] = {"present": True, "schema_version": 1, "sha256": "9" * 64}
+    monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: host)
+    monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": [], "parent_link_sha256": None, "lifecycle": "none"})
+    transport = _Transport([_event("session.info"), _event("message.start"), _event("session.title"), _event("sessions.changed"), _event("status.update"), _event("session.usage"), _event("message.delta"), _event("message.complete", {"status": "completed"})])
+    captured = {}
+    build_packets = runner_module.build_v4_live_packets
+    def capture_packets(contract, scenario, receipt, *args, **kwargs):
+        captured.update(receipt)
+        return build_packets(contract, scenario, receipt, *args, **kwargs)
+    monkeypatch.setattr(runner_module, "build_v4_live_packets", capture_packets)
+    result = _runner(tmp_path / "home", lambda **kwargs: Gateway(python="fake", cwd=ROOT, env=kwargs["env"], transport=transport, host_tools=kwargs["host_tools"], mcp_tools=kwargs["mcp_tools"])).execute()
+    assert [event["kind"] for event in result["paths"]["positive"]["trial"].normalized_events] == ["start", "state", "usage", "terminal"]
+    assert result["scenario_receipt"]["scenario_trace_hash"] != "0" * 64
+    assert captured["stream_projection"]["observation"]["event_count"] == sum(len(attempt["events"]) for attempt in captured["attempts"])
+
+
+def test_native_source_gateway_captures_only_sanitized_real_file_completions(tmp_path):
+    gateway = runner_module._NativeFileGateway(tmp_path, python="unused", cwd=ROOT, env={})
+    gateway._capture_native({"params": {"type": "tool.start", "payload": {"name": "read_file"}}})
+    assert not gateway.native_events
+    gateway._capture_native({"params": {"type": "tool.complete", "payload": {
+        "name": "read_file", "args": {"path": str(tmp_path / "facts.json")},
+        "result": {"content": "synthetic-only-content"},
+    }}})
+    assert gateway.native_events[0]["tool"] == "read"
+    assert gateway.native_events[0]["args"] == {"file_path": "facts.json"}
+    assert "synthetic-only-content" not in repr(gateway.native_events)
+    with pytest.raises(ValueError):
+        gateway._capture_native({"params": {"type": "tool.complete", "payload": {
+            "name": "write_file", "args": {"path": str(tmp_path.parent / "escape.json")}, "result": {},
+        }}})
+    with pytest.raises(V4NormalGatewayRunnerViolation, match="tool failed"):
+        gateway._capture_native({"params": {"type": "tool.complete", "payload": {
+            "name": "read_file", "args": {"path": "facts.json"}, "result": {"error": "fixture"},
+        }}})
+
+
+@pytest.mark.parametrize(("source", "trial", "reason"), [
+    ("error_recovery_20_browser_cron_message_orchestration_live", 1, "another Hermes surface"),
+    ("planning_21_long_horizon_preference_override_live", 2, "not mandatory"),
+])
+def test_native_source_runner_rejects_wrong_surface_or_repeat_before_io(tmp_path, source, trial, reason):
+    with pytest.raises(V4NormalGatewayRunnerViolation, match=reason):
+        runner_module.run_v4_native_read_write(
+            candidate=_candidate(), preflight_projections=_preflights(_candidate()),
+            source_root=tmp_path / "missing-source", source_item_id=source, trial_index=trial,
+            task_root=tmp_path, python=Path("unused"), host_root=tmp_path, plugin_root=ROOT,
+        )
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_restart_row_restarts_gateway_resumes_identity_and_flips_host_inventory(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(
+        V4LiveSession,
+        "collect_host_observation",
+        lambda *_a, **_k: _host(2),
+    )
+    monkeypatch.setattr(
+        V4LiveSession,
+        "collect_delegation_observation",
+        lambda *_a, **_k: {
+            "status": "PASS",
+            "count": 0,
+            "background_count": 0,
+            "invariant_violations": [],
+            "parent_link_sha256": None,
+            "lifecycle": "none",
+        },
+    )
+
+    def local_restart(*, row_key, trial_index, path, task_root):
+        terminal = "denied" if path == "denial" else "completed"
+        events = [
+            {
+                "kind": kind,
+                "byte_length": index,
+                "sha256": str(index) * 64,
+                "terminal_status": terminal if kind == "terminal" else None,
+            }
+            for index, kind in enumerate(("start", "restart", "terminal"), 1)
+        ]
+        observation = {
+            "identity": {
+                "row_key": row_key,
+                "path": path,
+                "trial_index": trial_index,
+            },
+            "surface": "host_local",
+            "observation_count": 1,
+        }
+        return {
+            "schema_version": 1,
+            "status": "PASS",
+            "path": path,
+            "host_local": True,
+            "provider_calls": 0,
+            "terminal_status": terminal,
+            "events": events,
+            "observation": observation,
+            "proof_hashes": {
+                "primary": sha256_value(observation),
+                "secondary": sha256_value(
+                    {"identity": observation["identity"], "events": events}
+                ),
+            },
+        }
+
+    monkeypatch.setitem(
+        runner_module._LOCAL_EXECUTORS,
+        "openclaw_active/config-restart-capability-flip",
+        local_restart,
+    )
+    def turn_events(index):
+        return [
+            _event("message.start", {"turn_index": index}),
+            _event("message.state", {"turn_index": index}),
+            _event("message.usage", {"turn_index": index}),
+            _event(
+                "message.complete",
+                {"status": "completed", "turn_index": index},
+            ),
+        ]
+
+    stored = "restart-stored-fixture"
+    initial_names = _inventory().executable_names
+    transports = [
+        _Transport(turn_events(1), initial_names, stored),
+        _Transport(
+            turn_events(2),
+            tuple(name for name in initial_names if name != "v4_fixture_local_state"),
+            stored,
+        ),
+    ]
+
+    def factory(**kwargs):
+        transport = transports.pop(0)
+        return Gateway(
+            python="fake",
+            cwd=ROOT,
+            env=kwargs["env"],
+            transport=transport,
+            host_tools=kwargs["host_tools"],
+            mcp_tools=kwargs["mcp_tools"],
+        )
+
+    home = tmp_path / "home"
+    result = _runner(
+        home,
+        factory,
+        "openclaw_active/config-restart-capability-flip",
+    ).execute()
+
+    assert transports == []
+    assert [event["kind"] for event in result["paths"]["positive"]["trial"].normalized_events] == [
+        "start",
+        "restart",
+        "terminal",
+    ]
+    assert (home / "plugins" / "v4_hermes_fixture").is_dir()
+    assert not (home / ".v4-restart-disabled" / "v4_hermes_fixture").exists()
+
+
+def test_real_gateway_tool_start_projects_as_requested_tool(tmp_path, monkeypatch):
+    host = _host(1)
+    host["runtime_state"] = {"present": True, "schema_version": 1, "sha256": "9" * 64}
+    monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: host)
+    monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": [], "parent_link_sha256": None, "lifecycle": "none"})
+    transport = _Transport([
+        _event("message.start"),
+        _event("tool.start", {"name": "tool_describe", "tool_id": "bridge-1"}),
+        _event("tool.complete", {"name": "tool_describe", "tool_id": "bridge-1"}),
+        _event("message.complete", {"status": "completed"}),
+    ])
+    result = _runner(
+        tmp_path / "home",
+        lambda **kwargs: Gateway(
+            python="fake",
+            cwd=ROOT,
+            env=kwargs["env"],
+            transport=transport,
+            host_tools=kwargs["host_tools"],
+            mcp_tools=kwargs["mcp_tools"],
+        ),
+        "v2_non_soak/TOOL-02",
+    ).execute()
+    assert [event["kind"] for event in result["paths"]["positive"]["trial"].normalized_events] == [
+        "start",
+        "tool_requested",
+        "tool_result",
+        "state",
+        "terminal",
+    ]
+
+
+def test_safe_env_strips_python_startup_overrides(tmp_path, monkeypatch):
+    for name in ("PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP", "PYTHONEXECUTABLE"):
+        monkeypatch.setenv(name, f"/ambient/{name.casefold()}")
+    environment = runner_module._safe_env(tmp_path / "home")
+    assert all(name not in environment for name in ("PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP", "PYTHONEXECUTABLE"))
+def test_missing_host_observation_fails_closed_without_path_fabrication(tmp_path):
+    transport = _Transport(_events())
+    with pytest.raises(V4NormalGatewayRunnerViolation): _runner(tmp_path / "home", lambda **kwargs: Gateway(python="fake", cwd=ROOT, env=kwargs["env"], transport=transport, host_tools=kwargs["host_tools"], mcp_tools=kwargs["mcp_tools"])).execute()
+    assert transport.calls.count("prompt.submit") == 1
+
+
+def test_gateway_inventory_drift_fails_before_provider_prompt(tmp_path):
+    transport = _Transport(_events(), tool_names=("delegate_task", "v4_fixture_local_state"))
+    with pytest.raises(V4NormalGatewayRunnerViolation):
+        _runner(
+            tmp_path / "home",
+            lambda **kwargs: Gateway(
+                python="fake",
+                cwd=ROOT,
+                env=kwargs["env"],
+                transport=transport,
+                host_tools=kwargs["host_tools"],
+                mcp_tools=kwargs["mcp_tools"],
+            ),
+        ).execute()
+    assert "tools.show" in transport.calls
+    assert "prompt.submit" not in transport.calls
+
+
+def test_top_level_child_binds_one_durable_batch_and_observed_lifecycle(tmp_path, monkeypatch):
+    expected_counts = []
+    monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(2))
+    def collect_durable(*_args, **kwargs):
+        expected_counts.append(kwargs.get("expected_count"))
+        return _durable()
+    monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", collect_durable)
+    transport = _Transport(_async_child_events(1, include_parent=False))
+    result = _runner(tmp_path / "home", lambda **k: Gateway(python="fake", cwd=ROOT, env=k["env"], transport=transport, host_tools=k["host_tools"], mcp_tools=k["mcp_tools"]), "v2_non_soak/ORCH-01").execute()
+    assert expected_counts == [1]
+    assert result["scenario_receipt"]["delegation_summary"]["count"] == 1 and result["scenario_receipt"]["delegation_summary"]["background_count"] == 1
+
+
+def test_top_level_child_accepts_real_gateway_two_phase_lifecycle(tmp_path, monkeypatch):
+    monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(2))
+    monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: _durable())
+    transport = _Transport(_async_child_events(1, include_spawn=False))
+    result = _runner(tmp_path / "home", lambda **k: Gateway(python="fake", cwd=ROOT, env=k["env"], transport=transport, host_tools=k["host_tools"], mcp_tools=k["mcp_tools"]), "v2_non_soak/ORCH-01").execute()
+    assert result["scenario_receipt"]["delegation_summary"]["count"] == 1
+
+
+def test_openclaw_handoff_trace_uses_hermes_subagent_start_as_background(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_AGENT_HOST_ROOT", "/Users/m1/repos/hermes-agent-runtime-plugin-api")
+    monkeypatch.setattr(runner_module, "_local_observations", lambda *_a, **_k: {})
+    monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(2))
+    monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: _durable())
+    transport = _Transport(_async_child_events(1, include_spawn=False))
+    result = _runner(
+        tmp_path / "home",
+        lambda **k: Gateway(
+            python="fake",
+            cwd=ROOT,
+            env=k["env"],
+            transport=transport,
+            host_tools=k["host_tools"],
+            mcp_tools=k["mcp_tools"],
+        ),
+        "openclaw_active/subagent-handoff",
+    ).execute()
+    assert [
+        event["kind"]
+        for event in result["paths"]["positive"]["trial"].normalized_events
+    ] == ["start", "background", "terminal"]
+
+
+def test_two_child_fanout_uses_observed_ordinals(tmp_path, monkeypatch):
+    monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(2)); monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: _durable())
+    transport = _Transport(_async_child_events(2, include_parent=False))
+    result = _runner(tmp_path / "home", lambda **k: Gateway(python="fake", cwd=ROOT, env=k["env"], transport=transport, host_tools=k["host_tools"], mcp_tools=k["mcp_tools"]), "v2_non_soak/ORCH-05").execute()
+    assert result["scenario_receipt"]["delegation_summary"]["count"] == 2
+
+
+def test_top_level_child_requires_durable_parent_link(tmp_path, monkeypatch):
+    monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(2))
+    monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: _durable(parent_link=False))
+    transport = _Transport(_async_child_events(1, include_parent=False))
+    with pytest.raises(V4NormalGatewayRunnerViolation):
+        _runner(tmp_path / "home", lambda **k: Gateway(python="fake", cwd=ROOT, env=k["env"], transport=transport, host_tools=k["host_tools"], mcp_tools=k["mcp_tools"]), "v2_non_soak/ORCH-01").execute()
+def test_background_batch_count_mismatch_fails_closed(tmp_path, monkeypatch):
+    monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: _host(2)); monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: _durable(2))
+    transport = _Transport(_async_child_events(1, True))
+    with pytest.raises(V4NormalGatewayRunnerViolation): _runner(tmp_path / "home", lambda **k: Gateway(python="fake", cwd=ROOT, env=k["env"], transport=transport, host_tools=k["host_tools"], mcp_tools=k["mcp_tools"]), "v2_non_soak/BG-01").execute()
+
+
+@pytest.mark.parametrize(
+    "row",
+    (
+        "clawprobench_native/planning_19_agent_delegation_boundary_live",
+        "clawprobench_native/planning_20_session_agent_handoff_live",
+    ),
+)
+def test_zero_child_delegation_boundary_retains_required_background(tmp_path, row):
+    # This tests only the delegation projection, not native row admission or
+    # the source scenario's behavior.
+    runner = _runner(tmp_path / "home", lambda **_: None)
+    scenario = next(item for item in runner._catalog.scenarios if item.row_key == row)
+    durable = {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": []}
+    snapshots = ({"subagents": [], "events": [{"kind": "background"}], "terminal_status": "completed"},)
+    assert runner_module._delegation(scenario, 1, snapshots, durable) == {
+        "count": 0,
+        "background_count": 0,
+        "lifecycle": "none",
+        "delivery_state": "none",
+        "parent_delivery_count": 0,
+        "parent_link_sha256": None,
+        "parent_delivery_sha256": None,
+    }
+
+
+@pytest.mark.parametrize(
+    "row",
+    [scenario.row_key for scenario in build_v4_live_scenario_catalog().scenarios
+     if scenario.row_key.startswith("clawprobench_native/")],
+)
+def test_generic_fixture_cannot_admit_native_behavior_proof(tmp_path, row):
+    def forbidden_gateway(**kwargs):
+        pytest.fail("native semantic admission must fail before Gateway creation")
+
+    with pytest.raises(V4NormalGatewayRunnerViolation, match="source-faithful"):
+        _runner(tmp_path / "home", forbidden_gateway, row)
+    assert not (tmp_path / "home").exists()
+
+
+def test_zero_child_delegation_rejects_unmapped_background(tmp_path):
+    runner = _runner(tmp_path / "home", lambda **_: None, "v2_non_soak/AUTH-01")
+    scenario = next(item for item in runner._catalog.scenarios if item.row_key == "v2_non_soak/AUTH-01")
+    durable = {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": []}
+    snapshots = ({"subagents": [], "events": [{"kind": "background"}], "terminal_status": "completed"},)
+    with pytest.raises(V4NormalGatewayRunnerViolation):
+        runner_module._delegation(scenario, 1, snapshots, durable)
+
+
+def test_local_observations_are_selected_internally_by_immutable_row(tmp_path, monkeypatch):
+    runner = _runner(tmp_path / "home", lambda **_: None, "openclaw_active/config-restart-capability-flip")
+    scenario = next(item for item in runner._catalog.scenarios if item.row_key == "openclaw_active/config-restart-capability-flip")
+    calls = []
+
+    def sealed_executor(**kwargs):
+        assert Path(kwargs["task_root"]).is_dir()
+        calls.append({key: value for key, value in kwargs.items() if key != "task_root"})
+        return {"path": kwargs["path"]}
+
+    monkeypatch.setitem(runner_module._LOCAL_EXECUTORS, scenario.row_key, sealed_executor)
+    observations = runner_module._local_observations(scenario, 1, tmp_path)
+    assert observations == {"denial": {"path": "denial"}, "recovery": {"path": "recovery"}}
+    assert calls == [
+        {"row_key": scenario.row_key, "trial_index": 1, "path": "denial"},
+        {"row_key": scenario.row_key, "trial_index": 1, "path": "recovery"},
+    ]
+
+
+def test_positive_only_local_row_stays_pending_and_caller_cannot_inject_observations(tmp_path):
+    runner = _runner(tmp_path / "home", lambda **_: None, "v2_non_soak/AUTH-01")
+    scenario = next(item for item in runner._catalog.scenarios if item.row_key == "v2_non_soak/AUTH-01")
+    assert runner_module._local_observations(scenario, 1, tmp_path) == {}
+    assert "sealed_local_observation" not in inspect.signature(V4NormalGatewayRunner.execute).parameters
+    with pytest.raises(TypeError):
+        runner.execute(sealed_local_observation={"denial": {}})

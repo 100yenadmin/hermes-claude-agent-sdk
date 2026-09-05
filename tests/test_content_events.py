@@ -1,0 +1,1192 @@
+"""Contract tests for the dependency-light Claude SDK event projector.
+
+The package imports the host's public AgentRuntime v1 types.  The fallback
+below exists only so this standalone repository can run its tests when the
+host checkout is not installed; it mirrors the small public types exercised by
+these tests and never stands in for the package implementation.
+"""
+
+from __future__ import annotations
+
+import sys
+import types
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
+
+def _install_runtime_api_test_compat() -> None:
+    if "agent.runtime_api" in sys.modules:
+        return
+
+    runtime_api = types.ModuleType("agent.runtime_api")
+
+    class RuntimeEventKind(str, Enum):
+        CONTENT = "content"
+        TOOL_REQUEST = "tool_request"
+        USAGE = "usage"
+        COMPLETED = "completed"
+
+    @dataclass(frozen=True)
+    class RuntimeContentEvent:
+        text: str = ""
+        kind: RuntimeEventKind = field(
+            default=RuntimeEventKind.CONTENT, init=False
+        )
+
+    @dataclass(frozen=True)
+    class RuntimeToolRequestEvent:
+        request_id: str
+        name: str
+        arguments: Mapping[str, Any]
+        kind: RuntimeEventKind = field(
+            default=RuntimeEventKind.TOOL_REQUEST, init=False
+        )
+
+    @dataclass(frozen=True)
+    class RuntimeUsageReceipt:
+        runtime_id: str
+        provider: str
+        model: str
+        billing_mode: str
+        cost_status: str
+        input_tokens: int = 0
+        output_tokens: int = 0
+        cache_read_tokens: int = 0
+        cache_write_tokens: int = 0
+        reasoning_tokens: int = 0
+        replay_safe: bool = False
+        correlation_id: str | None = None
+        selected_model: str | None = None
+        effective_model: str | None = None
+        canonical_model: str | None = None
+        model_resolution: str = "unknown"
+
+    @dataclass(frozen=True)
+    class RuntimeUsageEvent:
+        receipt: RuntimeUsageReceipt
+        kind: RuntimeEventKind = field(default=RuntimeEventKind.USAGE, init=False)
+
+    @dataclass(frozen=True)
+    class RuntimeCompletedEvent:
+        result: Mapping[str, Any] | None = None
+        kind: RuntimeEventKind = field(
+            default=RuntimeEventKind.COMPLETED, init=False
+        )
+
+    for name, value in {
+        "RuntimeContentEvent": RuntimeContentEvent,
+        "RuntimeToolRequestEvent": RuntimeToolRequestEvent,
+        "RuntimeUsageEvent": RuntimeUsageEvent,
+        "RuntimeUsageReceipt": RuntimeUsageReceipt,
+        "RuntimeCompletedEvent": RuntimeCompletedEvent,
+        "RuntimeEvent": Any,
+    }.items():
+        setattr(runtime_api, name, value)
+
+    agent = types.ModuleType("agent")
+    agent.__path__ = []  # type: ignore[attr-defined]
+    sys.modules.setdefault("agent", agent)
+    sys.modules["agent.runtime_api"] = runtime_api
+
+
+try:
+    from agent.runtime_api import (
+        RuntimeCompletedEvent,
+        RuntimeContentEvent,
+        RuntimeToolRequestEvent,
+        RuntimeUsageEvent,
+    )
+except ModuleNotFoundError as exc:
+    if exc.name not in {"agent", "agent.runtime_api"}:
+        raise
+    _install_runtime_api_test_compat()
+    from agent.runtime_api import (
+        RuntimeCompletedEvent,
+        RuntimeContentEvent,
+        RuntimeToolRequestEvent,
+        RuntimeUsageEvent,
+    )
+
+from hermes_claude_agent_sdk.content_events import (
+    ClaudeSdkEventProjector,
+    ToolResultMetadata,
+)
+
+
+class TextBlock:
+    def __init__(self, text: str):
+        self.text = text
+
+
+class ThinkingBlock:
+    def __init__(self, thinking: str):
+        self.thinking = thinking
+
+
+class ToolUseBlock:
+    def __init__(self, *, block_id: str, name: str, input: Any):
+        self.id = block_id
+        self.name = name
+        self.input = input
+
+
+class ToolResultBlock:
+    def __init__(self, *, tool_use_id: str, content: Any, is_error: bool = False):
+        self.tool_use_id = tool_use_id
+        self.content = content
+        self.is_error = is_error
+
+
+class AssistantMessage:
+    def __init__(self, content: list[Any], model: str = "claude-test"):
+        self.content = content
+        self.model = model
+
+
+class UserMessage:
+    def __init__(self, content: Any):
+        self.content = content
+
+
+class ResultMessage:
+    def __init__(
+        self,
+        *,
+        result: Any = None,
+        usage: Any = None,
+        model: str = "claude-test",
+        model_usage: Any = None,
+        is_error: bool = False,
+    ):
+        self.result = result
+        self.usage = usage
+        self.model = model
+        self.model_usage = model_usage
+        self.is_error = is_error
+
+
+class SystemMessage:
+    content = "lifecycle"
+
+    def __init__(self, subtype: str | None = None, data: Any = None):
+        self.subtype = subtype
+        self.data = data
+
+
+class UnknownObject:
+    def __repr__(self) -> str:
+        return "UnknownObject(raw-secret-like-value)"
+
+
+class ExplodingMessage:
+    @property
+    def content(self) -> Any:
+        raise RuntimeError("raw exception should not cross the projector")
+
+
+class UnboundedModelUsage(Mapping[str, Mapping[str, str]]):
+    """Expose an infinite mapping iterator to prove bounded SDK traversal."""
+
+    def __init__(self) -> None:
+        self.visited = 0
+
+    def __getitem__(self, key: str) -> Mapping[str, str]:
+        return {"canonicalModel": "claude-fable-5-1"}
+
+    def __iter__(self) -> Iterator[str]:
+        index = 0
+        while True:
+            self.visited += 1
+            yield f"claude-fable-{index}"
+            index += 1
+
+    def __len__(self) -> int:
+        return 10**12
+
+
+class EagerItemsModelUsage(Mapping[str, Mapping[str, str]]):
+    """Make ``items()`` eagerly allocate so production must not call it."""
+
+    def __init__(self) -> None:
+        self.items_called = 0
+        self.visited = 0
+
+    def __getitem__(self, key: str) -> Mapping[str, str]:
+        return {"canonicalModel": "claude-fable-5-1"}
+
+    def __iter__(self) -> Iterator[str]:
+        for index in range(1_000):
+            self.visited += 1
+            yield f"claude-fable-{index}"
+
+    def __len__(self) -> int:
+        return 1_000
+
+    def items(self) -> list[tuple[str, Mapping[str, str]]]:
+        self.items_called += 1
+        return [
+            (
+                f"claude-fable-{index}",
+                {"canonicalModel": "claude-fable-5-1"},
+            )
+            for index in range(1_000)
+        ]
+
+
+def _events(projector: ClaudeSdkEventProjector, message: Any) -> list[Any]:
+    return list(projector.project(message).events)
+
+
+def test_assistant_text_maps_to_one_bounded_public_content_event() -> None:
+    result = ClaudeSdkEventProjector().project(
+        AssistantMessage([TextBlock("hello"), TextBlock("world")])
+    )
+
+    assert result.final_text == "hello\nworld"
+    assert result.model == "claude-test"
+    assert result.events == (RuntimeContentEvent(text="hello\nworld"),)
+
+
+def test_assistant_tool_use_maps_to_public_tool_request_metadata() -> None:
+    result = ClaudeSdkEventProjector().project(
+        AssistantMessage(
+            [
+                TextBlock("I will inspect it"),
+                ToolUseBlock(
+                    block_id="toolu_test_1",
+                    name="read_file",
+                    input={"path": "/tmp/synthetic.txt", "line": 3},
+                ),
+            ]
+        )
+    )
+
+    assert result.events == (
+        RuntimeContentEvent(text="I will inspect it"),
+        RuntimeToolRequestEvent(
+            request_id="toolu_test_1",
+            name="read_file",
+            arguments={"path": "/tmp/synthetic.txt", "line": 3},
+        ),
+    )
+    assert not result.is_tool_iteration
+
+
+def test_user_tool_results_stay_internal_without_public_content_events() -> None:
+    result = ClaudeSdkEventProjector().project(
+        UserMessage(
+            [
+                ToolResultBlock(
+                    tool_use_id="toolu_test_1",
+                    content=[
+                        {"type": "text", "text": "synthetic result"},
+                        {"type": "json", "value": 3},
+                    ],
+                ),
+                ToolResultBlock(
+                    tool_use_id="toolu_test_2",
+                    content=UnknownObject(),
+                    is_error=True,
+                ),
+            ]
+        )
+    )
+
+    assert result.is_tool_iteration
+    assert result.events == ()
+    assert result.tool_results == (
+        ToolResultMetadata(
+            tool_use_id="toolu_test_1",
+            text=(
+                'synthetic result\n{"type": "json", "value": 3}'
+            ),
+            is_error=False,
+        ),
+        ToolResultMetadata(
+            tool_use_id="toolu_test_2",
+            text="[unavailable tool result]",
+            is_error=True,
+        ),
+    )
+    assert result.tool_result_metadata == result.tool_results
+    assert "raw-secret-like-value" not in result.tool_results[1].text
+    assert ToolResultMetadata.__dataclass_params__.frozen
+
+
+def test_result_maps_authoritative_text_usage_and_completion() -> None:
+    usage = {
+        "input_tokens": 11,
+        "output_tokens": 7,
+        "cache_read_input_tokens": 5,
+        "cache_creation_input_tokens": 2,
+    }
+    result = ClaudeSdkEventProjector(
+        provider="claude-agent-sdk",
+        billing_mode="subscription_included",
+        correlation_id="turn-test-1",
+    ).project(
+        ResultMessage(result="authoritative final", usage=usage)
+    )
+
+    assert result.is_result
+    assert result.final_text == "authoritative final"
+    assert result.events[0] == RuntimeContentEvent(text="authoritative final")
+    assert isinstance(result.events[1], RuntimeUsageEvent)
+    assert result.events[1].receipt.input_tokens == 11
+    assert result.events[1].receipt.output_tokens == 7
+    assert result.events[1].receipt.cache_read_tokens == 5
+    assert result.events[1].receipt.cache_write_tokens == 2
+    assert result.events[1].receipt.billing_mode == "subscription_included"
+    assert result.events[1].receipt.cost_status == "included"
+    assert result.events[1].receipt.runtime_id == "hermes-claude-agent-sdk"
+    assert result.events[1].receipt.correlation_id == "turn-test-1"
+    assert result.events[2] == RuntimeCompletedEvent(
+        result={
+            "text": "authoritative final",
+            "model": "claude-test",
+            "selected_model": "unknown",
+            "effective_model": "claude-test",
+            "canonical_model": "unknown",
+            "model_resolution": "reported",
+        }
+    )
+
+
+def test_result_without_usage_still_completes_and_error_is_bounded() -> None:
+    result = ClaudeSdkEventProjector().project(
+        ResultMessage(result="private provider failure prose", usage=None, is_error=True)
+    )
+
+    assert result.final_text is None
+    assert result.events == (
+        RuntimeCompletedEvent(
+            result={
+                "model": "claude-test",
+                "selected_model": "unknown",
+                "effective_model": "claude-test",
+                "canonical_model": "unknown",
+                "model_resolution": "reported",
+                "is_error": True,
+            }
+        ),
+    )
+    assert all(
+        "private provider failure prose" not in repr(event)
+        for event in result.events
+    )
+    assert all("ResultMessage" not in repr(event) for event in result.events)
+
+
+def test_model_provenance_preserves_selected_and_exact_sdk_model() -> None:
+    result = ClaudeSdkEventProjector(model="claude-fable-5").project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 1, "output_tokens": 1},
+            model="claude-fable-5",
+        )
+    )
+
+    assert result.selected_model == "claude-fable-5"
+    assert result.effective_model == "claude-fable-5"
+    assert result.canonical_model is None
+    assert result.model_resolution == "exact"
+    receipt = result.events[1].receipt
+    assert receipt.model == "claude-fable-5"
+    assert receipt.selected_model == "claude-fable-5"
+    assert receipt.effective_model == "claude-fable-5"
+    assert receipt.canonical_model is None
+    assert receipt.model_resolution == "exact"
+    assert result.events[-1].result == {
+        "text": "done",
+        "model": "claude-fable-5",
+        "selected_model": "claude-fable-5",
+        "effective_model": "claude-fable-5",
+        "canonical_model": "unknown",
+        "model_resolution": "exact",
+    }
+
+
+def test_model_provenance_preserves_unique_canonical_model_on_mismatch() -> None:
+    result = ClaudeSdkEventProjector(model="claude-fable-5-1").project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 1, "output_tokens": 1},
+            model="claude-fable-5",
+            model_usage={
+                "claude-fable-5": {
+                    "canonicalModel": "claude-fable-5-1",
+                    "inputTokens": 1,
+                    "outputTokens": 1,
+                }
+            },
+        )
+    )
+
+    assert result.effective_model == "claude-fable-5"
+    assert result.canonical_model == "claude-fable-5-1"
+    assert result.model_resolution == "canonicalized"
+    receipt = result.events[1].receipt
+    assert receipt.model == "claude-fable-5-1"
+    assert receipt.selected_model == "claude-fable-5-1"
+    assert receipt.effective_model == "claude-fable-5"
+    assert receipt.canonical_model == "claude-fable-5-1"
+    assert receipt.model_resolution == "canonicalized"
+    assert result.events[-1].result["selected_model"] == "claude-fable-5-1"
+    assert result.events[-1].result["effective_model"] == "claude-fable-5"
+    assert result.events[-1].result["canonical_model"] == "claude-fable-5-1"
+
+
+def test_model_provenance_missing_sdk_evidence_does_not_use_selected_model() -> None:
+    result = ClaudeSdkEventProjector(model="claude-fable-5-1").project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 1, "output_tokens": 1},
+            model=None,
+            model_usage=None,
+        )
+    )
+
+    assert result.model is None
+    assert result.effective_model is None
+    assert result.canonical_model is None
+    assert result.model_resolution == "unknown"
+    receipt = result.events[1].receipt
+    assert receipt.model == "unknown"
+    assert receipt.selected_model == "claude-fable-5-1"
+    assert receipt.effective_model is None
+    assert receipt.canonical_model is None
+    assert receipt.model_resolution == "unknown"
+    assert result.events[-1].result == {
+        "text": "done",
+        "model": "unknown",
+        "selected_model": "claude-fable-5-1",
+        "effective_model": "unknown",
+        "canonical_model": "unknown",
+        "model_resolution": "unknown",
+    }
+
+
+def test_init_model_is_authoritative_over_synthetic_assistant_and_empty_usage() -> None:
+    projector = ClaudeSdkEventProjector(model="claude-fable-5")
+    assert _events(
+        projector,
+        SystemMessage("init", {"model": "claude-fable-5"}),
+    ) == []
+    projector.project(
+        AssistantMessage([TextBlock("done")], model="claude-fable-synthetic")
+    )
+    result = projector.project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 1, "output_tokens": 1},
+            model=None,
+            model_usage={},
+        )
+    )
+
+    assert result.effective_model == "claude-fable-5"
+    assert result.canonical_model is None
+    assert result.model_resolution == "exact"
+    receipt = result.events[1].receipt
+    assert receipt.model == "claude-fable-5"
+    assert receipt.effective_model == "claude-fable-5"
+    assert receipt.model_resolution == "exact"
+    assert result.events[-1].result["model"] == "claude-fable-5"
+
+
+def test_invalid_or_conflicting_init_model_evidence_fails_closed() -> None:
+    for data in (None, {"model": object()}, {"model": "not a model"}):
+        projector = ClaudeSdkEventProjector(model="claude-fable-5")
+        projector.project(SystemMessage("init", data))
+        result = projector.project(
+            ResultMessage(
+                result="done",
+                usage={"input_tokens": 1},
+                model=None,
+                model_usage={},
+            )
+        )
+        assert result.effective_model is None
+        assert result.canonical_model is None
+        assert result.model_resolution == "ambiguous"
+        assert result.events[1].receipt.model == "unknown"
+
+    projector = ClaudeSdkEventProjector(model="claude-fable-5")
+    projector.project(SystemMessage("init", {"model": "claude-fable-5"}))
+    projector.project(SystemMessage("init", {"model": "claude-fable-5-1"}))
+    result = projector.project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 1},
+            model=None,
+            model_usage={},
+        )
+    )
+    assert result.effective_model is None
+    assert result.model_resolution == "ambiguous"
+    assert result.events[1].receipt.model == "unknown"
+
+
+def test_init_model_conflicting_real_root_model_stays_ambiguous() -> None:
+    projector = ClaudeSdkEventProjector(model="claude-fable-5")
+    projector.project(SystemMessage("init", {"model": "claude-fable-5"}))
+    projector.project(
+        AssistantMessage([TextBlock("done")], model="claude-fable-5-1")
+    )
+    result = projector.project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 1},
+            model=None,
+            model_usage={},
+        )
+    )
+
+    assert result.effective_model is None
+    assert result.canonical_model is None
+    assert result.model_resolution == "ambiguous"
+    assert result.events[1].receipt.model == "unknown"
+
+
+def test_init_model_mismatch_is_reported_without_request_fallback() -> None:
+    projector = ClaudeSdkEventProjector(model="claude-fable-5-1")
+    projector.project(SystemMessage("init", {"model": "claude-fable-5"}))
+    result = projector.project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 1},
+            model=None,
+            model_usage={},
+        )
+    )
+
+    assert result.effective_model == "claude-fable-5"
+    assert result.canonical_model is None
+    assert result.model_resolution == "mismatch"
+    assert result.events[1].receipt.model == "claude-fable-5"
+    assert result.events[1].receipt.selected_model == "claude-fable-5-1"
+
+
+def test_begin_turn_retains_init_model_but_discards_prior_usage_failure() -> None:
+    projector = ClaudeSdkEventProjector(
+        model="claude-fable-5", correlation_id="turn-one"
+    )
+    projector.project(SystemMessage("init", {"model": "claude-fable-5"}))
+    first = projector.project(
+        ResultMessage(
+            result="first",
+            usage={"input_tokens": 1},
+            model=None,
+            model_usage={"claude-fable-5": {"canonicalModel": object()}},
+        )
+    )
+    assert first.model_resolution == "ambiguous"
+
+    projector.begin_turn(correlation_id="turn-two")
+    second = projector.project(
+        ResultMessage(
+            result="second",
+            usage={"input_tokens": 2},
+            model=None,
+            model_usage={},
+        )
+    )
+
+    assert second.effective_model == "claude-fable-5"
+    assert second.model_resolution == "exact"
+    assert second.events[1].receipt.input_tokens == 2
+    assert second.events[1].receipt.correlation_id == "turn-two"
+
+
+def test_empty_usage_without_session_model_remains_unknown() -> None:
+    result = ClaudeSdkEventProjector(model="claude-fable-5").project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 1},
+            model=None,
+            model_usage={},
+        )
+    )
+
+    assert result.effective_model is None
+    assert result.canonical_model is None
+    assert result.model_resolution == "unknown"
+    assert result.events[1].receipt.model == "unknown"
+
+
+def test_model_provenance_malformed_or_ambiguous_usage_fails_closed() -> None:
+    malformed = ClaudeSdkEventProjector(model="claude-fable-5-1").project(
+        ResultMessage(
+            result="malformed",
+            usage={"input_tokens": 1},
+            model="claude-fable-5-1",
+            model_usage={"claude-fable-5-1": {"canonicalModel": object()}},
+        )
+    )
+    ambiguous = ClaudeSdkEventProjector(model="claude-fable-5-1").project(
+        ResultMessage(
+            result="ambiguous",
+            usage={"input_tokens": 1},
+            model=None,
+            model_usage={
+                "claude-fable-5": {"canonicalModel": "claude-fable-5"},
+                "claude-fable-5-1": {"canonicalModel": "claude-fable-5-1"},
+            },
+        )
+    )
+
+    for result in (malformed, ambiguous):
+        assert result.effective_model is None
+        assert result.canonical_model is None
+        assert result.model_resolution == "ambiguous"
+        receipt = result.events[1].receipt
+        assert receipt.model == "unknown"
+        assert receipt.selected_model == "claude-fable-5-1"
+        assert receipt.effective_model is None
+        assert receipt.canonical_model is None
+        assert receipt.model_resolution == "ambiguous"
+        assert result.events[-1].result["effective_model"] == "unknown"
+        assert result.events[-1].result["canonical_model"] == "unknown"
+        assert result.events[-1].result["model_resolution"] == "ambiguous"
+
+
+def test_multiple_usage_keys_with_same_canonical_model_fail_closed() -> None:
+    result = ClaudeSdkEventProjector(model="claude-fable-5-1").project(
+        ResultMessage(
+            result="ambiguous",
+            usage={"input_tokens": 1},
+            model=None,
+            model_usage={
+                "claude-fable-5": {"canonicalModel": "claude-fable-5-1"},
+                "claude-fable-5-1": {"canonicalModel": "claude-fable-5-1"},
+            },
+        )
+    )
+
+    assert result.effective_model is None
+    assert result.canonical_model is None
+    assert result.model_resolution == "ambiguous"
+    assert result.events[1].receipt.model == "unknown"
+    assert result.events[-1].result["model"] == "unknown"
+    assert result.events[-1].result["effective_model"] == "unknown"
+    assert result.events[-1].result["canonical_model"] == "unknown"
+
+
+def test_public_sdk_multi_usage_uses_unique_reported_effective_model() -> None:
+    from claude_agent_sdk.types import (
+        AssistantMessage as SDKAssistantMessage,
+    )
+    from claude_agent_sdk.types import (
+        ResultMessage as SDKResultMessage,
+    )
+    from claude_agent_sdk.types import (
+        TextBlock as SDKTextBlock,
+    )
+
+    projector = ClaudeSdkEventProjector(model="claude-fable-5-1")
+    projector.project(
+        SDKAssistantMessage(
+            content=[SDKTextBlock("bounded fixture")],
+            model="claude-fable-5-1",
+        )
+    )
+    result = projector.project(
+        SDKResultMessage(
+            subtype="success",
+            duration_ms=1,
+            duration_api_ms=1,
+            is_error=False,
+            num_turns=1,
+            session_id="synthetic-sdk-session",
+            usage={"input_tokens": 2, "output_tokens": 1},
+            result="done",
+            model_usage={
+                "claude-fable-5": {
+                    "canonicalModel": "claude-fable-5-1",
+                    "inputTokens": 1,
+                    "outputTokens": 0,
+                },
+                "claude-fable-5-1": {
+                    "canonicalModel": "claude-fable-5-1",
+                    "inputTokens": 1,
+                    "outputTokens": 1,
+                },
+            },
+        )
+    )
+
+    assert result.effective_model == "claude-fable-5-1"
+    assert result.canonical_model == "claude-fable-5-1"
+    assert result.model_resolution == "exact"
+    receipt = result.events[1].receipt
+    assert receipt.model == "claude-fable-5-1"
+    assert receipt.selected_model == "claude-fable-5-1"
+    assert receipt.effective_model == "claude-fable-5-1"
+    assert receipt.canonical_model == "claude-fable-5-1"
+    assert receipt.model_resolution == "exact"
+
+
+def test_public_sdk_auxiliary_usage_uses_unique_reported_primary_model() -> None:
+    from claude_agent_sdk.types import (
+        AssistantMessage as SDKAssistantMessage,
+    )
+    from claude_agent_sdk.types import (
+        ResultMessage as SDKResultMessage,
+    )
+    from claude_agent_sdk.types import (
+        TextBlock as SDKTextBlock,
+    )
+
+    projector = ClaudeSdkEventProjector(model="claude-fable-5-1")
+    projector.project(
+        SDKAssistantMessage(
+            content=[SDKTextBlock("bounded fixture")],
+            model="claude-fable-5-1",
+        )
+    )
+    result = projector.project(
+        SDKResultMessage(
+            subtype="success",
+            duration_ms=1,
+            duration_api_ms=1,
+            is_error=False,
+            num_turns=1,
+            session_id="synthetic-sdk-session",
+            usage={"input_tokens": 2, "output_tokens": 1},
+            result="done",
+            model_usage={
+                "claude-fable-5-1": {
+                    "canonicalModel": "claude-fable-5-1",
+                    "inputTokens": 1,
+                    "outputTokens": 1,
+                },
+                "claude-haiku-4-5-20251001": {
+                    "canonicalModel": "claude-haiku-4-5-20251001",
+                    "inputTokens": 1,
+                    "outputTokens": 0,
+                },
+            },
+        )
+    )
+
+    assert result.effective_model == "claude-fable-5-1"
+    assert result.canonical_model == "claude-fable-5-1"
+    assert result.model_resolution == "exact"
+    receipt = result.events[1].receipt
+    assert receipt.model == "claude-fable-5-1"
+    assert receipt.selected_model == "claude-fable-5-1"
+    assert receipt.effective_model == "claude-fable-5-1"
+    assert receipt.canonical_model == "claude-fable-5-1"
+    assert receipt.model_resolution == "exact"
+
+
+def test_public_sdk_canonical_usage_alias_keeps_reported_primary_model() -> None:
+    from claude_agent_sdk.types import (
+        AssistantMessage as SDKAssistantMessage,
+    )
+    from claude_agent_sdk.types import (
+        ResultMessage as SDKResultMessage,
+    )
+    from claude_agent_sdk.types import (
+        TextBlock as SDKTextBlock,
+    )
+
+    projector = ClaudeSdkEventProjector(model="claude-fable-5-1")
+    projector.project(
+        SDKAssistantMessage(
+            content=[SDKTextBlock("root fixture")],
+            model="claude-fable-5-1",
+        )
+    )
+    result = projector.project(
+        SDKResultMessage(
+            subtype="success",
+            duration_ms=1,
+            duration_api_ms=1,
+            is_error=False,
+            num_turns=1,
+            session_id="synthetic-sdk-session",
+            usage={"input_tokens": 2, "output_tokens": 1},
+            result="done",
+            model_usage={
+                "claude-fable-5": {
+                    "canonicalModel": "claude-fable-5-1",
+                    "inputTokens": 1,
+                    "outputTokens": 1,
+                },
+                "claude-haiku-4-5-20251001": {
+                    "canonicalModel": "claude-haiku-4-5-20251001",
+                    "inputTokens": 1,
+                    "outputTokens": 0,
+                },
+            },
+        )
+    )
+
+    assert result.effective_model == "claude-fable-5-1"
+    assert result.canonical_model == "claude-fable-5-1"
+    assert result.model_resolution == "exact"
+    receipt = result.events[1].receipt
+    assert receipt.model == "claude-fable-5-1"
+    assert receipt.effective_model == "claude-fable-5-1"
+    assert receipt.canonical_model == "claude-fable-5-1"
+    assert receipt.model_resolution == "exact"
+
+
+def test_public_sdk_nested_assistant_model_does_not_taint_primary_route() -> None:
+    from claude_agent_sdk.types import (
+        AssistantMessage as SDKAssistantMessage,
+    )
+    from claude_agent_sdk.types import (
+        ResultMessage as SDKResultMessage,
+    )
+    from claude_agent_sdk.types import (
+        TextBlock as SDKTextBlock,
+    )
+
+    projector = ClaudeSdkEventProjector(model="claude-fable-5-1")
+    projector.project(
+        SDKAssistantMessage(
+            content=[SDKTextBlock("root fixture")],
+            model="claude-fable-5-1",
+        )
+    )
+    projector.project(
+        SDKAssistantMessage(
+            content=[SDKTextBlock("nested fixture")],
+            model="claude-haiku-4-5-20251001",
+            parent_tool_use_id="synthetic-parent-tool",
+        )
+    )
+    result = projector.project(
+        SDKResultMessage(
+            subtype="success",
+            duration_ms=1,
+            duration_api_ms=1,
+            is_error=False,
+            num_turns=1,
+            session_id="synthetic-sdk-session",
+            usage={"input_tokens": 2, "output_tokens": 1},
+            result="done",
+            model_usage={
+                "claude-fable-5-1": {
+                    "canonicalModel": "claude-fable-5-1",
+                    "inputTokens": 1,
+                    "outputTokens": 1,
+                },
+                "claude-haiku-4-5-20251001": {
+                    "canonicalModel": "claude-haiku-4-5-20251001",
+                    "inputTokens": 1,
+                    "outputTokens": 0,
+                },
+            },
+        )
+    )
+
+    assert result.effective_model == "claude-fable-5-1"
+    assert result.canonical_model == "claude-fable-5-1"
+    assert result.model_resolution == "exact"
+    assert result.events[1].receipt.model == "claude-fable-5-1"
+
+
+def test_auxiliary_canonical_never_attaches_to_reported_primary_key() -> None:
+    from claude_agent_sdk.types import (
+        AssistantMessage as SDKAssistantMessage,
+    )
+    from claude_agent_sdk.types import (
+        ResultMessage as SDKResultMessage,
+    )
+    from claude_agent_sdk.types import (
+        TextBlock as SDKTextBlock,
+    )
+
+    projector = ClaudeSdkEventProjector(model="effective-b")
+    projector.project(
+        SDKAssistantMessage(
+            content=[SDKTextBlock("root fixture")],
+            model="effective-b",
+        )
+    )
+    result = projector.project(
+        SDKResultMessage(
+            subtype="success",
+            duration_ms=1,
+            duration_api_ms=1,
+            is_error=False,
+            num_turns=1,
+            session_id="synthetic-sdk-session",
+            usage={"input_tokens": 2, "output_tokens": 1},
+            result="done",
+            model_usage={
+                "aux-a": {
+                    "canonicalModel": "canonical-a",
+                    "inputTokens": 1,
+                    "outputTokens": 0,
+                },
+                "effective-b": {
+                    "inputTokens": 1,
+                    "outputTokens": 1,
+                },
+            },
+        )
+    )
+
+    assert result.effective_model == "effective-b"
+    assert result.canonical_model is None
+    assert result.model_resolution == "exact"
+    receipt = result.events[1].receipt
+    assert receipt.model == "effective-b"
+    assert receipt.effective_model == "effective-b"
+    assert receipt.canonical_model is None
+    assert receipt.model_resolution == "exact"
+
+
+def test_multi_usage_unrelated_reported_model_stays_ambiguous() -> None:
+    projector = ClaudeSdkEventProjector(model="claude-fable-5-1")
+    projector.project(
+        AssistantMessage([TextBlock("root fixture")], model="unrelated-model")
+    )
+    result = projector.project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 2, "output_tokens": 1},
+            model=None,
+            model_usage={
+                "claude-fable-5-1": {
+                    "canonicalModel": "claude-fable-5-1",
+                },
+                "claude-haiku-4-5-20251001": {
+                    "canonicalModel": "claude-haiku-4-5-20251001",
+                },
+            },
+        )
+    )
+
+    assert result.effective_model is None
+    assert result.canonical_model is None
+    assert result.model_resolution == "ambiguous"
+    assert result.events[1].receipt.model == "unknown"
+
+
+def test_sdk_02151_public_shape_projects_reported_primary_model() -> None:
+    import importlib.metadata
+
+    import pytest
+    from claude_agent_sdk.types import (
+        AssistantMessage as SDKAssistantMessage,
+    )
+    from claude_agent_sdk.types import (
+        ResultMessage as SDKResultMessage,
+    )
+    from claude_agent_sdk.types import (
+        TextBlock as SDKTextBlock,
+    )
+
+    if importlib.metadata.version("claude-agent-sdk") != "0.2.151":
+        pytest.skip("the exact Fable 5.1 successor cell uses SDK 0.2.151")
+
+    projector = ClaudeSdkEventProjector(model="claude-fable-5-1")
+    projector.project(
+        SDKAssistantMessage(
+            content=[SDKTextBlock("bounded fixture")],
+            model="claude-fable-5-1",
+            parent_tool_use_id=None,
+        )
+    )
+    sdk_result = SDKResultMessage(
+        subtype="success",
+        duration_ms=1,
+        duration_api_ms=1,
+        is_error=False,
+        num_turns=1,
+        session_id="synthetic-sdk-session",
+        usage={"input_tokens": 2, "output_tokens": 1},
+        result="done",
+        model_usage={
+            "claude-fable-5-1": {
+                "inputTokens": 1,
+                "outputTokens": 1,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0,
+                "webSearchRequests": 0,
+                "costUSD": 0.0,
+                "contextWindow": 200_000,
+                "maxOutputTokens": 4096,
+                "canonicalModel": "claude-fable-5-1",
+                "provider": "firstParty",
+            },
+            "claude-haiku-4-5-20251001": {
+                "inputTokens": 1,
+                "outputTokens": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0,
+                "webSearchRequests": 0,
+                "costUSD": 0.0,
+                "contextWindow": 200_000,
+                "maxOutputTokens": 4096,
+                "canonicalModel": "claude-haiku-4-5-20251001",
+                "provider": "firstParty",
+            },
+        },
+    )
+
+    assert not hasattr(sdk_result, "model")
+    projected = projector.project(sdk_result)
+    assert projected.effective_model == "claude-fable-5-1"
+    assert projected.canonical_model == "claude-fable-5-1"
+    assert projected.model_resolution == "exact"
+    receipt = projected.events[1].receipt
+    assert receipt.model == "claude-fable-5-1"
+    assert receipt.selected_model == "claude-fable-5-1"
+    assert receipt.effective_model == "claude-fable-5-1"
+    assert receipt.canonical_model == "claude-fable-5-1"
+    assert receipt.model_resolution == "exact"
+
+
+def test_sdk_02151_public_init_shape_anchors_synthetic_empty_usage() -> None:
+    import importlib.metadata
+
+    import pytest
+    from claude_agent_sdk.types import (
+        AssistantMessage as SDKAssistantMessage,
+    )
+    from claude_agent_sdk.types import ResultMessage as SDKResultMessage
+    from claude_agent_sdk.types import SystemMessage as SDKSystemMessage
+    from claude_agent_sdk.types import TextBlock as SDKTextBlock
+
+    if importlib.metadata.version("claude-agent-sdk") != "0.2.151":
+        pytest.skip("the exact Fable 5.1 successor cell uses SDK 0.2.151")
+
+    projector = ClaudeSdkEventProjector(model="claude-fable-5")
+    projector.project(
+        SDKSystemMessage(
+            subtype="init",
+            data={"apiKeySource": "none", "model": "claude-fable-5"},
+        )
+    )
+    projector.project(
+        SDKAssistantMessage(
+            content=[SDKTextBlock("bounded fixture")],
+            model="claude-fable-synthetic",
+            parent_tool_use_id=None,
+        )
+    )
+    sdk_result = SDKResultMessage(
+        subtype="success",
+        duration_ms=1,
+        duration_api_ms=1,
+        is_error=False,
+        num_turns=1,
+        session_id="synthetic-sdk-session",
+        usage={"input_tokens": 2, "output_tokens": 1},
+        result="done",
+        model_usage={},
+    )
+
+    projected = projector.project(sdk_result)
+
+    assert projected.effective_model == "claude-fable-5"
+    assert projected.canonical_model is None
+    assert projected.model_resolution == "exact"
+    receipt = projected.events[1].receipt
+    assert receipt.model == "claude-fable-5"
+    assert receipt.selected_model == "claude-fable-5"
+    assert receipt.effective_model == "claude-fable-5"
+    assert receipt.canonical_model is None
+    assert receipt.model_resolution == "exact"
+
+
+def test_model_usage_iteration_is_bounded_and_overflow_fails_closed() -> None:
+    model_usage = UnboundedModelUsage()
+    result = ClaudeSdkEventProjector(model="claude-fable-5-1").project(
+        ResultMessage(
+            result="overflow",
+            usage={"input_tokens": 1},
+            model="claude-fable-5-1",
+            model_usage=model_usage,
+        )
+    )
+
+    assert model_usage.visited == 33
+    assert result.effective_model is None
+    assert result.canonical_model is None
+    assert result.model_resolution == "ambiguous"
+    assert result.events[1].receipt.model == "unknown"
+    assert result.events[-1].result["model"] == "unknown"
+
+
+def test_model_usage_never_calls_an_eager_items_override() -> None:
+    model_usage = EagerItemsModelUsage()
+    result = ClaudeSdkEventProjector(model="claude-fable-5-1").project(
+        ResultMessage(
+            result="overflow",
+            usage={"input_tokens": 1},
+            model="claude-fable-5-1",
+            model_usage=model_usage,
+        )
+    )
+
+    assert model_usage.items_called == 0
+    assert model_usage.visited == 33
+    assert result.effective_model is None
+    assert result.canonical_model is None
+    assert result.model_resolution == "ambiguous"
+    assert result.events[1].receipt.model == "unknown"
+    assert result.events[-1].result["model"] == "unknown"
+
+
+def test_literal_unknown_canonical_model_is_absent_not_an_identity() -> None:
+    result = ClaudeSdkEventProjector(model="claude-fable-5").project(
+        ResultMessage(
+            result="done",
+            usage={"input_tokens": 1, "output_tokens": 1},
+            model="claude-fable-5",
+            model_usage={
+                "claude-fable-5": {
+                    "canonicalModel": "unknown",
+                    "inputTokens": 1,
+                    "outputTokens": 1,
+                }
+            },
+        )
+    )
+
+    assert result.effective_model == "claude-fable-5"
+    assert result.canonical_model is None
+    assert result.model_resolution == "exact"
+    assert result.events[1].receipt.model == "claude-fable-5"
+    assert result.events[-1].result["model"] == "claude-fable-5"
+    assert result.events[-1].result["canonical_model"] == "unknown"
+
+
+def test_thinking_only_and_lifecycle_messages_do_not_leak_or_emit_events() -> None:
+    projector = ClaudeSdkEventProjector()
+
+    assert _events(projector, AssistantMessage([ThinkingBlock("private thought")])) == []
+    assert _events(projector, SystemMessage()) == []
+    assert _events(projector, UnknownObject()) == []
+    assert _events(projector, ExplodingMessage()) == []
+
+
+def test_tool_arguments_are_sanitized_and_bounded() -> None:
+    result = ClaudeSdkEventProjector().project(
+        AssistantMessage(
+            [
+                ToolUseBlock(
+                    block_id="toolu_test_3",
+                    name="",
+                    input=UnknownObject(),
+                )
+            ]
+        )
+    )
+
+    assert result.events == (
+        RuntimeToolRequestEvent(
+            request_id="toolu_test_3",
+            name="unknown",
+            arguments={"input": "[unavailable tool input]"},
+        ),
+    )

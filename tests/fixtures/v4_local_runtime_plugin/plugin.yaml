@@ -1,0 +1,7 @@
+name: v4_local_runtime_fixture
+version: "1.0.0"
+description: "Provider-free task-only AgentRuntime fixture for v4 parity tests"
+provides_tools:
+  - v4_local_runtime_state
+provides_hooks:
+  - pre_tool_call

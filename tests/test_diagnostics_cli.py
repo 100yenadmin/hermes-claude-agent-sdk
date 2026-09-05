@@ -1,0 +1,100 @@
+"""Credential-free subprocess coverage for the standalone doctor command."""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+import pytest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+_HOST_ROOT_VALUE = os.environ.get("HERMES_AGENT_HOST_ROOT")
+HOST_ROOT = Path(_HOST_ROOT_VALUE) if _HOST_ROOT_VALUE else None
+requires_host_root = pytest.mark.skipif(
+    HOST_ROOT is None or not HOST_ROOT.is_dir(),
+    reason="HERMES_AGENT_HOST_ROOT is not configured as a directory",
+)
+
+
+def _run_doctor(*args: str, host: bool = False) -> subprocess.CompletedProcess[str]:
+    pythonpath = [str(SRC)]
+    if host:
+        if HOST_ROOT is None:
+            raise RuntimeError("HERMES_AGENT_HOST_ROOT is not configured")
+        pythonpath.append(str(HOST_ROOT))
+    env = {
+        "PATH": os.environ.get("PATH", os.defpath),
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPATH": os.pathsep.join(pythonpath),
+    }
+    command = [sys.executable]
+    if not host:
+        # The CI contract installs the exact Hermes host so the positive
+        # integration path has its declared dependencies.  Suppress all
+        # site-packages only for this negative probe so an editable host
+        # install cannot make the deliberately absent-host case compatible.
+        command.append("-S")
+    command.extend(["-m", "hermes_claude_agent_sdk", *args])
+    return subprocess.run(
+        command,
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_missing_host_is_nonzero_json_and_does_not_import_sdk() -> None:
+    result = _run_doctor("doctor", "--json")
+
+    assert result.returncode != 0
+    assert result.stderr == ""
+    report = json.loads(result.stdout)
+    assert report["status"] == "host_unavailable"
+    assert report["compatible"] is False
+    assert "claude_agent_sdk" not in report
+    assert "/Users/" not in result.stdout
+    assert "Traceback" not in result.stdout
+
+
+@requires_host_root
+def test_exact_host_is_zero_json_with_api_capabilities_and_sdk_metadata() -> None:
+    result = _run_doctor("doctor", "--json", host=True)
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    report = json.loads(result.stdout)
+    assert report["status"] == "compatible"
+    assert report["compatible"] is True
+    assert report["runtime_api"] == {
+        "plugin_max": 1,
+        "plugin_min": 1,
+        "host": 1,
+        "compatible": True,
+    }
+    assert report["capabilities"]["missing"] == []
+    assert report["capabilities"]["compatible"] is True
+    assert report["sdk"]["distribution"] == "claude-agent-sdk"
+    assert report["sdk"]["required_version"] == "0.2.151"
+    assert "claude_agent_sdk" not in report
+    assert "/Users/" not in result.stdout
+    assert "Traceback" not in result.stdout
+
+
+@requires_host_root
+def test_json_is_stable_and_console_entry_point_is_declared() -> None:
+    first = _run_doctor("--json", host=True)
+    second = _run_doctor("doctor", "--json", host=True)
+
+    assert first.returncode == second.returncode == 0
+    assert first.stdout == second.stdout
+    assert first.stdout.endswith("\n")
+    assert "hermes-claude-agent-sdk = \"hermes_claude_agent_sdk.__main__:main\"" in (
+        ROOT / "pyproject.toml"
+    ).read_text()

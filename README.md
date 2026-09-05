@@ -1,30 +1,119 @@
-# Hermes Claude Agent SDK Runtime
+# Hermes Claude Agent SDK Runtime — Revision 4
 
-`hermes-claude-agent-sdk` is the standalone, third-party Claude Agent SDK
-whole-turn runtime plugin for Hermes Agent. It is being extracted from
-[NousResearch/hermes-agent PR #65982](https://github.com/NousResearch/hermes-agent/pull/65982)
-behind a provider-neutral AgentRuntime v1 host contract.
+`hermes-claude-agent-sdk` is a standalone plugin for the Hermes host. Revision
+4 is the Hermes-owned, zero-native boundary: Hermes owns every visible behavior
+and side effect, while the Claude Agent SDK is used only for subscription
+transport, stream reading, cancellation, opaque external-session continuity,
+and native-compaction mapping.
 
-The default branch is currently a packaging and policy shell. It intentionally
-registers no runtime and performs no SDK import, credential lookup, subprocess
-start, or model query. Do not treat it as a working runtime or release.
+The plugin registers lazily through Hermes' public plugin entry point. It does
+not import the SDK, inspect credentials, start the bundled subprocess, or query
+a model during registration. Once Hermes has selected this runtime, the plugin
+constructs the public SDK client and translates its bounded stream into the
+host's generic events. Provider reasoning that the SDK or its bundled
+Claude Code-derived subprocess may use internally is not visible to Hermes or
+the operator; only the host-approved content, tool, lifecycle, and usage
+surfaces are exposed.
+
+Hermes composes the exact prompt, transcript, context, permissions, approvals,
+tool inventory, delegation, background delivery, status, persistence, usage,
+and replay behavior. The SDK receives that direct Hermes prompt as
+`system_prompt`, with `tools=[]` and `setting_sources=[]`. The only SDK tool
+surface is the strict, exact `hermes-tools` MCP server and its admitted
+`mcp__hermes-tools__<tool>` names. `bypassPermissions` disables an SDK-side
+permission prompt; it never bypasses Hermes approval or execution policy.
+
+There is no supported Claude-native `Agent` or background route in Revision 4.
+Delegation goes through the Hermes `delegate_task` tool, and detached completion
+goes through Hermes-owned background delivery. The plugin retains one public
+SDK client/reader per bound parent session and only the opaque external session
+identifier needed to resume that SDK conversation.
 
 ## Compatibility target
 
-The first release candidate targets the provider-neutral host branch
-`codex/agent-runtime-plugin-api-v1`, based on Hermes main
-`64b96bb5d2755f1d34347e1fb15924a97d652f31`. The architecture issue remains
-open until that branch and its exact candidate SHA are published and read back.
+The Revision 4 candidate is checked against the Hermes host at exact commit
+`15039e4f2d096b06f56369fbd78be09f3be73065`. The standalone plugin identity is
+the exact source commit and wheel digest recorded in the v4 result manifest;
+an unbound or zero digest cannot prove a candidate. The dependency target is
+`claude-agent-sdk` `0.2.151`, whose bundled Claude Code-derived CLI is
+`2.1.258`, with direct model `claude-fable-5-1`.
+
+This is an exact source-compatibility target, not a claim about upstream merge,
+publication, future Hermes/SDK versions, or customer readiness. Validate in an
+isolated checkout or virtual environment; do not replace a pinned installed
+Hermes merely to exercise this candidate.
+
+Run `hermes_claude_agent_sdk.doctor()` (or `doctor_json()`) from an environment
+with the public host API to inspect API and capability compatibility. The
+doctor never reads credentials or constructs an SDK client.
 
 - [Project tracker](https://github.com/100yenadmin/hermes-claude-agent-sdk/issues/1)
 - [Compatibility matrix](docs/compatibility.md)
 - [Architecture boundary](docs/architecture.md)
+- [Installed Hermes session handoff](docs/installed-hermes-session-handoff.md)
 - [Subscription-only security model](docs/subscription-only-security.md)
 - [Removal and rollback](docs/removal-and-rollback.md)
 
-## Release boundary
+## Revision 4 parity contract
 
-No package-index release is authorized. The first distributable candidate will
-be a checksummed GitHub prerelease tagged `v0.1.0-rc.1` only after the named host
-candidate, thin install/runtime/uninstall gate, frozen parity contract, package
-lifecycle, CI, and independent semantic review all pass.
+The repo-owned [`qa/parity-contract-v4.yaml`](qa/parity-contract-v4.yaml) is the
+current source-to-parity map. It preserves the v3 rows as historical
+predecessors, but replaces their provider-native assumptions with Hermes-owned
+proof atoms: zero-native absence, the direct Hermes prompt, exact settings and
+MCP inventory, canonical transcript/stream ownership, `delegate_task`, and
+host-owned background delivery. The v3 contract and its evidence remain
+historical only; they are not a current support or release claim.
+
+The historical v3/v4 parity modules and their executors remain available from
+the source checkout and source distribution for repository QA, but are
+intentionally excluded from the installed wheel. The wheel exposes only the
+Hermes plugin entry point and the offline doctor CLI. Revision 4's closed
+contract is validated by the repository's source-level v4 contract/runner
+modules and the exact candidate evidence harness; see
+[`qa/README.md`](qa/README.md). Any v4 executor must fail closed unless SDK
+`0.2.151`, bundled CLI `2.1.258`, direct model `claude-fable-5-1`, and the
+exact plugin/host SHAs are bound.
+
+The contract's runtime-soak row is a separate bounded evidence lane; neither a
+source map, deterministic test, nor local parity packet proves an upstream
+merge, package publication, future compatibility, or customer readiness. Do not
+substitute the OpenRouter/Nous slug `anthropic/claude-fable-5.1` for this
+subscription-only route.
+
+## Local installation and activation
+
+Install the exact locally built or otherwise approved artifact into the
+isolated Hermes environment. A local install is not a release or publication:
+
+```sh
+python -m pip install ./hermes_claude_agent_sdk-0.1.0rc1-py3-none-any.whl
+```
+
+Installation exposes the `hermes_agent.plugins` entry point but does not enable
+the plugin. Hermes keeps installed plugins disabled until the operator opts in
+explicitly. Enable this plugin with the supported host command:
+
+```sh
+hermes plugins enable claude-agent-sdk
+```
+
+To roll back while keeping the package installed, disable the entry point:
+
+```sh
+hermes plugins disable claude-agent-sdk
+```
+
+For full removal, disable the entry point first and then uninstall the package:
+
+```sh
+python -m pip uninstall -y hermes-claude-agent-sdk
+```
+
+Disabling or uninstalling this plugin does not remove built-in Hermes behavior.
+
+## Scope and proof boundary
+
+These instructions establish only a bounded local install/disable/remove path
+and the exact Revision 4 source-compatibility target. They do not authorize or
+prove an upstream merge, package release, future Hermes/SDK compatibility,
+shared-Eva or fleet operation, or customer readiness.
