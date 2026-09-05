@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import time
 from collections import deque
 from pathlib import Path
 
@@ -87,8 +88,9 @@ class _Transport:
         else:
             result = {}
         return {"jsonrpc": "2.0", "id": frame["id"], "result": result}
-    def recv(self, _):
+    def recv(self, timeout):
         if self.events: return self.events.popleft()
+        time.sleep(min(timeout, 0.01))
         raise TimeoutError
     def close(self): pass
 def _runner(home, factory, row="v2_non_soak/AUTH-01"):
@@ -192,9 +194,51 @@ def test_real_gateway_shape_binds_state_and_usage_to_durable_host_receipts(tmp_p
     monkeypatch.setattr(V4LiveSession, "collect_host_observation", lambda *_a, **_k: host)
     monkeypatch.setattr(V4LiveSession, "collect_delegation_observation", lambda *_a, **_k: {"status": "PASS", "count": 0, "background_count": 0, "invariant_violations": [], "parent_link_sha256": None, "lifecycle": "none"})
     transport = _Transport([_event("session.info"), _event("message.start"), _event("session.title"), _event("sessions.changed"), _event("status.update"), _event("session.usage"), _event("message.delta"), _event("message.complete", {"status": "completed"})])
+    captured = {}
+    build_packets = runner_module.build_v4_live_packets
+    def capture_packets(contract, scenario, receipt, *args, **kwargs):
+        captured.update(receipt)
+        return build_packets(contract, scenario, receipt, *args, **kwargs)
+    monkeypatch.setattr(runner_module, "build_v4_live_packets", capture_packets)
     result = _runner(tmp_path / "home", lambda **kwargs: Gateway(python="fake", cwd=ROOT, env=kwargs["env"], transport=transport, host_tools=kwargs["host_tools"], mcp_tools=kwargs["mcp_tools"])).execute()
     assert [event["kind"] for event in result["paths"]["positive"]["trial"].normalized_events] == ["start", "state", "usage", "terminal"]
     assert result["scenario_receipt"]["scenario_trace_hash"] != "0" * 64
+    assert captured["stream_projection"]["observation"]["event_count"] == sum(len(attempt["events"]) for attempt in captured["attempts"])
+
+
+def test_native_source_gateway_captures_only_sanitized_real_file_completions(tmp_path):
+    gateway = runner_module._NativeFileGateway(tmp_path, python="unused", cwd=ROOT, env={})
+    gateway._capture_native({"params": {"type": "tool.start", "payload": {"name": "read_file"}}})
+    assert not gateway.native_events
+    gateway._capture_native({"params": {"type": "tool.complete", "payload": {
+        "name": "read_file", "args": {"path": str(tmp_path / "facts.json")},
+        "result": {"content": "synthetic-only-content"},
+    }}})
+    assert gateway.native_events[0]["tool"] == "read"
+    assert gateway.native_events[0]["args"] == {"file_path": "facts.json"}
+    assert "synthetic-only-content" not in repr(gateway.native_events)
+    with pytest.raises(ValueError):
+        gateway._capture_native({"params": {"type": "tool.complete", "payload": {
+            "name": "write_file", "args": {"path": str(tmp_path.parent / "escape.json")}, "result": {},
+        }}})
+    with pytest.raises(V4NormalGatewayRunnerViolation, match="tool failed"):
+        gateway._capture_native({"params": {"type": "tool.complete", "payload": {
+            "name": "read_file", "args": {"path": "facts.json"}, "result": {"error": "fixture"},
+        }}})
+
+
+@pytest.mark.parametrize(("source", "trial", "reason"), [
+    ("error_recovery_20_browser_cron_message_orchestration_live", 1, "another Hermes surface"),
+    ("planning_21_long_horizon_preference_override_live", 2, "not mandatory"),
+])
+def test_native_source_runner_rejects_wrong_surface_or_repeat_before_io(tmp_path, source, trial, reason):
+    with pytest.raises(V4NormalGatewayRunnerViolation, match=reason):
+        runner_module.run_v4_native_read_write(
+            candidate=_candidate(), preflight_projections=_preflights(_candidate()),
+            source_root=tmp_path / "missing-source", source_item_id=source, trial_index=trial,
+            task_root=tmp_path, python=Path("unused"), host_root=tmp_path, plugin_root=ROOT,
+        )
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_restart_row_restarts_gateway_resumes_identity_and_flips_host_inventory(

@@ -15,6 +15,7 @@ from hermes_claude_agent_sdk.parity.native_sandbox import (
 )
 from hermes_claude_agent_sdk.parity.native_suite import (
     CLAWPROBENCH_SHA,
+    HERMES_NATIVE_FILE_OUTPUTS,
     LiveScenarioResult,
     NATIVE_OUTPUT_GUIDANCE,
     NATIVE_SAFETY_FRAMING,
@@ -330,6 +331,24 @@ def test_all_36_pinned_native_sources_load_with_bounded_tools() -> None:
     assert len(loaded) == 36
     assert {scenario.scenario_id for scenario in loaded} == set(NATIVE_SOURCE_IDS)
     assert all(set(scenario.tools) <= {"read", "write", "exec", "cron"} for scenario in loaded)
+
+
+def test_hermes_file_outputs_are_source_declared_not_answer_hints() -> None:
+    root = _pinned_root()
+    assert len(HERMES_NATIVE_FILE_OUTPUTS) == 12
+    assert set(HERMES_NATIVE_FILE_OUTPUTS) < NATIVE_READ_WRITE_ADAPTATIONS
+    for scenario_id, output in HERMES_NATIVE_FILE_OUTPUTS.items():
+        scenario = load_native_scenario(root, scenario_id)
+        assert output in scenario.prompt
+        assert Path(output).name == output
+
+
+@pytest.mark.parametrize("scenario_id", sorted(NATIVE_READ_WRITE_ADAPTATIONS - HERMES_NATIVE_FILE_OUTPUTS.keys()))
+def test_hermes_file_adapter_rejects_browser_dependent_source_before_staging(tmp_path, scenario_id) -> None:
+    root = _pinned_root()
+    with pytest.raises(ValueError, match="another Hermes surface adapter"):
+        prepare_hermes_native_read_write(root, scenario_id, tmp_path)
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_incident_commander_source_ambiguity_has_bounded_output_guidance() -> None:

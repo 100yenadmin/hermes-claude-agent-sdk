@@ -79,11 +79,9 @@ NATIVE_SOURCE_IDS = (
     "intel_m02_multi_surface_probe",
 )
 
-# These pinned live scenarios intentionally omit a ``tools`` field.  Their
-# prompts and custom checks are confined to a read-only fixture plus one JSON
-# result file; none of their named OpenClaw surfaces are invoked by the grader.
-# Adapt that source shape explicitly instead of exposing browser, message,
-# scheduler, memory, session, or agent effects—or silently dropping the rows.
+# These pinned scenarios omit a ``tools`` field. This retains their historical
+# catalog shape; it is NOT permission to execute all of them as file-only tasks.
+# Some prompts need browser observations that a JSON-output grader cannot prove.
 NATIVE_READ_WRITE_ADAPTATIONS = frozenset(
     {
         "constraints_22_message_audience_boundary_live",
@@ -106,6 +104,25 @@ NATIVE_READ_WRITE_ADAPTATIONS = frozenset(
         "tool_use_22_browser_dom_console_triage_live",
     }
 )
+
+# Explicitly inspected, self-contained decision problems. Their input files
+# contain all required observations; they ask for plans, not external effects.
+# Browser-dependent rows remain in native-36 but require another real Hermes
+# surface adapter. Never infer this boundary from a missing source tools field.
+HERMES_NATIVE_FILE_OUTPUTS = {
+    "constraints_22_message_audience_boundary_live": "audience_boundary.json",
+    "constraints_23_external_approval_boundary_live": "approval_boundary.json",
+    "error_recovery_22_incident_commander_sequence_live": "incident_commander_plan.json",
+    "error_recovery_25_rollback_gate_decision_live": "rollback_gate_decision.json",
+    "error_recovery_26_duplicate_automation_suppression_live": "automation_suppression_plan.json",
+    "planning_19_agent_delegation_boundary_live": "delegation_plan.json",
+    "planning_20_session_agent_handoff_live": "handoff_plan.json",
+    "planning_21_long_horizon_preference_override_live": "preference_override_plan.json",
+    "synthesis_25_memory_conflict_resolution_live": "memory_resolution.json",
+    "synthesis_26_memory_staleness_resolution_live": "memory_staleness_resolution.json",
+    "synthesis_27_memory_quadrant_resolution_live": "memory_quadrant_resolution.json",
+    "synthesis_29_memory_conflict_action_gate_live": "memory_action_gate.json",
+}
 
 # This pinned source prompt describes the decision but omits the deterministic
 # vocabulary enforced by its own checker. Keep the checker authoritative and
@@ -454,7 +471,7 @@ def prepare_hermes_native_read_write(
     if not _exact_git_checkout(source_root, CLAWPROBENCH_SHA):
         raise ValueError("native source checkout is not the clean pinned commit")
     scenario = load_native_scenario(source_root, scenario_id)
-    if set(scenario.tools) != {"read", "write"}:
+    if scenario_id not in HERMES_NATIVE_FILE_OUTPUTS or set(scenario.tools) != {"read", "write"}:
         raise ValueError("native scenario requires another Hermes surface adapter")
     if (
         not workspace.is_absolute() or workspace.is_symlink()

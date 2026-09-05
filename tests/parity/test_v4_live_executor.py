@@ -2,6 +2,7 @@ from __future__ import annotations
 from collections import deque
 from pathlib import Path
 from typing import Any
+import time
 
 import pytest
 
@@ -83,11 +84,12 @@ class _FakeTransport:
         result = {"session_id": self._session_id} if method == "session.create" else {"status": "streaming"}
         return {"jsonrpc": "2.0", "id": frame["id"], "result": result}
 
-    def recv(self, _: float) -> dict[str, object]:
+    def recv(self, timeout: float) -> dict[str, object]:
         if self._ready:
             self._ready = False
             return _event("gateway.ready")
         if not self._events:
+            time.sleep(min(timeout, 0.01))
             raise TimeoutError
         return self._events.popleft()
 

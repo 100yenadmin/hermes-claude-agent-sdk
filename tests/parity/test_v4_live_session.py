@@ -2,6 +2,7 @@ from __future__ import annotations
 from collections import deque
 from pathlib import Path
 from typing import Any
+import time
 import pytest
 from hermes_claude_agent_sdk.parity import v4_live_session as live_session_module
 from hermes_claude_agent_sdk.parity.v4_gateway import Gateway, OpaqueHandle
@@ -46,9 +47,10 @@ class _SessionTransport:
         return {"jsonrpc": "2.0", "id": frame["id"], "result": result}
     def _live_id(self) -> str:
         return "resumed-live-session" if self.resume else LIVE_SESSION_ID
-    def recv(self, _: float) -> dict[str, object]:
+    def recv(self, timeout: float) -> dict[str, object]:
         if self._events:
             return self._events.popleft()
+        time.sleep(min(timeout, 0.01))
         raise TimeoutError
     def close(self) -> None:
         self.closed = True

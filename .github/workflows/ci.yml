@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, codex/initial-plugin-extraction]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -22,12 +22,13 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Check out exact AgentRuntime v1 host contract
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: 100yenadmin/hermes-agent-for-upstream-PR-only
-          ref: 15039e4f2d096b06f56369fbd78be09f3be73065
+          ref: 312a3ba269598be61e94acef3a564ea7ea816439
           path: _host
           persist-credentials: false
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -43,6 +44,14 @@ jobs:
       - name: Build distributions
         if: matrix.python-version == '3.11'
         run: python -m build
+      - name: Retain exact-head wheel for artifact-equivalence readback
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1; same pin as host CI
+        with:
+          name: candidate-wheel-${{ github.event.pull_request.head.sha || github.sha }}
+          path: dist/*.whl
+          if-no-files-found: error
+          retention-days: 14
 
   package-lifecycle:
     name: Offline package lifecycle
@@ -50,6 +59,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:

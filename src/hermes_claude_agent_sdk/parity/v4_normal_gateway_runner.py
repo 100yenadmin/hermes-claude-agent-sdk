@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -35,6 +36,11 @@ from .v4_local_mechanism_executor import execute_v4_local_mechanism
 from .v4_local_path_executor import execute_v4_local_path
 from .v4_local_restart import run_v4_local_restart
 from .hashing import canonical_json_bytes, sha256_value
+from .native_suite import (
+    HERMES_NATIVE_FILE_OUTPUTS,
+    grade_native_trace,
+    prepare_hermes_native_read_write,
+)
 from .results import candidate_hash as result_candidate_hash
 
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
@@ -79,6 +85,8 @@ _ZERO_CHILD_BACKGROUND_ROWS = frozenset(
 )
 _RESTART_ROW = "openclaw_active/config-restart-capability-flip"
 _RESTART_REMOVED_TOOL = "v4_fixture_local_state"
+_NATIVE_FILE_TOOLS = frozenset({"read_file", "write_file", "patch", "search_files"})
+_NATIVE_FILE_EVENTS = _NATIVE_FILE_TOOLS | {"tool_search", "tool_describe", "tool_call"}
 @dataclass(frozen=True, slots=True)
 class V4NormalGatewayAdmission:
     candidate_hash: str
@@ -399,6 +407,135 @@ def _local_observations(scenario: Any, trial_index: int, task_root: Path) -> dic
     return observations
 
 
+class _NativeFileGateway(Gateway):
+    """Project actual Hermes file-tool completions into the pinned trace shape."""
+
+    def __init__(self, workspace: Path, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.workspace = workspace.resolve()
+        self.native_events: list[dict[str, Any]] = []
+
+    def _capture_native(self, raw: Mapping[str, Any]) -> None:
+        params = raw.get("params", {})
+        if params.get("type") != "tool.complete":
+            return
+        payload = params.get("payload", {})
+        name, arguments = payload.get("name"), payload.get("args", {})
+        if name not in {"read_file", "write_file"}:
+            return
+        path = Path(arguments["path"])
+        path = path if path.is_absolute() else self.workspace / path
+        if path.is_symlink():
+            raise V4NormalGatewayRunnerViolation("native file tool used a symlink")
+        relative = path.resolve().relative_to(self.workspace)
+        result = payload.get("result")
+        if isinstance(result, Mapping) and (result.get("error") or result.get("success") is False):
+            raise V4NormalGatewayRunnerViolation("Hermes native file tool failed")
+        self.native_events.append({
+            "type": "tool_call", "tool": "read" if name == "read_file" else "write",
+            "args": {"file_path": relative.as_posix()}, "seq": len(self.native_events),
+            "result_sha256": sha256_value(result),
+        })
+
+    def next_event(self, *, projector: Callable[..., Any] | None = None, **kwargs: Any) -> Any:
+        def project(raw: Mapping[str, Any]) -> Any:
+            self._capture_native(raw)
+            return projector(raw) if projector else None
+        return super().next_event(projector=project, **kwargs)
+
+
+def run_v4_native_read_write(
+    *, candidate: Mapping[str, Any], preflight_projections: Mapping[str, Mapping[str, Any]],
+    source_root: Path, source_item_id: str, trial_index: int, task_root: Path,
+    python: Path, host_root: Path, plugin_root: Path,
+) -> dict[str, Any]:
+    """Run one source-faithful positive trial through installed normal Hermes.
+
+    Reuses the same Gateway, session, inventory and host-observation machinery.
+    This is positive/source evidence only; it cannot issue denial/recovery or
+    whole-RC passes. The caller owns artifact admission and immutable receipts.
+    """
+    normalized, candidate_hash = _candidate(candidate)
+    _preflight_hash(preflight_projections, candidate_hash)
+    logical = HERMES_NATIVE_FILE_OUTPUTS.get(source_item_id)
+    if logical is None:
+        raise V4NormalGatewayRunnerViolation("native scenario requires another Hermes surface adapter")
+    map_path = plugin_root / "qa/parity-v4-live-execution-map.yaml"
+    catalog = build_v4_live_scenario_catalog(load_v4_live_execution_map(map_path), map_path=map_path)
+    scenario_row = next(item for item in catalog.scenarios if item.row_key == f"clawprobench_native/{source_item_id}")
+    if type(trial_index) is not int or trial_index not in scenario_row.trial_indexes:
+        raise V4NormalGatewayRunnerViolation("native trial is not mandatory")
+    root = _bounded_root(task_root, allow_missing=False)
+    if any(root.iterdir()):
+        raise V4NormalGatewayRunnerViolation("native task root must be fresh")
+    config = {
+        "model": {"default": normalized["model"], "provider": "claude-agent-sdk"},
+        "plugins": {"enabled": ["claude-agent-sdk", "v4_hermes_fixture"], "disabled": [],
+                    "entries": {name: {"allow_tool_override": False} for name in ("claude-agent-sdk", "v4_hermes_fixture")}},
+    }
+    physical = "audience_boundary.json"  # Existing host-policy single-output fence.
+    profile = {"id": "fable-v3-isolated", "config": config, "toolsets": ["file"],
+               "fixture_policy": "isolated-audience-read-write", "output": physical}
+    if sha256_value(profile) != normalized["profile_sha256"]:
+        raise V4NormalGatewayRunnerViolation("native file profile identity differs")
+    home, workspace, graded, grade_root = (root / name for name in ("home", "workspace", "graded", "grade"))
+    for directory in (home, workspace, graded, grade_root):
+        directory.mkdir()
+    source, prompt, protected = prepare_hermes_native_read_write(source_root, source_item_id, workspace)
+    before = {path.relative_to(workspace).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in protected}
+    if logical != physical:
+        prompt += (f"\nFilename mapping for this isolated Hermes adapter: the source output {logical} "
+                   f"is stored physically as {physical}. Write that physical filename instead; "
+                   "its content and every source rule are unchanged. The grader maps it back "
+                   "without changing file contents.")
+    (home / "config.yaml").write_text(json.dumps(config), encoding="utf-8")
+    _stage_plugin(plugin_root / "tests/fixtures/v4_hermes_plugin", home)
+    env = _safe_env(home, model=normalized["model"])
+    env.update({"HERMES_TUI_TOOLSETS": "file", "HERMES_V4_NATIVE_FIXTURE_ROOT": str(workspace)})
+    gateway = _NativeFileGateway(workspace, python=python, cwd=host_root, env=env,
+                                host_tools=_NATIVE_FILE_EVENTS,
+                                mcp_tools={f"mcp__hermes-tools__{name}" for name in _NATIVE_FILE_EVENTS})
+    session = V4LiveSession(
+        gateway=_ObservedGateway(gateway, workspace), candidate=normalized,
+        preflight_projections=preflight_projections, live_map=map_path,
+        session_params={"cwd": str(workspace), "hidden": False, "title": "Native source behavior proof"},
+    )
+    try:
+        session.start()
+        inventory = session.verify_tool_inventory(sorted(_NATIVE_FILE_TOOLS))
+        attempt = session.run_turn(prompt, source_pack="clawprobench_native", source_item_id=source_item_id,
+                                   path="positive", trial_index=trial_index, approval_choice="allow")
+        host = session.collect_host_observation(home / "state.db", allowed_root=home, expected_turn_count=1)
+    finally:
+        session.close()
+    after = {path.relative_to(workspace).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in protected}
+    output = workspace / physical
+    if before != after or output.is_symlink() or not output.is_file():
+        raise V4NormalGatewayRunnerViolation("native inputs changed or output is absent")
+    if logical != physical and (workspace / logical).exists():
+        raise V4NormalGatewayRunnerViolation("native output bypassed the declared filename mapping")
+    if {event["tool"] for event in gateway.native_events} != {"read", "write"}:
+        raise V4NormalGatewayRunnerViolation("actual Hermes read/write proof is incomplete")
+    shutil.copyfile(output, graded / logical)
+    output_hash = hashlib.sha256(output.read_bytes()).hexdigest()
+    if output_hash != hashlib.sha256((graded / logical).read_bytes()).hexdigest():
+        raise V4NormalGatewayRunnerViolation("native output mapping changed content")
+    trace = {"events": gateway.native_events, "metrics": {"tool_calls": len(gateway.native_events), "assistant_turns": 1}}
+    grade = grade_native_trace(source, source_root=source_root, workspace=graded, trace=trace, temp_root=grade_root)
+    complete = grade["passed"] and grade["safety_passed"] and all(check["earned"] == check["points"] for check in grade["checks"])
+    return {
+        "classification": "COMPLETE" if complete else "VERIFIED_FAILURE", "candidate": normalized,
+        "trial_index": trial_index, "source_item_id": source_item_id,
+        "source_bundle_hash": source.source_bundle_hash, "fixture_hash": source.fixture_hash,
+        "attempt": attempt, "host": host, "trace": trace, "trace_sha256": sha256_value(trace), "grade": grade,
+        "inventory_sha256": sha256_value(inventory), "provider_calls": attempt["provider_calls"],
+        "source_prompt_sha256": sha256_value(source.prompt), "executed_prompt_sha256": sha256_value(prompt),
+        "filename_mapping": {"logical": logical, "physical": physical, "content_sha256": output_hash, "contents_identical": True},
+        "runner_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "proof_boundary": "Source-faithful positive behavior in real Hermes; not denial/recovery, full native-36, release_ready or runtime_safe.",
+    }
+
+
 class V4NormalGatewayRunner:
     """Admit one row/trial and execute only its positive provider turns."""
 
@@ -633,7 +770,7 @@ class V4NormalGatewayRunner:
             delegation = _delegation(scenario, trial_index, snapshots, durable)
             packet_attempts = [_packet_attempt(attempt) for attempt in attempts]
             trial_candidate_hash = result_candidate_hash(catalog_hash=V3_RESULT_CATALOG_HASH, plugin_sha=self._candidate["plugin_sha"], host_sha=self._candidate["host_sha"], sdk_version=self._candidate["sdk_version"], profile_hash=self._candidate["profile_sha256"], runner_version=self._candidate["runner_version"], inventory_hash=self._inventory_hash)
-            receipt = {"schema_version": 1, "candidate": self._candidate, "preflight_projections": self._preflights, "attempts": packet_attempts, "host_observation": host, "profile_id": self._profile_id, "inventory_hash": self._inventory_hash, "stream_projection": {"schema_version": 1, "name": "stream", "candidate_hash": self._candidate_hash, "trial_candidate_hash": trial_candidate_hash, "trial_index": trial_index, "status": "PASS", "source": {"executable": "normal_gateway", "source_ref": "v4_gateway_observer", "test_id": "positive_turn"}, "observation": {"event_count": sum(item["event_count"] for item in attempts), "provider_calls": scenario.turn_count}}, "scenario_trace": trace, "delegation": delegation}
+            receipt = {"schema_version": 1, "candidate": self._candidate, "preflight_projections": self._preflights, "attempts": packet_attempts, "host_observation": host, "profile_id": self._profile_id, "inventory_hash": self._inventory_hash, "stream_projection": {"schema_version": 1, "name": "stream", "candidate_hash": self._candidate_hash, "trial_candidate_hash": trial_candidate_hash, "trial_index": trial_index, "status": "PASS", "source": {"executable": "normal_gateway", "source_ref": "v4_gateway_observer", "test_id": "positive_turn"}, "observation": {"event_count": sum(item["event_count"] for item in packet_attempts), "provider_calls": scenario.turn_count}}, "scenario_trace": trace, "delegation": delegation}
             if restart_observation is not None:
                 receipt["restart_observation"] = restart_observation
             local_observations = _local_observations(scenario, trial_index, self._task_root)

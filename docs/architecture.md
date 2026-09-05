@@ -77,8 +77,13 @@ prompts, transcripts, or customer data.
 
 The source and parity checks bind this boundary to the exact plugin commit and
 wheel digest recorded in the v4 result manifest, host commit
-`15039e4f2d096b06f56369fbd78be09f3be73065`, SDK `0.2.151`, bundled CLI
+`312a3ba269598be61e94acef3a564ea7ea816439`, SDK `0.2.151`, bundled CLI
 `2.1.258`, and direct model `claude-fable-5-1`. A plugin source document cannot
 self-identify its final commit, so an unbound or zero digest is never accepted
 as candidate proof. These identities establish a bounded candidate only; they
 do not prove merge, release, future compatibility, or customer readiness.
+
+The ADR link above remains the original v1 interface decision. The current host
+candidate adds provider-neutral persisted identity and configured-tool discovery
+corrections; it does not create a Claude-specific interface. Historical results
+remain bound to their original candidates, not restamped as current proof.
