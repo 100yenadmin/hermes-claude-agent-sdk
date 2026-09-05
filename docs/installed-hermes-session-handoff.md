@@ -8,7 +8,8 @@ an SDK-owned transcript. Hermes owns the visible session and effects.
 
 The `0.1.0rc1` plugin candidate is identified by the exact source commit and
 wheel digest recorded in its v4 result manifest. It targets the Hermes host at
-exact commit `15039e4f2d096b06f56369fbd78be09f3be73065`. The installed data-plane
+exact commit `80332e62eb19e48ed4a1c220dc4c06fe343418ac` (the original Revision 4
+baseline was `15039e4f2d096b06f56369fbd78be09f3be73065`). The installed data-plane
 entrypoint is:
 
 ```sh
@@ -19,6 +20,36 @@ Hermes' desktop and TUI clients speak newline-delimited JSON-RPC to this
 process over standard input and output. The session store is the existing
 SQLite database at `<HERMES_HOME>/state.db`; the plugin does not add a second
 store.
+
+## Required image setup for the subscription model
+
+Select `claude-agent-sdk` with `claude-fable-5-1` in the intended Hermes
+profile. Also declare this model's vision capability using the existing
+Hermes configuration command:
+
+```sh
+hermes config set model.supports_vision true
+```
+
+Run this against the intended profile (or with its explicit `HERMES_HOME`),
+not an unrelated default profile. This is model configuration, not a new host
+API or plugin-owned tool. It lets Hermes send native image parts through the
+same subscription-authenticated model transport. No auxiliary paid vision
+provider is needed. Do not retain this model-level override when switching
+the profile to a model that cannot accept images.
+
+Without the capability declaration, Hermes' automatic model catalog may not
+recognize the standalone subscription provider/model. It then supplies a
+text-only attachment reference for `vision_analyze`, rather than the image
+bytes. That does not prove native image support and must not be silently
+accepted as a pass or routed through a paid fallback.
+
+The installed setup proof must check the image answer, the saved `@image:`
+attachment reference and its file checksum, normal visible-session state,
+subscription-included billing, and zero auxiliary tool calls. Hermes may
+persist the image as a file reference instead of embedding image bytes in
+the conversation database. Current qualification and immutable artifact
+identity are recorded in [release issue #9](https://github.com/100yenadmin/hermes-claude-agent-sdk/issues/9).
 
 ## Zero-model session sequence
 
