@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
 from urllib.parse import urlsplit
@@ -157,6 +158,47 @@ def _native_browser_read(tool_name: str, args: Mapping[str, Any]) -> bool:
     return False
 
 
+def _native_oneshot_store(tool_name: str, args: Mapping[str, Any], root: Path) -> bool:
+    """Admit only one future-window reminder in the operator's sibling home."""
+    if tool_name != "cronjob_manage" or os.environ.get("HERMES_V4_NATIVE_CRON") != "isolated-oneshot-v1":
+        return False
+    home = _task_root(os.environ.get("HERMES_HOME"))
+    if home.name != "home" or root.name != "workspace" or home.parent != root.parent:
+        return False
+    if args.get("action") == "list":
+        return set(args) <= {"action", "include_disabled"} and type(args.get("include_disabled", False)) is bool
+    if set(args) - {"action", "schedule", "repeat", "prompt", "deliver", "name"}:
+        return False
+    if (args.get("action") != "create" or args.get("deliver") != "local"
+            or type(args.get("repeat")) is not int or args["repeat"] != 1
+            or args.get("prompt") != "remind me to run the smoke check"):
+        return False
+    if "name" in args and (not isinstance(args["name"], str) or not 0 < len(args["name"]) <= 80):
+        return False
+    schedule = args.get("schedule")
+    if not isinstance(schedule, str) or "T" not in schedule or len(schedule) > 32:
+        return False
+    request_path = root / "request.json"
+    store = home / "cron" / "jobs.json"
+    if request_path.is_symlink() or (home / "cron").is_symlink() or store.is_symlink():
+        return False
+    request = json.loads(request_path.read_text(encoding="utf-8"))
+    if not isinstance(request, dict) or not isinstance(request.get("allowed_window"), dict):
+        return False
+    window = request["allowed_window"]
+    if not all(isinstance(window.get(key), str) for key in ("start", "end")):
+        return False
+    instant = datetime.fromisoformat(schedule)
+    start, end = (datetime.fromisoformat(window[key]) for key in ("start", "end"))
+    if any(value.tzinfo is not None for value in (instant, start, end)):
+        return False
+    if not start <= instant < end or instant <= datetime.now():
+        return False
+    # A fresh fixture starts without a jobs file. Listing remains allowed
+    # after creation; a second create needs a new isolated trial.
+    return not store.exists()
+
+
 def pre_tool_call(tool_name: str, args: Mapping[str, Any], **_: Any) -> dict[str, str] | None:
     """Request the host approval gate for state mutation, never grant it."""
     native_root = os.environ.get("HERMES_V4_NATIVE_FIXTURE_ROOT")
@@ -167,6 +209,8 @@ def pre_tool_call(tool_name: str, args: Mapping[str, Any], **_: Any) -> dict[str
         try:
             root = _task_root(native_root)
             if tool_name in {"tool_search", "tool_describe"}:
+                return None
+            if _native_oneshot_store(tool_name, args, root):
                 return None
             if tool_name.startswith("browser_") and _native_browser_read(tool_name, args):
                 return None

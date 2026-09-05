@@ -185,6 +185,67 @@ def test_native_skills_allow_only_isolated_readiness_reads(tmp_path, monkeypatch
     assert plugin.pre_tool_call("skill_view", {"name": "weather"})["action"] == "block"
 
 
+def _oneshot_fixture(tmp_path, monkeypatch):
+    home, root = tmp_path / "home", tmp_path / "workspace"
+    home.mkdir()
+    root.mkdir()
+    (root / "request.json").write_text(json.dumps({"allowed_window": {
+        "start": "2099-01-02T08:30:00", "end": "2099-01-02T12:00:00",
+    }}))
+    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setenv("HERMES_V4_NATIVE_FIXTURE_ROOT", str(root))
+    monkeypatch.setenv("HERMES_V4_NATIVE_CRON", "isolated-oneshot-v1")
+    return home, root, {"action": "create", "schedule": "2099-01-02T09:57:00", "repeat": 1,
+                        "prompt": "remind me to run the smoke check", "deliver": "local"}
+
+
+def test_native_oneshot_store_admission_is_local_bounded_and_opt_in(tmp_path, monkeypatch):
+    plugin = _fixture_module()
+    home, root, args = _oneshot_fixture(tmp_path, monkeypatch)
+    assert plugin.pre_tool_call("cronjob_manage", args) is None
+    assert plugin.pre_tool_call("cronjob_manage", {"action": "list"}) is None
+    assert not (home / "cron").exists()  # Guard does not implement the cron tool.
+    assert plugin.pre_tool_call("write_file", {"path": "request.json"})["action"] == "block"
+    assert plugin.pre_tool_call("terminal", {"command": "true"})["action"] == "block"
+    (home / "cron").mkdir()
+    (home / "cron/jobs.json").write_text('{"jobs": []}')
+    assert plugin.pre_tool_call("cronjob_manage", args)["action"] == "block"
+    assert plugin.pre_tool_call("cronjob_manage", {"action": "list", "include_disabled": True}) is None
+    monkeypatch.delenv("HERMES_V4_NATIVE_CRON")
+    assert plugin.pre_tool_call("cronjob_manage", {"action": "list"})["action"] == "block"
+
+
+@pytest.mark.parametrize("changed", [
+    {"action": "run"}, {"action": "remove"}, {"action": "update"},
+    {"deliver": "origin"}, {"deliver": "all"}, {"failure_deliver": "all"},
+    {"repeat": None}, {"repeat": True}, {"repeat": 2},
+    {"prompt": "different task"}, {"schedule": "every hour"},
+    {"schedule": "57 9 2 1 *"}, {"schedule": "2099-01-02T12:00:00"},
+    {"schedule": "2099-01-02T09:57:00Z"}, {"schedule": "2000-01-02T09:57:00"},
+    {"provider": "anything"}, {"model": "anything"}, {"base_url": "http://127.0.0.1"},
+    {"script": "anything"}, {"monitor": "anything"}, {"no_agent": True},
+    {"workdir": "/"}, {"context_from": ["other"]},
+])
+def test_native_oneshot_store_rejects_other_effects(tmp_path, monkeypatch, changed):
+    plugin = _fixture_module()
+    home, root, args = _oneshot_fixture(tmp_path, monkeypatch)
+    assert plugin.pre_tool_call("cronjob_manage", dict(args, **changed))["action"] == "block"
+    assert not (home / "cron").exists()
+
+
+def test_native_oneshot_store_rejects_ambiguous_home_and_symlink_inputs(tmp_path, monkeypatch):
+    plugin = _fixture_module()
+    home, root, args = _oneshot_fixture(tmp_path, monkeypatch)
+    monkeypatch.setenv("HERMES_HOME", str(root))
+    assert plugin.pre_tool_call("cronjob_manage", args)["action"] == "block"
+    monkeypatch.setenv("HERMES_HOME", str(home))
+    (root / "original.json").write_text((root / "request.json").read_text())
+    (root / "request.json").unlink()
+    (root / "request.json").symlink_to(root / "original.json")
+    assert plugin.pre_tool_call("cronjob_manage", args)["action"] == "block"
+    assert plugin.pre_tool_call("cronjob_manage", {"action": "list", "include_disabled": "yes"})["action"] == "block"
+
+
 def test_pre_tool_call_requests_host_approval_and_blocks_unsafe_input(tmp_path: Path) -> None:
     plugin = _fixture_module()
 
