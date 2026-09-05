@@ -1132,6 +1132,7 @@ def test_unknown_billing_blocks_success_and_tool_side_effect_is_conservative() -
 
     assert [event.kind.value for event in unknown] == ["failed"]
     assert unknown[0].failure.code == "claude_subscription_billing_blocked"
+    assert unknown[0].failure.message == "Claude subscription billing blocked: unknown_evidence"
     assert unknown[0].failure.replay_safe is False
     assert [event.kind.value for event in after_tool][-1] == "failed"
     assert after_tool[-1].failure.phase.value == "after_side_effects"

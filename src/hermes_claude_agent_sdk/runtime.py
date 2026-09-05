@@ -646,11 +646,21 @@ class ClaudeAgentSDKRuntime:
                 if result.error_code == "sdk_native_tool_unsupported"
                 else result.error_code or "claude_runtime_failed"
             )
+            failure_message = "Claude runtime turn failed"
+            if result.outcome is SessionOutcome.BILLING_BLOCKED:
+                from .billing import BillingBlockReason
+
+                reason = getattr(result.billing_decision, "block_reason", None)
+                reason_code = (
+                    reason.value if isinstance(reason, BillingBlockReason)
+                    else BillingBlockReason.UNKNOWN_EVIDENCE.value
+                )
+                failure_message = f"Claude subscription billing blocked: {reason_code}"
             terminal = True
             yield RuntimeFailedEvent(
                 failure=_failure(
                     code,
-                    "Claude runtime turn failed",
+                    failure_message,
                     phase,
                     replay_safe=False,
                     retryable=result.retryable,

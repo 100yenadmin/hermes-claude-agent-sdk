@@ -85,7 +85,13 @@ _SAFE_OVERAGE_STATUSES = frozenset(
     {"rejected", "disabled", "not_allowed", "not-allowed", "inactive", "none"}
 )
 _RISKY_OVERAGE_STATUSES = frozenset({"allowed", "allowed_warning", "allowed-warning"})
-_SAFE_RATE_LIMIT_TYPES = frozenset({"five_hour", "five-hour", "seven_day", "seven-day"})
+_SAFE_RATE_LIMIT_TYPES = frozenset(
+    {
+        "five_hour", "five-hour", "seven_day", "seven-day",
+        # The pinned SDK distinguishes these subscription windows from overage.
+        "seven_day_opus", "seven_day_sonnet",
+    }
+)
 
 _SECRETISH_ENV_PARTS = frozenset(
     {

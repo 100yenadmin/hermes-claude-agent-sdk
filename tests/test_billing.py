@@ -141,13 +141,14 @@ def test_extract_system_and_rate_limit_evidence_is_bounded_and_serializable() ->
     assert SYNTHETIC_API_KEY not in json.dumps(system.to_dict(), sort_keys=True)
 
 
-def test_recognized_non_overage_evidence_is_included() -> None:
+@pytest.mark.parametrize("window", ("five_hour", "seven_day", "seven_day_opus", "seven_day_sonnet"))
+def test_recognized_non_overage_evidence_is_included(window: str) -> None:
     result = classify_sdk_billing(
         SDKBillingEvidence(
             api_key_source="none",
             is_using_overage=False,
             overage_status="rejected",
-            rate_limit_type="five_hour",
+            rate_limit_type=window,
         )
     )
 
@@ -155,6 +156,32 @@ def test_recognized_non_overage_evidence_is_included() -> None:
     assert result.mode is BillingMode.SUBSCRIPTION_INCLUDED
     assert result.block_reason is None
     assert result.to_dict()["billing_mode"] == BillingMode.SUBSCRIPTION_INCLUDED.value
+
+
+@pytest.mark.parametrize("window", ("seven_day_opus", "seven_day_sonnet"))
+def test_pinned_sdk_model_window_event_is_non_overage(window: str) -> None:
+    from claude_agent_sdk.types import RateLimitEvent, RateLimitInfo
+
+    event = RateLimitEvent(
+        rate_limit_info=RateLimitInfo(status="allowed", rate_limit_type=window),
+        uuid="synthetic-event", session_id="synthetic-session",
+    )
+    result = classify_sdk_billing(extract_sdk_billing_evidence(event))
+    assert result.allowed
+    assert result.mode is BillingMode.SUBSCRIPTION_INCLUDED
+
+
+@pytest.mark.parametrize("window", ("seven_day_opus", "seven_day_sonnet"))
+@pytest.mark.parametrize("unsafe", (
+    {"is_using_overage": True}, {"overage_status": "allowed"},
+    {"api_key_source": "metered"},
+))
+def test_model_window_does_not_override_unsafe_billing(window: str, unsafe: dict) -> None:
+    result = classify_sdk_billing(
+        SDKBillingEvidence(rate_limit_type=window, **unsafe)
+    )
+    assert not result.allowed
+    assert result.block_reason is not None
 
 
 @pytest.mark.parametrize(
