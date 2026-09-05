@@ -170,6 +170,13 @@ def pre_tool_call(tool_name: str, args: Mapping[str, Any], **_: Any) -> dict[str
                 return None
             if tool_name.startswith("browser_") and _native_browser_read(tool_name, args):
                 return None
+            if os.environ.get("HERMES_V4_NATIVE_SKILLS") == "isolated-readiness-v1":
+                if tool_name == "skills_list" and set(args) <= {"category"} and args.get("category") is None:
+                    return None
+                if (tool_name == "skill_view" and set(args) <= {"name", "file_path"}
+                        and args.get("name") in {"weather", "slack"}
+                        and args.get("file_path") is None):
+                    return None
             if tool_name not in {"read_file", "write_file"}:
                 raise _invalid()
             raw_path = args.get("path")

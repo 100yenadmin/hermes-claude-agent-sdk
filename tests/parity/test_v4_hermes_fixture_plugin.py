@@ -158,6 +158,33 @@ def test_native_browser_requires_valid_operator_url(tmp_path, monkeypatch, url):
     assert plugin.pre_tool_call("browser_navigate", {"url": url})["action"] == "block"
 
 
+@pytest.mark.parametrize("name,args,allowed", [
+    ("skills_list", {}, True),
+    ("skills_list", {"category": None}, True),
+    ("skill_view", {"name": "weather"}, True),
+    ("skill_view", {"name": "slack", "file_path": None}, True),
+    ("skills_list", {"category": "unrelated"}, False),
+    ("skill_view", {"name": "unrelated"}, False),
+    ("skill_view", {"name": "../weather"}, False),
+    ("skill_view", {"name": "weather", "file_path": "../../outside"}, False),
+    ("skill_view", {"name": "weather", "preprocess": True}, False),
+    ("skill_manage", {"action": "delete", "name": "weather"}, False),
+    ("terminal", {"command": "true"}, False),
+])
+def test_native_skills_allow_only_isolated_readiness_reads(tmp_path, monkeypatch, name, args, allowed):
+    plugin = _fixture_module()
+    monkeypatch.setenv("HERMES_V4_NATIVE_FIXTURE_ROOT", str(tmp_path))
+    monkeypatch.setenv("HERMES_V4_NATIVE_SKILLS", "isolated-readiness-v1")
+    result = plugin.pre_tool_call(name, args)
+    assert (result is None) is allowed
+    if not allowed:
+        assert result["action"] == "block"
+    assert plugin.pre_tool_call("write_file", {"path": "input.json"})["action"] == "block"
+    monkeypatch.delenv("HERMES_V4_NATIVE_SKILLS")
+    assert plugin.pre_tool_call("skills_list", {})["action"] == "block"
+    assert plugin.pre_tool_call("skill_view", {"name": "weather"})["action"] == "block"
+
+
 def test_pre_tool_call_requests_host_approval_and_blocks_unsafe_input(tmp_path: Path) -> None:
     plugin = _fixture_module()
 
