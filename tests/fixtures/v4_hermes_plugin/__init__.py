@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 from typing import Any, Mapping
+from urllib.parse import urlsplit
 
 PLUGIN_ID = "v4_hermes_fixture"
 TOOL_NAME = "v4_fixture_local_state"
@@ -131,6 +132,31 @@ def fixture_tool(args: Mapping[str, Any], **_: Any) -> str:
     return json.dumps(result, sort_keys=True, separators=(",", ":"))
 
 
+def _native_browser_read(tool_name: str, args: Mapping[str, Any]) -> bool:
+    """Allow only the operator-owned local page and non-mutating inspection."""
+    url = os.environ.get("HERMES_V4_NATIVE_BROWSER_URL", "")
+    try:
+        parsed = urlsplit(url)
+        valid = (parsed.scheme == "http" and parsed.hostname == "127.0.0.1"
+                 and parsed.port is not None and parsed.port > 0
+                 and not parsed.username and not parsed.password
+                 and not parsed.query and not parsed.fragment
+                 and parsed.path in {"/dashboard", "/status"})
+    except ValueError:
+        return False
+    if not valid:
+        return False
+    if tool_name == "browser_navigate":
+        return dict(args) == {"url": url}
+    if tool_name == "browser_snapshot":
+        return set(args) <= {"full"} and type(args.get("full", False)) is bool
+    if tool_name == "browser_console":
+        return (set(args) <= {"clear", "expression"}
+                and args.get("clear", False) is False
+                and args.get("expression") in {None, "document.body.textContent", "document.title"})
+    return False
+
+
 def pre_tool_call(tool_name: str, args: Mapping[str, Any], **_: Any) -> dict[str, str] | None:
     """Request the host approval gate for state mutation, never grant it."""
     native_root = os.environ.get("HERMES_V4_NATIVE_FIXTURE_ROOT")
@@ -141,6 +167,8 @@ def pre_tool_call(tool_name: str, args: Mapping[str, Any], **_: Any) -> dict[str
         try:
             root = _task_root(native_root)
             if tool_name in {"tool_search", "tool_describe"}:
+                return None
+            if tool_name.startswith("browser_") and _native_browser_read(tool_name, args):
                 return None
             if tool_name not in {"read_file", "write_file"}:
                 raise _invalid()

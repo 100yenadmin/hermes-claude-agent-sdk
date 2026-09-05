@@ -125,6 +125,39 @@ def test_record_is_bounded_and_keeps_only_hashes_and_counts(tmp_path: Path) -> N
     assert str(tmp_path) not in state.read_text(encoding="utf-8")
 
 
+@pytest.mark.parametrize("name,args,allowed", [
+    ("browser_navigate", {"url": "http://127.0.0.1:41731/dashboard"}, True),
+    ("browser_snapshot", {"full": True}, True),
+    ("browser_console", {}, True),
+    ("browser_console", {"expression": "document.body.textContent"}, True),
+    ("browser_navigate", {"url": "http://127.0.0.1:41732/dashboard"}, False),
+    ("browser_navigate", {"url": "https://example.com"}, False),
+    ("browser_console", {"expression": "fetch('/mutation')"}, False),
+    ("browser_console", {"clear": True}, False),
+    ("browser_click", {"ref": "e1"}, False),
+    ("browser_vision", {"question": "describe"}, False),
+])
+def test_native_browser_uses_owned_url_and_read_only_calls(tmp_path, monkeypatch, name, args, allowed):
+    plugin = _fixture_module()
+    monkeypatch.setenv("HERMES_V4_NATIVE_FIXTURE_ROOT", str(tmp_path))
+    monkeypatch.setenv("HERMES_V4_NATIVE_BROWSER_URL", "http://127.0.0.1:41731/dashboard")
+    result = plugin.pre_tool_call(name, args)
+    assert (result is None) is allowed
+    if not allowed:
+        assert result["action"] == "block"
+    # Enabling browser reads never expands the file-write fence.
+    assert plugin.pre_tool_call("write_file", {"path": "input.json"})["action"] == "block"
+
+
+@pytest.mark.parametrize("url", ["", "http://localhost:41731/dashboard", "http://127.0.0.1:bad/dashboard",
+                                   "http://127.0.0.1:41731/elsewhere", "http://user@127.0.0.1:41731/dashboard"])
+def test_native_browser_requires_valid_operator_url(tmp_path, monkeypatch, url):
+    plugin = _fixture_module()
+    monkeypatch.setenv("HERMES_V4_NATIVE_FIXTURE_ROOT", str(tmp_path))
+    monkeypatch.setenv("HERMES_V4_NATIVE_BROWSER_URL", url)
+    assert plugin.pre_tool_call("browser_navigate", {"url": url})["action"] == "block"
+
+
 def test_pre_tool_call_requests_host_approval_and_blocks_unsafe_input(tmp_path: Path) -> None:
     plugin = _fixture_module()
 
