@@ -346,7 +346,7 @@ def test_real_hermes_discovery_handle_call_denial_recovery_and_unload(
     decisions = iter((False, True))
 
     def fake_request_tool_approval(tool_name: str, reason: str, **kwargs: Any) -> dict[str, Any]:
-        from tools.approval import _approval_tool_call_id, _approval_turn_id
+        from tools.approval_context import _approval_tool_call_id, _approval_turn_id
 
         approval_calls.append(
             {
