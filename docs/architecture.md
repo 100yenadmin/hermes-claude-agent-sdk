@@ -1,9 +1,12 @@
 # Architecture boundary — Revision 4
 
 The Hermes host ADR is the sole cross-repository interface authority:
-[`AgentRuntime Plugin API v1`](https://github.com/100yenadmin/hermes-agent-for-upstream-PR-only/blob/15039e4f2d096b06f56369fbd78be09f3be73065/docs/adr/agent-runtime-v1.md)
-at host commit `15039e4f2d096b06f56369fbd78be09f3be73065`. This plugin does not
+[`AgentRuntime Plugin API v1`](https://github.com/NousResearch/hermes-agent/blob/80332e62eb19e48ed4a1c220dc4c06fe343418ac/docs/adr/agent-runtime-v1.md)
+at qualified host commit `80332e62eb19e48ed4a1c220dc4c06fe343418ac`. This plugin does not
 copy or redefine that public API.
+
+Start with the [maintainer guide and ownership diagrams](maintainer-guide.md)
+for the review route, installation, and proof boundaries.
 
 ## One ownership definition
 
@@ -75,15 +78,17 @@ the opaque external SDK session identifier needed for continuity and bounded
 model/billing evidence. It does not persist credentials, tokens, cookies,
 prompts, transcripts, or customer data.
 
-The source and parity checks bind this boundary to the exact plugin commit and
-wheel digest recorded in the v4 result manifest, host commit
-`312a3ba269598be61e94acef3a564ea7ea816439`, SDK `0.2.151`, bundled CLI
+The final qualification binds this boundary to the exact plugin commit and
+wheel digest recorded in [release #9](https://github.com/100yenadmin/hermes-claude-agent-sdk/issues/9), host commit
+`80332e62eb19e48ed4a1c220dc4c06fe343418ac`, SDK `0.2.151`, bundled CLI
 `2.1.258`, and direct model `claude-fable-5-1`. A plugin source document cannot
 self-identify its final commit, so an unbound or zero digest is never accepted
 as candidate proof. These identities establish a bounded candidate only; they
 do not prove merge, release, future compatibility, or customer readiness.
 
-The ADR link above remains the original v1 interface decision. The current host
-candidate adds provider-neutral persisted identity and configured-tool discovery
-corrections; it does not create a Claude-specific interface. Historical results
-remain bound to their original candidates, not restamped as current proof.
+The ADR is read at the qualified host, not at the original `15039e4` baseline.
+Plugin CI checks out `e89d36a38fbb86b33d685ccf3a57f0557b891069`; the final
+e89→803 delta is a provider-neutral `/bg` authentication guard, regression
+coverage, and attribution, with separate host CI and independent review.
+Historical `15039e4` and `312a3ba` results retain their original identities.
+See the [public evidence table](maintainer-guide.md#qualified-candidate-and-proof).

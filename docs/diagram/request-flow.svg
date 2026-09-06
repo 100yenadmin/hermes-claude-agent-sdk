@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 890" role="img" aria-labelledby="title desc">
+  <title id="title">A tool request returns to Hermes</title>
+  <desc id="desc">Time flows down. Hermes sends context through the plugin to the SDK. SDK tool requests cross the strict MCP bridge back to Hermes for correlation and approval. Denial has no effect; approved tools execute through Hermes. Child results are delivered asynchronously to their explicit parent. Hermes persists tool and final results.</desc>
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#1e293b" stroke-width=".5"/></pattern>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0 0L10 4L0 8" fill="#94a3b8"/></marker>
+  </defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&amp;display=swap');</style>
+  <style>
+    text {font-family:'JetBrains Mono','SF Mono',monospace;fill:#e2e8f0;font-size:13px}
+    .heading {font-size:20px;font-weight:700;fill:white} .label {font-size:16px;font-weight:600}
+    .muted {font-size:12px;fill:#94a3b8} .msg {fill:none;stroke:#94a3b8;stroke-width:1.6;marker-end:url(#arrow)}
+    .return {stroke-dasharray:6 4} .life {stroke:#475569;stroke-dasharray:6 5}
+  </style>
+  <path fill="#0f172a" d="M0 0H1100V890H0z"/><path fill="url(#grid)" d="M0 0H1100V890H0z"/>
+  <text x="30" y="44" class="heading">A tool request returns to Hermes</text>
+  <text x="30" y="75" class="muted">Time flows downward • logical flow, not every SDK message • no native Claude tool execution</text>
+  <path class="life" d="M180 165V815M555 165V815M930 165V815"/>
+  <rect x="45" y="110" width="270" height="55" rx="8" fill="#102b3c" stroke="#22d3ee"/>
+  <rect x="420" y="110" width="270" height="55" rx="8" fill="#10352f" stroke="#34d399"/>
+  <rect x="795" y="110" width="270" height="55" rx="8" fill="#30261e" stroke="#fbbf24"/>
+  <text x="180" y="144" text-anchor="middle" class="label">Hermes session / executor</text>
+  <text x="555" y="144" text-anchor="middle" class="label">Standalone plugin</text>
+  <text x="930" y="144" text-anchor="middle" class="label">SDK + model transport</text>
+  <path class="msg" d="M180 218H555"/><text x="367" y="204" text-anchor="middle">1. Prompt, messages, tool inventory</text>
+  <path class="msg" d="M555 274H930"/><text x="742" y="260" text-anchor="middle">2. Direct prompt; native tools=[]</text>
+  <path class="msg return" d="M930 330H555"/><text x="742" y="316" text-anchor="middle">3. Admitted MCP tool request</text>
+  <path class="msg" d="M555 386H180"/><text x="367" y="372" text-anchor="middle">4. execute_tool + request ID</text>
+  <rect x="40" y="412" width="490" height="192" rx="8" fill="#0f172a" stroke="#fb7185" stroke-dasharray="6 4"/>
+  <text x="60" y="439" class="label" style="fill:#fb7185">Hermes policy gate</text>
+  <text x="60" y="470">Record/correlate request; apply approval policy</text>
+  <text x="60" y="505">DENIED → return denial; no side effect</text>
+  <path d="M60 523H510" stroke="#475569" stroke-dasharray="4 4"/>
+  <text x="60" y="551">ALLOWED → Hermes tool executor</text>
+  <text x="60" y="580">Persist one correlated result</text>
+  <path class="msg return" d="M180 643H555"/><text x="367" y="629" text-anchor="middle">5. Host result (including denials)</text>
+  <path class="msg" d="M555 693H930"/><text x="742" y="679" text-anchor="middle">6. Tool result to model</text>
+  <path class="msg return" d="M930 743H555"/><text x="742" y="729" text-anchor="middle">7. Stream + terminal result</text>
+  <path class="msg return" d="M555 793H180"/><text x="367" y="779" text-anchor="middle">8. Visible events; one saved final</text>
+  <rect x="595" y="412" width="470" height="192" rx="8" fill="#201b3d" stroke="#a78bfa"/>
+  <text x="615" y="439" class="label" style="fill:#a78bfa">If the tool is Hermes delegate_task</text>
+  <text x="615" y="472">Hermes dispatches handoff / fanout children.</text>
+  <text x="615" y="505">Child results may arrive after the parent turn.</text>
+  <text x="615" y="551">Hermes targets the explicit parent, delivers</text>
+  <text x="615" y="580">once, and starts an automatic synthesis turn.</text>
+  <text x="30" y="847" class="muted">Hermes retains saved messages, tool effects, children and lifecycle. Opaque SDK IDs are continuity, not routing.</text>
+</svg>

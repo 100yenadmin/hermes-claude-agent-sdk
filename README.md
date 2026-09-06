@@ -1,5 +1,9 @@
 # Hermes Claude Agent SDK Runtime — Revision 4
 
+**Maintainers: [start with the review, install, and evidence guide](docs/maintainer-guide.md).**
+It includes the ownership diagrams, exact qualified versions, and rollback.
+This is an opt-in candidate, not a published package or an upstream merge.
+
 `hermes-claude-agent-sdk` is a standalone plugin for the Hermes host. Revision
 4 is the Hermes-owned, zero-native boundary: Hermes owns every visible behavior
 and side effect, while the Claude Agent SDK is used only for subscription
@@ -31,9 +35,12 @@ identifier needed to resume that SDK conversation.
 
 ## Compatibility target
 
-The Revision 4 candidate is checked against the Hermes host at exact commit
-`15039e4f2d096b06f56369fbd78be09f3be73065`. The standalone plugin identity is
-the exact source commit and wheel digest recorded in the v4 result manifest;
+The final qualified candidate uses Hermes host
+`80332e62eb19e48ed4a1c220dc4c06fe343418ac`. Plugin CI checks out host
+`e89d36a38fbb86b33d685ccf3a57f0557b891069`; the final host delta has separate
+CI and review evidence. See the [candidate/evidence table](docs/maintainer-guide.md#qualified-candidate-and-proof).
+The standalone plugin identity is
+the exact source commit and wheel digest recorded in the release receipt;
 an unbound or zero digest cannot prove a candidate. The dependency target is
 `claude-agent-sdk` `0.2.151`, whose bundled Claude Code-derived CLI is
 `2.1.258`, with direct model `claude-fable-5-1`.
@@ -55,6 +62,13 @@ doctor never reads credentials or constructs an SDK client.
 - [Removal and rollback](docs/removal-and-rollback.md)
 
 ## Revision 4 parity contract
+
+The [Hermes release acceptance policy, H1–H8](qa/hermes-release-acceptance.md)
+governs release qualification. It supersedes the blanket inherited
+220-path/390-packet benchmark obligation; those benchmark totals were **not**
+declared passed. [Release #9](https://github.com/100yenadmin/hermes-claude-agent-sdk/issues/9)
+and [isolated runtime #15](https://github.com/100yenadmin/hermes-claude-agent-sdk/issues/15)
+record the completed, separate qualification decisions.
 
 The repo-owned [`qa/parity-contract-v4.yaml`](qa/parity-contract-v4.yaml) is the
 current source-to-parity map. It preserves the v3 rows as historical
