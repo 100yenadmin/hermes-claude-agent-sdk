@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/100yenadmin/hermes-claude-agent-sdk/qa/result-packet-v3.schema.json",
+  "title": "Hermes Agent SDK parity v3 sanitized result packet",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "capability_id", "source_pack", "lane", "path",
+    "execution_id", "classification", "contract_hash", "catalog_hash",
+    "plugin_sha", "host_sha", "sdk_version", "profile_id", "profile_hash",
+    "runner_version", "inventory_hash", "candidate_hash",
+    "billing_classification", "turn_count", "trial_index", "normalized_events", "trace_hash",
+    "primary_proof_hash", "secondary_proof_hash", "silent_fallback",
+    "invariant_violations", "reason_code", "packet_hash"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "capability_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "source_pack": {"type": "string", "minLength": 1, "maxLength": 256},
+    "lane": {"enum": ["rc", "runtime"]},
+    "path": {"enum": ["positive", "denial", "recovery"]},
+    "execution_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "classification": {"enum": ["PENDING", "EXPECTED_NEGATIVE", "ENVIRONMENT_BLOCKED", "VERIFIED_FAILURE", "COMPLETE"]},
+    "contract_hash": {"$ref": "#/$defs/sha256"},
+    "catalog_hash": {"$ref": "#/$defs/sha256"},
+    "plugin_sha": {"$ref": "#/$defs/gitSha"},
+    "host_sha": {"$ref": "#/$defs/gitSha"},
+    "sdk_version": {"type": "string", "minLength": 1, "maxLength": 256},
+    "profile_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "profile_hash": {"$ref": "#/$defs/sha256"},
+    "runner_version": {"type": "string", "minLength": 1, "maxLength": 256},
+    "inventory_hash": {"$ref": "#/$defs/sha256"},
+    "candidate_hash": {"$ref": "#/$defs/sha256"},
+    "billing_classification": {"enum": ["subscription_included", "explicitly_free", "none"]},
+    "turn_count": {"type": "integer", "minimum": 0, "maximum": 180},
+    "trial_index": {"type": "integer", "minimum": 1},
+    "normalized_events": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/event"}
+    },
+    "trace_hash": {"$ref": "#/$defs/sha256"},
+    "primary_proof_hash": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+    "secondary_proof_hash": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+    "silent_fallback": {"const": false},
+    "invariant_violations": {"type": "array", "maxItems": 0},
+    "reason_code": {"oneOf": [{"type": "string", "minLength": 1, "maxLength": 256}, {"type": "null"}]},
+    "packet_hash": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "gitSha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sequence", "kind"],
+      "properties": {
+        "sequence": {"type": "integer", "minimum": 1},
+        "kind": {"enum": ["start", "approval_requested", "approval_decision", "tool_requested", "tool_result", "state", "usage", "compaction", "background", "restart", "terminal"]},
+        "status": {"type": "string", "minLength": 1, "maxLength": 256},
+        "name_hash": {"$ref": "#/$defs/sha256"},
+        "request_hash": {"$ref": "#/$defs/sha256"},
+        "state_hash": {"$ref": "#/$defs/sha256"},
+        "usage_hash": {"$ref": "#/$defs/sha256"},
+        "schema_hash": {"$ref": "#/$defs/sha256"},
+        "tool_hash": {"$ref": "#/$defs/sha256"},
+        "parent_hash": {"$ref": "#/$defs/sha256"},
+        "metadata_hash": {"$ref": "#/$defs/sha256"},
+        "terminal_outcome": {"enum": ["completed", "denied", "failed", "cancelled"]}
+      }
+    }
+  }
+}

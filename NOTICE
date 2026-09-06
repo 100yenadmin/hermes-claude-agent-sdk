@@ -1,13 +1,64 @@
-Hermes Claude Agent SDK Runtime
+# Hermes Claude Agent SDK Runtime
 
-This project includes or derives portions of work proposed in
-NousResearch/hermes-agent PR #65982. Hermes Agent is distributed under the MIT
-License. See LICENSE and the preserved extraction history for attribution.
+## Hermes source provenance
 
-The package depends on claude-agent-sdk 0.2.144, which declares an MIT license.
-Use of the Claude Agent SDK and its bundled components is also subject to the
-applicable Anthropic terms. These notices do not claim the licenses and service
-terms are equivalent, and they are not legal advice.
+This project records an extraction boundary for work proposed in
+[NousResearch/hermes-agent PR #65982](https://github.com/NousResearch/hermes-agent/pull/65982).
+The inspected PR tip is commit
+[`41def1e2`](https://github.com/NousResearch/hermes-agent/commit/41def1e24e5223efa246d9fc57575db7181c6021).
+The standalone bootstrap commit is [`79a5932`](https://github.com/100yenadmin/hermes-claude-agent-sdk/commit/79a5932f8ef2a7ce3428db0c11a285369b7ed42d)
+and is a separate package-history identity; it is not the upstream PR SHA.
+The extraction record also distinguishes PR range base
+`4f22543509d1b91dc45bcb369447126c5eb14fb7`, source snapshot
+`3c1321f16744747550384a1b96fa4529ba23ffe1`, and downstream frozen parity
+baseline `6967371b9ff8efce9372dd428b3b764322bd6481`; none is a substitute for
+the inspected PR tip.
 
-No Claude SDK source, bundled CLI, credentials, authentication files, or user
-data is copied into this repository by the packaging shell.
+The Hermes Agent source is distributed under the MIT License. See `LICENSE`
+and `AUTHORS` for the retained copyright and sanitized attribution record.
+Source SHAs and PR links in this notice are provenance references; they do not
+claim that the standalone package contains the complete upstream PR or that an
+upstream merge has occurred.
+
+## Bridge attribution
+
+Commit
+[`8380da12`](https://github.com/NousResearch/hermes-agent/commit/8380da12df9650674cf23ec04dcbc7bc6813570d)
+attributes the shared tool-exposure layer and in-process bridge design to
+Akshay CM (`akshaynexus/hermes-agent`), based on
+[PR #56413](https://github.com/NousResearch/hermes-agent/pull/56413). The
+bridge is host-generic; this attribution does not assign all plugin code to
+that contributor.
+
+## Dependency and service boundary
+
+The package metadata pins `claude-agent-sdk==0.2.151`. The published metadata
+for that dependency declares the MIT license. This statement is dependency
+metadata, not a complete inventory of the dependency's transitive packages,
+bundled assets, or their notices; those must be inspected before a release
+candidate is distributed.
+
+Using the Claude Agent SDK, Claude CLI, or Anthropic services is also subject to
+the applicable Anthropic terms and account or product terms. The MIT source
+license does not grant service entitlements, and Anthropic service terms are
+not equivalent to the MIT license. This notice does not grant permission for
+customer or commercial use, certify license compatibility, or provide legal
+advice; operators and counsel must make those determinations for their use.
+
+The standalone wheel and sdist do not vendor or redistribute Claude SDK source
+or its bundled CLI; package installers resolve the separately distributed SDK
+dependency from the operator's configured package source. Credentials,
+authentication files, and raw user data are also excluded. This notice does
+not replace a release-time artifact and dependency audit, and it does not grant
+redistribution rights for a future artifact that chooses to vendor a dependency.
+
+## Behavioral evaluation references
+
+The parity-v3 catalog references OpenClaw `v2026.8.1` at commit
+`ea806575e6450e4d1efdfc72c19f04be982a1b9b` and ClawProBench at commit
+`c4b8395854fe0752eef435b44f140366efd44d8e`. ClawProBench declares the
+Apache License 2.0. The current catalog records source identifiers, behavior
+contracts, and provenance only; it does not vendor either project's runtime
+adapter, source code, or fixtures. If later work copies Apache-2.0 code or
+fixtures, the release candidate must add the applicable license and retained
+notices before distribution.

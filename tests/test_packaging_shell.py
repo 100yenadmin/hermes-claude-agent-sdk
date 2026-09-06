@@ -15,8 +15,34 @@ def test_plugin_entry_point_loads_bare_module_without_side_effects() -> None:
         entry_points(group="hermes_agent.plugins", name="claude-agent-sdk")
     )
     assert len(matches) == 1
+    assert matches[0].value == "hermes_claude_agent_sdk"
 
     module = matches[0].load()
     assert module is hermes_claude_agent_sdk
     assert callable(module.register)
-    assert module.register(object()) is None
+    assert callable(module.register_provider_profile)
+
+    # The package remains importable without Hermes installed.  When the
+    # public host contract is available, exercise the real registration call
+    # through a tiny context recorder; no SDK dependency is needed for this
+    # step because the factory must remain unconstructed.
+    try:
+        import agent.runtime_api  # noqa: F401
+    except ModuleNotFoundError:
+        return
+
+    class Context:
+        registration = None
+        provider_profile = None
+
+        def register_provider_profile(self, profile):
+            self.provider_profile = profile
+
+        def register_agent_runtime(self, *, descriptor, factory):
+            self.registration = (descriptor, factory)
+
+    context = Context()
+    assert module.register(context) is None
+    assert context.registration is not None
+    assert context.registration[1] is module.create_runtime
+    assert context.provider_profile.name == "claude-agent-sdk"

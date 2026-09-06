@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 650" role="img" aria-labelledby="title desc">
+  <title id="title">Hermes remains the agent</title>
+  <desc id="desc">Hermes owns prompts, tools, approvals, delegation and visible state. A provider-neutral AgentRuntime seam connects the standalone plugin to the Claude SDK transport. Tool calls return to Hermes. Native Claude tools and settings are disabled.</desc>
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#1e293b" stroke-width=".5"/></pattern>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0 0L10 4L0 8" fill="#94a3b8"/></marker>
+  </defs>
+  <style>@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&amp;display=swap');</style>
+  <style>
+    text { font-family:'JetBrains Mono','SF Mono',monospace; fill:#e2e8f0; font-size:13px; }
+    .heading {font-size:20px;font-weight:700;fill:#fff} .label {font-size:16px;font-weight:600}
+    .muted {fill:#94a3b8;font-size:12px} .line {fill:none;stroke:#94a3b8;stroke-width:1.7;marker-end:url(#arrow)}
+  </style>
+  <path fill="#0f172a" d="M0 0H1100V650H0z"/>
+  <path fill="url(#grid)" d="M0 0H1100V650H0z"/>
+  <rect x="30" y="110" width="390" height="405" rx="12" fill="none" stroke="#22d3ee" stroke-dasharray="8 4"/>
+  <rect x="455" y="110" width="250" height="405" rx="12" fill="none" stroke="#34d399" stroke-dasharray="8 4"/>
+  <rect x="740" y="110" width="330" height="405" rx="12" fill="none" stroke="#fbbf24" stroke-dasharray="8 4"/>
+  <path class="line" d="M390 252H485"/>
+  <path class="line" d="M675 252H770"/>
+  <path class="line" d="M770 389H675"/>
+  <path class="line" d="M485 389H390"/>
+  <rect x="60" y="177" width="330" height="115" rx="8" fill="#102b3c" stroke="#22d3ee"/>
+  <rect x="60" y="337" width="330" height="140" rx="8" fill="#201b3d" stroke="#a78bfa"/>
+  <rect x="485" y="177" width="190" height="115" rx="8" fill="#10352f" stroke="#34d399"/>
+  <rect x="485" y="337" width="190" height="140" rx="8" fill="#10352f" stroke="#34d399"/>
+  <rect x="770" y="177" width="270" height="115" rx="8" fill="#30261e" stroke="#fbbf24"/>
+  <rect x="770" y="337" width="270" height="140" rx="8" fill="#30261e" stroke="#fbbf24"/>
+  <text x="30" y="44" class="heading">Hermes remains the agent</text>
+  <text x="30" y="75" class="muted">An opt-in transport plugin — not a Claude Code agent hidden behind Hermes</text>
+  <text x="50" y="143" class="label" style="fill:#22d3ee">HERMES / GENERIC HOST</text>
+  <text x="475" y="143" class="label" style="fill:#34d399">STANDALONE PLUGIN</text>
+  <text x="760" y="143" class="label" style="fill:#fbbf24">CLAUDE SDK / SERVICE</text>
+  <text x="80" y="205" class="label">Normal session + context</text>
+  <text x="80" y="237">Prompt · messages · memory · skills</text>
+  <text x="80" y="268">Active tool schemas · model selection</text>
+  <text x="80" y="366" class="label">Policy, effects + saved state</text>
+  <text x="80" y="398">Approvals · executor · delegate_task</text>
+  <text x="80" y="429">Children · background delivery</text>
+  <text x="80" y="460">Transcript · usage · terminal state</text>
+  <text x="580" y="205" text-anchor="middle" class="label">Host API adapter</text>
+  <text x="580" y="237" text-anchor="middle">Immutable requests</text>
+  <text x="580" y="268" text-anchor="middle">Typed host events</text>
+  <text x="580" y="366" text-anchor="middle" class="label">Strict MCP bridge</text>
+  <text x="580" y="398" text-anchor="middle">hermes-tools only</text>
+  <text x="580" y="429" text-anchor="middle">Calls host executor</text>
+  <text x="580" y="460" text-anchor="middle">No private host DB</text>
+  <text x="905" y="205" text-anchor="middle" class="label">Subscription transport</text>
+  <text x="905" y="237" text-anchor="middle">OAuth · model · stream</text>
+  <text x="905" y="268" text-anchor="middle">Bundled Code-derived process</text>
+  <text x="905" y="366" text-anchor="middle" class="label">Bounded SDK behavior</text>
+  <text x="905" y="398" text-anchor="middle">Opaque resume continuity</text>
+  <text x="905" y="429" text-anchor="middle">Cancellation · compaction events</text>
+  <text x="905" y="460" text-anchor="middle">Hidden reasoning unavailable</text>
+  <text x="30" y="555" class="label" style="fill:#fb7185">Disabled: native Claude tools / Agent, settings sources, claude_code prompt preset</text>
+  <text x="30" y="587" class="muted">Upper arrows: request/transport. Lower arrows: SDK tool request → plugin → Hermes policy and execution.</text>
+  <text x="30" y="617" class="muted">Compaction is SDK lifecycle mapping; Hermes does not run its own compressor in this path.</text>
+</svg>

@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/100yenadmin/hermes-claude-agent-sdk/qa/runtime-release-ready-receipt-v4.schema.json",
+  "title": "Hermes Agent SDK Revision 4 Phase-A release-ready receipt",
+  "description": "Evidence receipt only. It never authorizes merge, tag, release, or publication.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "issue", "status", "phase", "publication_authorized", "merge_performed", "tag_created", "release_created", "artifact_immutable", "plugin_sha", "host_sha", "sdk_distribution", "sdk_version", "cli_version", "model", "wheel_sha256", "sdist_sha256", "profile_sha256", "contract_sha256", "map_sha256", "artifact_sha256", "ownership_preflights", "parity", "ci", "semantic_checkers", "package_lifecycle", "installed_subscription_gate", "parent_calls", "child_calls", "total_calls", "reserve_calls", "direct_sdk_calls", "alternate_route_calls", "proof_boundary"],
+  "properties": {
+    "schema_version": {"const": 4},
+    "issue": {"const": 9},
+    "status": {"const": "release_ready"},
+    "phase": {"const": "A"},
+    "publication_authorized": {"const": false},
+    "merge_performed": {"const": false},
+    "tag_created": {"const": false},
+    "release_created": {"const": false},
+    "artifact_immutable": {"const": true},
+    "plugin_sha": {"$ref": "#/$defs/sha1"},
+    "host_sha": {"$ref": "#/$defs/sha1"},
+    "sdk_distribution": {"const": "claude-agent-sdk"},
+    "sdk_version": {"const": "0.2.151"},
+    "cli_version": {"const": "2.1.258"},
+    "model": {"const": "claude-fable-5-1"},
+    "wheel_sha256": {"$ref": "#/$defs/sha256"},
+    "sdist_sha256": {"$ref": "#/$defs/sha256"},
+    "profile_sha256": {"$ref": "#/$defs/sha256"},
+    "contract_sha256": {"const": "53864834496403388f3475291475fea70acfa3105609ad49f5edf75ad1c67d94"},
+    "map_sha256": {"const": "aa68ce417d9a8ad74110de76f37ef550e1f5414eba0a6ecba0af235ba1488c69"},
+    "artifact_sha256": {"$ref": "#/$defs/sha256"},
+    "ownership_preflights": {
+      "type": "object", "additionalProperties": false,
+      "required": ["zero_native_absence", "exact_prompt_settings_tools_mcp", "no_native_events_projector", "delegate_owner", "background_owner", "canonical_transcript_content", "streaming_owner", "redaction_fail_closed"],
+      "properties": {
+        "zero_native_absence": {"const": "PASS"},
+        "exact_prompt_settings_tools_mcp": {"const": "PASS"},
+        "no_native_events_projector": {"const": "PASS"},
+        "delegate_owner": {"const": "PASS"},
+        "background_owner": {"const": "PASS"},
+        "canonical_transcript_content": {"const": "PASS"},
+        "streaming_owner": {"const": "PASS"},
+        "redaction_fail_closed": {"const": "PASS"}
+      }
+    },
+    "parity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["required_paths", "observed_paths", "required_trial_packets", "observed_trial_packets", "complete_paths", "failed_paths", "pending_paths", "partial_paths", "not_run_paths", "environment_blocked_paths"],
+      "properties": {
+        "required_paths": {"const": 220}, "observed_paths": {"const": 220},
+        "required_trial_packets": {"const": 390}, "observed_trial_packets": {"const": 390},
+        "complete_paths": {"const": 220}, "failed_paths": {"const": 0},
+        "pending_paths": {"const": 0}, "partial_paths": {"const": 0},
+        "not_run_paths": {"const": 0}, "environment_blocked_paths": {"const": 0}
+      }
+    },
+    "ci": {
+      "type": "object", "additionalProperties": false, "required": ["plugin", "host"],
+      "properties": {
+        "plugin": {"$ref": "#/$defs/ci"}, "host": {"$ref": "#/$defs/ci"}
+      }
+    },
+    "semantic_checkers": {
+      "type": "object", "additionalProperties": false, "required": ["checker_a", "checker_b"],
+      "properties": {"checker_a": {"$ref": "#/$defs/checker"}, "checker_b": {"$ref": "#/$defs/checker"}}
+    },
+    "package_lifecycle": {
+      "type": "object", "additionalProperties": false,
+      "required": ["install", "uninstall", "reinstall", "rollback"],
+      "properties": {"install": {"const": "PASS"}, "uninstall": {"const": "PASS"}, "reinstall": {"const": "PASS"}, "rollback": {"const": "PASS"}}
+    },
+    "installed_subscription_gate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "billing_classification", "silent_fallback", "native_tools", "native_settings", "native_preset", "native_agent_events"],
+      "properties": {
+        "status": {"const": "PASS"}, "billing_classification": {"const": "subscription_included"},
+        "silent_fallback": {"const": false}, "native_tools": {"const": false},
+        "native_settings": {"const": false}, "native_preset": {"const": false},
+        "native_agent_events": {"const": false}
+      }
+    },
+    "parent_calls": {"const": 134}, "child_calls": {"const": 16}, "total_calls": {"const": 150},
+    "reserve_calls": {"const": 30}, "direct_sdk_calls": {"const": 0}, "alternate_route_calls": {"const": 0},
+    "proof_boundary": {"const": "Phase-A evidence receipt includes exact local provider-live runtime-safe evidence only; no merge, tag, release, publication, fleet, or customer proof."
+    }
+  },
+  "$defs": {
+    "sha1": {"type": "string", "pattern": "^[0-9a-f]{40}$", "not": {"const": "0000000000000000000000000000000000000000"}},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$", "not": {"const": "0000000000000000000000000000000000000000000000000000000000000000"}},
+    "ci": {
+      "type": "object", "additionalProperties": false, "required": ["status", "head_sha"],
+      "properties": {"status": {"const": "success"}, "head_sha": {"$ref": "#/$defs/sha1"}}
+    },
+    "checker": {
+      "type": "object", "additionalProperties": false, "required": ["blind", "status", "score"],
+      "properties": {"blind": {"const": true}, "status": {"const": "PASS"}, "score": {"type": "integer", "minimum": 95, "maximum": 100}}
+    }
+  }
+}

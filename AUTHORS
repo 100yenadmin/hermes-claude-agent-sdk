@@ -1,14 +1,36 @@
-This repository extracts work originally developed for NousResearch/hermes-agent
-PR #65982. Verified source-history contributors include:
+# Contributors and provenance
 
-- fcavalcantirj
-- CryptoKylan
-- PyroFilmsFX
-- romain-bury (Romain)
+This standalone repository records an extraction boundary for work developed in
+[NousResearch/hermes-agent PR #65982](https://github.com/NousResearch/hermes-agent/pull/65982).
+The names below are public Git author or attribution identifiers verified in the
+inspected source history and commit bodies. They are not a maintainer list, and
+they do not imply that each person authored every file in this repository.
 
-The in-process Hermes tool bridge also adapts work credited to Akshay CM in
-source commit 8380da12. Original commit trailers, including tool-assisted
-co-author trailers, will be retained in the history-preserving extraction.
+## Verified source-history contributors
 
-This list records verified source provenance. It does not imply endorsement,
-ownership of every line, or equivalence between human and tool attribution.
+- `fcavalcantirj` — initial Claude Agent SDK provider landing, runtime and
+  documentation follow-ups, and the PR tip.
+- `CryptoKylan` — Claude SDK runtime, transport, safety, context, and test
+  changes in the PR history.
+- `PyroFilmsFX` — SDK startup, stream, and gateway integration follow-ups.
+- `Romain` — source Git author for the hybrid MCP bridge work; merge metadata
+  also identifies this contributor as `romain-bury`.
+
+## Explicit bridge attribution
+
+The source body of commit
+[`8380da12`](https://github.com/NousResearch/hermes-agent/commit/8380da12df9650674cf23ec04dcbc7bc6813570d)
+credits the shared `hermes_tool_exposure.py` layer and in-process bridge design
+to Akshay CM (`akshaynexus/hermes-agent`), based on
+[PR #56413](https://github.com/NousResearch/hermes-agent/pull/56413). This is a
+specific bridge-design attribution, not an authorship claim for all plugin
+code.
+
+The source history also contains generic author display names such as
+`Hermes Agent`; those are not listed as human contributors. Codex, the
+extractor, and this documentation lane are not authors of the upstream work.
+
+This file intentionally contains no contributor email addresses. Source commit
+trailers and any tool-assisted co-author metadata remain subject to the
+history-preserving extraction policy; this document is a sanitized provenance
+summary, not a replacement for the source graph.
