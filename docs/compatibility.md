@@ -4,7 +4,7 @@
 | --- | --- | --- | --- |
 | `0.1.0` pinned-host GA | Host `80332e62eb19e48ed4a1c220dc4c06fe343418ac` | SDK `0.2.151`; bundled CLI `2.1.258`; direct model `claude-fable-5-1` | [Release assets and verification](https://github.com/100yenadmin/hermes-claude-agent-sdk/releases/tag/v0.1.0); stock Hermes unsupported until the host interface lands |
 | Historical qualified `0.1.0rc1`, plugin `9a337b04aff73ebe4f9e9dd45d3699e2d3aa40b6`, wheel recorded in release #9 | Host `80332e62eb19e48ed4a1c220dc4c06fe343418ac` | SDK `0.2.151`; bundled Claude Code-derived CLI `2.1.258`; direct model `claude-fable-5-1` | Original isolated qualification, preserved without restamping |
-| Plugin CI baseline | Host `e89d36a38fbb86b33d685ccf3a57f0557b891069` | Same SDK/CLI/model pins | Python 3.11–3.13 matrix; final e89→803 host delta separately reviewed and tested |
+| Historical RC CI baseline | Host `e89d36a38fbb86b33d685ccf3a57f0557b891069` | Same SDK/CLI/model pins | Python 3.11–3.13 matrix; final e89→803 host delta separately reviewed and tested; GA CI uses `80332e6` directly |
 | v3 predecessor | Historical plugin/host evidence | Historical SDK/model inputs | Historical only; not a current support or release claim |
 
 Use the exact qualified host for reproduction. Compatibility admission is
