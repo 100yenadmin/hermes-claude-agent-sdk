@@ -1,8 +1,15 @@
-# Hermes Claude Agent SDK Runtime — Revision 4
+# Hermes Claude Agent SDK — v0.1.0 (pinned-host edition)
 
 **Maintainers: [start with the review, install, and evidence guide](docs/maintainer-guide.md).**
 It includes the ownership diagrams, exact qualified versions, and rollback.
-This is an opt-in candidate, not a published package or an upstream merge.
+**Requires Hermes host `80332e62eb19e48ed4a1c220dc4c06fe343418ac`.**
+Stock Hermes is not supported until the provider-neutral runtime interface lands
+upstream. This is opt-in; ordinary API providers are unchanged.
+
+[GitHub release and downloads](https://github.com/100yenadmin/hermes-claude-agent-sdk/releases/tag/v0.1.0)
+provide the wheel, source distribution, `SHA256SUMS`, and verification receipt.
+There is no PyPI release. The release page is authoritative for publication status.
+Start with the [isolated install and login guide](docs/maintainer-guide.md#try-the-pinned-host-release-in-isolation).
 
 `hermes-claude-agent-sdk` is a standalone plugin for the Hermes host. Revision
 4 is the Hermes-owned, zero-native boundary: Hermes owns every visible behavior
@@ -36,9 +43,9 @@ identifier needed to resume that SDK conversation.
 ## Compatibility target
 
 The final qualified candidate uses Hermes host
-`80332e62eb19e48ed4a1c220dc4c06fe343418ac`. Plugin CI checks out host
-`e89d36a38fbb86b33d685ccf3a57f0557b891069`; the final host delta has separate
-CI and review evidence. See the [candidate/evidence table](docs/maintainer-guide.md#qualified-candidate-and-proof).
+`80332e62eb19e48ed4a1c220dc4c06fe343418ac`; GA CI uses that same host.
+Historical RC CI used `e89d36a38fbb86b33d685ccf3a57f0557b891069` with a
+separately reviewed host delta. See the [candidate/evidence table](docs/maintainer-guide.md#qualified-candidate-and-proof).
 The standalone plugin identity is
 the exact source commit and wheel digest recorded in the release receipt;
 an unbound or zero digest cannot prove a candidate. The dependency target is
@@ -96,11 +103,13 @@ subscription-only route.
 
 ## Local installation and activation
 
-Install the exact locally built or otherwise approved artifact into the
-isolated Hermes environment. A local install is not a release or publication:
+Use the pinned host in a separate virtual environment, then download the wheel
+and `SHA256SUMS` from the v0.1.0 GitHub release. Verify the wheel's SHA-256
+against that file before installing (do not substitute the historical RC hash):
 
 ```sh
-python -m pip install ./hermes_claude_agent_sdk-0.1.0rc1-py3-none-any.whl
+shasum -a 256 ./hermes_claude_agent_sdk-0.1.0-py3-none-any.whl
+python -m pip install ./hermes_claude_agent_sdk-0.1.0-py3-none-any.whl
 ```
 
 Installation exposes the `hermes_agent.plugins` entry point but does not enable

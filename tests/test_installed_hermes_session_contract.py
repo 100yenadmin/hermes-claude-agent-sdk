@@ -268,7 +268,7 @@ def test_installed_plugin_session_create_persist_list_and_resume(tmp_path: Path)
     _require(len(plugin_rows) == 1, "installed plugin was not listed exactly once")
     _require(plugin_rows[0].get("status") == "enabled", "installed plugin was not enabled")
     _require(plugin_rows[0].get("source") == "entrypoint", "plugin source was not entrypoint")
-    _require(plugin_rows[0].get("version") == "0.1.0rc1", "plugin version mismatch")
+    _require(plugin_rows[0].get("version") == "0.1.0", "plugin version mismatch")
 
     doctor = json.loads(
         _run([str(doctor_cli), "doctor", "--json"], cwd=workspace, env=env).stdout

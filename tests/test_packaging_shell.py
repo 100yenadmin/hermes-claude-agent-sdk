@@ -6,8 +6,8 @@ import hermes_claude_agent_sdk
 
 
 def test_version_matches_distribution_metadata() -> None:
-    assert hermes_claude_agent_sdk.__version__ == "0.1.0rc1"
-    assert version("hermes-claude-agent-sdk") == "0.1.0rc1"
+    assert hermes_claude_agent_sdk.__version__ == "0.1.0"
+    assert version("hermes-claude-agent-sdk") == "0.1.0"
 
 
 def test_plugin_entry_point_loads_bare_module_without_side_effects() -> None:

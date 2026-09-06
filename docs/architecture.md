@@ -87,7 +87,8 @@ as candidate proof. These identities establish a bounded candidate only; they
 do not prove merge, release, future compatibility, or customer readiness.
 
 The ADR is read at the qualified host, not at the original `15039e4` baseline.
-Plugin CI checks out `e89d36a38fbb86b33d685ccf3a57f0557b891069`; the final
+GA plugin CI checks out the qualified `80332e62eb19e48ed4a1c220dc4c06fe343418ac`
+host. Historical RC CI used `e89d36a38fbb86b33d685ccf3a57f0557b891069`; the
 e89→803 delta is a provider-neutral `/bg` authentication guard, regression
 coverage, and attribution, with separate host CI and independent review.
 Historical `15039e4` and `312a3ba` results retain their original identities.

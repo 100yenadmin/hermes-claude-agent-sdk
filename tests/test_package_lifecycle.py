@@ -223,7 +223,7 @@ class RejectSDKImport:
 
 sys.meta_path.insert(0, RejectSDKImport())
 import hermes_claude_agent_sdk as plugin
-assert plugin.__version__ == "0.1.0rc1"
+assert plugin.__version__ == "0.1.0"
 assert "claude_agent_sdk" not in sys.modules
 assert "agent" not in sys.modules
 matches = importlib.metadata.entry_points(

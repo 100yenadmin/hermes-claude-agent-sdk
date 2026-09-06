@@ -20,7 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover - imports are documentation-only at runtim
     from agent.runtime_api import RuntimeDescriptor
 
 
-PLUGIN_VERSION = "0.1.0rc1"
+PLUGIN_VERSION = "0.1.0"
 RUNTIME_ID = "hermes-claude-agent-sdk"
 SDK_DISTRIBUTION = "claude-agent-sdk"
 # ``SDK_VERSION`` is the immutable exact dependency used by this standalone

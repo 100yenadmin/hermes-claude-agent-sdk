@@ -6,8 +6,10 @@ an SDK-owned transcript. Hermes owns the visible session and effects.
 
 ## Exact host contract
 
-The `0.1.0rc1` plugin candidate is identified by the exact source commit and
-wheel digest recorded in its v4 result manifest. It targets the Hermes host at
+The `0.1.0` GA plugin is identified by the exact source commit and artifact
+digests in the [GitHub release verification](https://github.com/100yenadmin/hermes-claude-agent-sdk/releases/tag/v0.1.0).
+The original `0.1.0rc1` v4 manifests remain historical qualification evidence,
+not GA artifact identities. Both target the Hermes host at
 exact commit `80332e62eb19e48ed4a1c220dc4c06fe343418ac` (the original Revision 4
 baseline was `15039e4f2d096b06f56369fbd78be09f3be73065`). The installed data-plane
 entrypoint is:

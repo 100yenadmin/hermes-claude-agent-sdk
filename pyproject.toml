@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hermes-claude-agent-sdk"
-version = "0.1.0rc1"
+version = "0.1.0"
 description = "Standalone Claude Agent SDK whole-turn runtime plugin for Hermes Agent"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
@@ -15,7 +15,7 @@ dependencies = [
   "claude-agent-sdk==0.2.151",
 ]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 5 - Production/Stable",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
