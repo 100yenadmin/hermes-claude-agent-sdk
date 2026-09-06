@@ -102,7 +102,7 @@ def _failure_report(category: str) -> dict[str, Any]:
         "status": "host_unavailable" if category == "host_unavailable" else "error",
         "compatible": False,
         "runtime_id": "hermes-claude-agent-sdk",
-        "plugin_version": "0.1.0rc1",
+        "plugin_version": "0.1.0",
         "error": "offline compatibility report unavailable",
         "error_category": category,
     }

@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: 100yenadmin/hermes-agent-for-upstream-PR-only
-          ref: e89d36a38fbb86b33d685ccf3a57f0557b891069
+          ref: 80332e62eb19e48ed4a1c220dc4c06fe343418ac
           path: _host
           persist-credentials: false
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -44,12 +44,14 @@ jobs:
       - name: Build distributions
         if: matrix.python-version == '3.11'
         run: python -m build
-      - name: Retain exact-head wheel for artifact-equivalence readback
+      - name: Retain exact-head distributions for release verification
         if: matrix.python-version == '3.11'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1; same pin as host CI
         with:
-          name: candidate-wheel-${{ github.event.pull_request.head.sha || github.sha }}
-          path: dist/*.whl
+          name: distributions-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
           if-no-files-found: error
           retention-days: 14
 

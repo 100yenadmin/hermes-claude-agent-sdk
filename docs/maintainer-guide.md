@@ -4,9 +4,12 @@
 Hermes with Claude Code's agent. This is an opt-in standalone plugin plus a
 provider-neutral host interface, not a change to Hermes' ordinary API providers.
 
-**Status:** the recorded candidate passed release qualification and a separate
-100-turn isolated runtime campaign. Neither PR is merged; no package is
-published. Upstream maintainer acceptance is still a separate decision.
+**Distribution:** [v0.1.0 on GitHub Releases](https://github.com/100yenadmin/hermes-claude-agent-sdk/releases/tag/v0.1.0)
+is the pinned-host distribution target and authoritative publication record.
+The plugin implementation is merged; the Hermes host PR still requires upstream
+acceptance. Stock Hermes is not supported by this release. The recorded RC
+passed release qualification and a separate 100-turn isolated runtime campaign;
+the GA release attaches its own artifact/version-delta and smoke verification.
 
 ## Review in this order
 
@@ -28,7 +31,7 @@ published. Upstream maintainer acceptance is still a separate decision.
 
 The maintainer ask is to review the generic host seam and the standalone
 consumer separately. A host without the required seam cannot use this plugin.
-Merging, tagging, publishing, or expanding support needs a separate decision.
+Upstream merging and expansion of supported models/platforms remain separate decisions.
 
 ## What owns what?
 
@@ -67,7 +70,7 @@ this path does not run Hermes' own compressor. Exact prose, token accounting,
 provider internals, arbitrary models, and future versions are not parity claims.
 See [architecture](architecture.md) and [security](subscription-only-security.md).
 
-## Try the qualified candidate in isolation
+## Try the pinned-host release in isolation
 
 Prerequisites: Git, Python 3.11–3.13, a Claude subscription entitled to the exact
 model below, and an isolated Hermes environment. Do not replace your normal
@@ -88,23 +91,23 @@ python3.11 -m venv .venv
 python -m pip install -e .
 ```
 
-The [qualified CI run](https://github.com/100yenadmin/hermes-claude-agent-sdk/actions/runs/33984225259)
-contains artifact `candidate-wheel-9a337b04aff73ebe4f9e9dd45d3699e2d3aa40b6`.
-Download and extract it from Actions, then run in the same virtual environment:
+Download `hermes_claude_agent_sdk-0.1.0-py3-none-any.whl` and `SHA256SUMS`
+from the [v0.1.0 release](https://github.com/100yenadmin/hermes-claude-agent-sdk/releases/tag/v0.1.0).
+In the download directory, compare the following output with the exact wheel
+line in `SHA256SUMS`. **Stop on any mismatch before running pip.** Then use the
+same isolated virtual environment:
 
 ```sh
-shasum -a 256 /absolute/path/to/hermes_claude_agent_sdk-0.1.0rc1-py3-none-any.whl
-python -m pip install /absolute/path/to/hermes_claude_agent_sdk-0.1.0rc1-py3-none-any.whl
+shasum -a 256 /absolute/path/to/hermes_claude_agent_sdk-0.1.0-py3-none-any.whl
+python -m pip install /absolute/path/to/hermes_claude_agent_sdk-0.1.0-py3-none-any.whl
 hermes-claude-agent-sdk doctor --json
 ```
 
 Replace `/absolute/path/to` with your downloaded artifact directory. The
-qualified CI wheel hash is
-`a14325e43a84f3a1a702f230d00d7ac2115cbc16340556bc1c5811febb7ff51a`.
-Stop on a checksum mismatch. Actions downloads may require GitHub login and
-expire after 14 days; if unavailable, request an identified wheel from the PR
-owner. Do not substitute an unverified package from an index. There is no
-published-release install command yet. Doctor must report `compatible`; it
+GA hash is published with the release, not the historical RC hash below.
+The sdist and sanitized verification receipt are available there too. If the
+release is unavailable, stop rather than substituting an unverified package
+from an index. Doctor must report `compatible`; it
 checks the host handshake offline, **not** login, model access, or live billing.
 
 ### 2. Select a dedicated profile and subscription login
@@ -188,6 +191,12 @@ review profile. See [removal and rollback](removal-and-rollback.md).
 
 ## Qualified candidate and proof
 
+The table below preserves the original RC qualification identity. GA v0.1.0 has
+a separate source SHA, wheel/sdist hashes and version-delta receipt in its
+[release verification](https://github.com/100yenadmin/hermes-claude-agent-sdk/releases/tag/v0.1.0).
+GA CI checks out host `80332e6`; the historical RC CI host remains `e89d36a`.
+The historical 100-turn run is reused with explicit lineage, not rerun or restamped.
+
 | Identity | Qualified value |
 | --- | --- |
 | Plugin source | `9a337b04aff73ebe4f9e9dd45d3699e2d3aa40b6` |
@@ -211,8 +220,8 @@ raw sessions, auth material, and live configuration are deliberately not public.
 The old 74-checkpoint attempt stopped at image 75 and contributed no credit to
 the subsequent successful 100-turn run. No full ClawProBench score is claimed.
 
-This maintainer packet changes documentation only. README text becomes wheel
-`METADATA`, so a new CI wheel must have its own checksum and a metadata-delta
-receipt; it must not replace the historical qualified wheel identity. Reuse of
-live proof requires unchanged executable members. That is not a new release,
-reinstall, runtime campaign, or blanket qualification of another host/model.
+The GA delta changes version reporting and distribution documentation, not
+transport behavior. README text becomes wheel `METADATA`; version constants
+also change two runtime members. The GA receipt must enumerate those reviewed
+differences and verify the remaining executable members, without claiming
+whole-wheel equality or replacing the historical qualified wheel identity.
