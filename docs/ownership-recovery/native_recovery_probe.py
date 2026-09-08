@@ -23,6 +23,11 @@ ROOT = args.hermes_checkout.resolve()
 PIN = 'eafb4186a4e8be7ac0ca94d69b10c57e0154aee8'
 if subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip() != PIN:
     parser.error('Hermes checkout must match the documented inspected commit')
+for source in ('evals/directsdk_cache_wire.py',
+               'plugins/model-providers/claude-oauth-directsdk/directsdk.py'):
+    committed = subprocess.check_output(['git', '-C', str(ROOT), 'show', f'{PIN}:{source}'])
+    if (ROOT / source).read_bytes() != committed:
+        parser.error('Imported source differs from the pinned Git blob')
 if not Path('/usr/bin/sandbox-exec').is_file():
     parser.error('macOS sandbox-exec is required; do not run without the network sandbox')
 POLICY = '(version 1)(allow default)(deny network-outbound)(allow network-outbound (remote ip "localhost:*"))'

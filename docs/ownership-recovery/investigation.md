@@ -142,5 +142,9 @@ Independent bounded semantic challenge: the reviewer substantiated the core sour
 
 ## Publication correction — 2026-09-09
 
-This is a sanitized copy of the frozen investigation (original SHA-256 `311b76ef43e62667f1d98f6c92c24fa4237c21eedd4cb468ecd78851a296b04f`), not a new qualification. The final independent review accepted the corrected advisory report. The selected recovery route is a supported vendor admission mechanism; proxy experiments, credential interception and binary patches are excluded. See [tracker #1](https://github.com/100yenadmin/hermes-claude-agent-sdk/issues/1). Historical releases and evidence remain immutable. Full Hermes ownership/parity is currently unproven.
+The final [advisory review receipt](review-receipt.json) binds the frozen report
+and native evidence hashes. The targeted PASS covers the corrected report
+paragraphs while retaining the initial review's unchanged-source coverage;
+it is not a replacement runtime qualification.
 
+This is a sanitized copy of the frozen investigation (original SHA-256 `311b76ef43e62667f1d98f6c92c24fa4237c21eedd4cb468ecd78851a296b04f`), not a new qualification. The final independent review accepted the corrected advisory report. The selected recovery route is a supported vendor admission mechanism; proxy experiments, credential interception and binary patches are excluded. See [tracker #1](https://github.com/100yenadmin/hermes-claude-agent-sdk/issues/1). Historical releases and evidence remain immutable. Full Hermes ownership/parity is currently unproven.

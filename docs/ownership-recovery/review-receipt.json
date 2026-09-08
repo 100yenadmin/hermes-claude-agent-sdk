@@ -1,0 +1,24 @@
+{
+  "claim_class": "advisory",
+  "verdict": "PASS",
+  "review_kind": "independent semantic review plus one targeted report clarification",
+  "report_sha256": "311b76ef43e62667f1d98f6c92c24fa4237c21eedd4cb468ecd78851a296b04f",
+  "native_probe_receipt_sha256": "05fd629f64c4ed3980c5516d541cf69fe683aed38703e28866e86ab2f0ba305d",
+  "projection_receipt_sha256": "9dbdbe8aee80eae63d4007dd93afc58d32d28b53d5ec04b5a738e4401d3bd0bf",
+  "coverage": [
+    "Exact inspected source identities and unchanged scoped source",
+    "Probe hashes and 1/2/4 localhost request evidence interpretation",
+    "Whole-turn loop bypass, latest-user history projection, accounting and tool conversion",
+    "Concrete provider-client repair mechanisms and canonical whitespace qualification",
+    "No unsupported universal-impossibility or numerical confidence claim",
+    "Custom transport limitation and conditional request-aware egress alternative"
+  ],
+  "first_pass": "ABSTAIN because root added transport/readback paragraphs during review; relevant unchanged-source coverage retained",
+  "targeted_pass": "PASS on frozen report; substantive-edit evidence qualified to exclude whitespace-only canonical edits",
+  "remaining_unfixed": [
+    "Released plugin objections",
+    "DirectSDK outer-whitespace carrier comparison",
+    "Supported native before-request admission boundary"
+  ],
+  "proof_boundary": "No implemented successor, supported admission mechanism, subscription requalification, proxy/auth compatibility, runtime/customer readiness, or statistical confidence score is established. Reviewer did not rerun probes."
+}

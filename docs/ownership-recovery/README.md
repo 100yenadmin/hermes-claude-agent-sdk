@@ -8,19 +8,20 @@ The peer is imported from that checkout, not vendored. Only synthetic response
 
 ## Requirements and command
 
-Use macOS with `/usr/bin/sandbox-exec`, Python 3.11+, and the DirectSDK
-checkout's existing dependencies (`httpx` and `openai`). Obtain the native
+Use macOS with `/usr/bin/sandbox-exec` and Python 3.11+ (standard library only).
+Obtain the native
 binary through the official SDK/npm distribution; do not modify its bytes.
 Use an isolated checkout/environment and inspect the script before running.
 The script refuses a different checkout SHA or an absent sandbox. Every native
 process receives a sterile environment, fake fixture credential, temporary
 home, dead proxies and an OS outbound policy allowing localhost only.
 
+From the plugin repository root:
+
 ```sh
 git clone https://github.com/NousResearch/hermes-agent.git hermes-native-repro
 git -C hermes-native-repro checkout --detach eafb4186a4e8be7ac0ca94d69b10c57e0154aee8
-# Use the existing isolated Python environment with DirectSDK dependencies.
-python native_recovery_probe.py --hermes-checkout ./hermes-native-repro --binary /absolute/path/to/official/claude
+python3 docs/ownership-recovery/native_recovery_probe.py --hermes-checkout ./hermes-native-repro --binary /absolute/path/to/official/claude
 ```
 
 Do not point this script at a live proxy, supply real credentials, remove the
