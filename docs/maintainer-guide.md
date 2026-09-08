@@ -1,5 +1,16 @@
 # Maintainer guide: Claude subscription transport for Hermes
 
+> **Correction — 2026-09-09:** the intent below is not achieved by v0.1.0.
+> The whole-turn path bypasses normal model hooks/budgets; native history and
+> compaction remain authoritative. Intermediate commentary is not fully saved,
+> request accounting is unsupported, and tool text/schema conversions are lossy.
+> The actual Hermes executor, tool hooks and approvals do work.
+> See the [frozen investigation](ownership-recovery/investigation.md) and
+> [recovery tracker](https://github.com/100yenadmin/hermes-claude-agent-sdk/issues/1).
+> Qualification and diagrams below are historical, not proof of complete ownership.
+> The successor must use Hermes' ordinary model-provider loop after a supported
+> native before-request admission mechanism is proven.
+
 **The intent:** use a Claude subscription in normal Hermes without replacing
 Hermes with Claude Code's agent. This is an opt-in standalone plugin plus a
 provider-neutral host interface, not a change to Hermes' ordinary API providers.
@@ -39,12 +50,13 @@ Upstream merging and expansion of supported models/platforms remain separate dec
 
 [Editable SVG](diagram/ownership.svg).
 
-Hermes constructs the prompt/context, exposes the active tool schemas, handles
-approvals and execution, owns memory/skills and `delegate_task`, delivers child
-results, and saves visible messages and lifecycle. The plugin exposes exactly
-those tools through one strict in-process MCP server and maps SDK events back
-to the host. The SDK handles subscription authentication/transport, streaming,
-cancellation, and opaque provider continuity.
+Hermes constructs the system prompt, exposes tools, handles approvals and
+execution, and runs memory/skills and `delegate_task`. The plugin bridges those
+tools through MCP. Tool calls/results and final answers are saved, but
+intermediate commentary is incomplete. Native history, compaction and internal
+generation scheduling remain SDK-owned; the historical diagram overstates that
+boundary. Tool descriptions/results and schemas also undergo the lossy
+conversions documented in the investigation.
 
 The SDK **does use a bundled Claude Code-derived subprocess**. This design
 cannot satisfy a requirement for no such process. It passes `tools=[]`,

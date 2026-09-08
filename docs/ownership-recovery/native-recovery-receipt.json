@@ -1,0 +1,128 @@
+{
+  "claim_class": "advisory",
+  "directsdk_sha": "eafb4186a4e8be7ac0ca94d69b10c57e0154aee8",
+  "probe_sha256": "e31b9535b94bcf6cc073f15bd92576503a93d10a99098a0ba76661a72d1a8ab9",
+  "runs": [
+    {
+      "native_version": "2.1.258 (Claude Code)",
+      "binary_sha256": "b63136194160791c27cfa7b0403060d85eb0752991625fde8c09f9acacb17c78",
+      "mode": "normal",
+      "localhost_messages_requests": 1,
+      "result": {
+        "finish_reason": "stop",
+        "native_assistant_count": 1
+      },
+      "error": null,
+      "provider_calls": 0,
+      "controls": [
+        "max-turns=1",
+        "CLAUDE_CODE_MAX_RETRIES=0",
+        "native tools disabled",
+        "autocompaction disabled",
+        "localhost-only OS outbound policy"
+      ],
+      "remaining_client_requests": 0,
+      "peer_stopped": true
+    },
+    {
+      "native_version": "2.1.258 (Claude Code)",
+      "binary_sha256": "b63136194160791c27cfa7b0403060d85eb0752991625fde8c09f9acacb17c78",
+      "mode": "once_limit",
+      "localhost_messages_requests": 2,
+      "result": {
+        "finish_reason": "stop",
+        "native_assistant_count": 2
+      },
+      "error": null,
+      "provider_calls": 0,
+      "controls": [
+        "max-turns=1",
+        "CLAUDE_CODE_MAX_RETRIES=0",
+        "native tools disabled",
+        "autocompaction disabled",
+        "localhost-only OS outbound policy"
+      ],
+      "remaining_client_requests": 0,
+      "peer_stopped": true
+    },
+    {
+      "native_version": "2.1.258 (Claude Code)",
+      "binary_sha256": "b63136194160791c27cfa7b0403060d85eb0752991625fde8c09f9acacb17c78",
+      "mode": "always_limit",
+      "localhost_messages_requests": 4,
+      "result": null,
+      "error": "RuntimeError: Native API error: API Error: Claude's response exceeded the 64000 output token maximum. To configure this behavior, set the CLAUDE_CODE_MAX_OUTPUT_TOKENS environment variable.",
+      "provider_calls": 0,
+      "controls": [
+        "max-turns=1",
+        "CLAUDE_CODE_MAX_RETRIES=0",
+        "native tools disabled",
+        "autocompaction disabled",
+        "localhost-only OS outbound policy"
+      ],
+      "remaining_client_requests": 0,
+      "peer_stopped": true
+    },
+    {
+      "native_version": "2.1.263 (Claude Code)",
+      "binary_sha256": "ef5d2909c8af49f31ab6d5487e90316777bc2fac170adfe8160716caa8aaf4f9",
+      "mode": "normal",
+      "localhost_messages_requests": 1,
+      "result": {
+        "finish_reason": "stop",
+        "native_assistant_count": 1
+      },
+      "error": null,
+      "provider_calls": 0,
+      "controls": [
+        "max-turns=1",
+        "CLAUDE_CODE_MAX_RETRIES=0",
+        "native tools disabled",
+        "autocompaction disabled",
+        "localhost-only OS outbound policy"
+      ],
+      "remaining_client_requests": 0,
+      "peer_stopped": true
+    },
+    {
+      "native_version": "2.1.263 (Claude Code)",
+      "binary_sha256": "ef5d2909c8af49f31ab6d5487e90316777bc2fac170adfe8160716caa8aaf4f9",
+      "mode": "once_limit",
+      "localhost_messages_requests": 2,
+      "result": {
+        "finish_reason": "stop",
+        "native_assistant_count": 2
+      },
+      "error": null,
+      "provider_calls": 0,
+      "controls": [
+        "max-turns=1",
+        "CLAUDE_CODE_MAX_RETRIES=0",
+        "native tools disabled",
+        "autocompaction disabled",
+        "localhost-only OS outbound policy"
+      ],
+      "remaining_client_requests": 0,
+      "peer_stopped": true
+    },
+    {
+      "native_version": "2.1.263 (Claude Code)",
+      "binary_sha256": "ef5d2909c8af49f31ab6d5487e90316777bc2fac170adfe8160716caa8aaf4f9",
+      "mode": "always_limit",
+      "localhost_messages_requests": 4,
+      "result": null,
+      "error": "RuntimeError: Native API error: API Error: Claude's response exceeded the 64000 output token maximum. To configure this behavior, set the CLAUDE_CODE_MAX_OUTPUT_TOKENS environment variable.",
+      "provider_calls": 0,
+      "controls": [
+        "max-turns=1",
+        "CLAUDE_CODE_MAX_RETRIES=0",
+        "native tools disabled",
+        "autocompaction disabled",
+        "localhost-only OS outbound policy"
+      ],
+      "remaining_client_requests": 0,
+      "peer_stopped": true
+    }
+  ],
+  "proof_boundary": "Real native/adapter against synthetic localhost responses, not subscription or customer qualification."
+}

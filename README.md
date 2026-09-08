@@ -1,5 +1,15 @@
 # Hermes Claude Agent SDK — v0.1.0 (pinned-host edition)
 
+> **Ownership correction — 2026-09-09:** v0.1.0 is not full Hermes parity.
+> It uses Hermes' actual executor and approvals, but bypasses the ordinary
+> model-step loop, relies on native history, loses intermediate saved commentary,
+> and has accounting/tool-fidelity defects. Native output recovery can issue
+> additional requests without Hermes admission. Historical qualification did not
+> test those requirements. See the [investigation](docs/ownership-recovery/investigation.md)
+> and [recovery tracker](https://github.com/100yenadmin/hermes-claude-agent-sdk/issues/1).
+> Do not use this release where strict Hermes budgets or canonical-history
+> ownership are required. Existing downloads remain unchanged.
+
 **Maintainers: [start with the review, install, and evidence guide](docs/maintainer-guide.md).**
 It includes the ownership diagrams, exact qualified versions, and rollback.
 **Requires Hermes host `80332e62eb19e48ed4a1c220dc4c06fe343418ac`.**
@@ -12,10 +22,9 @@ There is no PyPI release. The release page is authoritative for publication stat
 Start with the [isolated install and login guide](docs/maintainer-guide.md#try-the-pinned-host-release-in-isolation).
 
 `hermes-claude-agent-sdk` is a standalone plugin for the Hermes host. Revision
-4 is the Hermes-owned, zero-native boundary: Hermes owns every visible behavior
-and side effect, while the Claude Agent SDK is used only for subscription
-transport, stream reading, cancellation, opaque external-session continuity,
-and native-compaction mapping.
+4 disables native Claude tools and routes effects through Hermes. It does not
+establish Hermes ownership of model execution or canonical context. The SDK
+still owns the internal turn, retained history and compaction.
 
 The plugin registers lazily through Hermes' public plugin entry point. It does
 not import the SDK, inspect credentials, start the bundled subprocess, or query
@@ -26,9 +35,10 @@ Claude Code-derived subprocess may use internally is not visible to Hermes or
 the operator; only the host-approved content, tool, lifecycle, and usage
 surfaces are exposed.
 
-Hermes composes the exact prompt, transcript, context, permissions, approvals,
-tool inventory, delegation, background delivery, status, persistence, usage,
-and replay behavior. The SDK receives that direct Hermes prompt as
+Hermes supplies the system prompt, permissions, approvals and tool inventory,
+and executes delegation/background work. Only the latest user input is sent;
+native retained history is not a replay of Hermes' canonical transcript.
+The SDK receives the direct Hermes system prompt as
 `system_prompt`, with `tools=[]` and `setting_sources=[]`. The only SDK tool
 surface is the strict, exact `hermes-tools` MCP server and its admitted
 `mcp__hermes-tools__<tool>` names. `bypassPermissions` disables an SDK-side
