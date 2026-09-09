@@ -93,6 +93,46 @@ def test_direct_call_delegates_once_and_preserves_correlation_and_name() -> None
     }
 
 
+def test_contains_modifiers_preserved_and_enforced() -> None:
+    host = RecordingHost()
+    schema = {
+        "type": "object",
+        "properties": {"values": {
+            "type": "array", "contains": {"type": "integer"},
+            "minContains": 1, "maxContains": 2,
+        }},
+        "required": ["values"],
+    }
+    bridge = HostToolBridge(host, [_openai("probe", schema)])
+    assert bridge.tool_definitions[0].input_schema == schema
+    _run(bridge.handle_tool_call("ok", "probe", {"values": [1, "text", 2]}))
+    for values in (["text"], [1, 2, 3]):
+        with pytest.raises(ToolBridgeRequestError):
+            _run(bridge.handle_tool_call("denied", "probe", {"values": values}))
+    assert len(host.calls) == 1
+
+
+@pytest.mark.parametrize("reference", ["#/$defs/missing", "#missing"])
+def test_dangling_local_reference_is_configuration_error(reference: str) -> None:
+    with pytest.raises(ToolBridgeConfigurationError):
+        HostToolBridge(RecordingHost(), [_openai("probe", {
+            "type": "object", "properties": {"value": {"$ref": reference}},
+        })])
+
+
+def test_local_anchor_reference_preserves_valid_schema() -> None:
+    schema = {
+        "type": "object",
+        "$defs": {"value": {"$anchor": "value", "type": "integer"}},
+        "properties": {"value": {"$ref": "#value"}},
+    }
+    bridge = HostToolBridge(RecordingHost(), [_openai("probe", schema)])
+    assert bridge.tool_definitions[0].input_schema == schema
+    _run(bridge.handle_tool_call("ok", "probe", {"value": 1}))
+    with pytest.raises(ToolBridgeRequestError):
+        _run(bridge.handle_tool_call("denied", "probe", {"value": "not integer"}))
+
+
 def test_begin_turn_refreshes_tool_correlation_without_rebuilding_bridge() -> None:
     host = RecordingHost()
     bridge = HostToolBridge(host, [_openai("pwd")], correlation_id="turn-one")
@@ -300,19 +340,67 @@ def test_host_exception_is_redacted_and_bounded_without_raw_exception_text() -> 
     assert len(text.encode("utf-8")) <= 4096
 
 
-def test_result_conversion_is_bounded_and_rejects_unsupported_host_values() -> None:
+def test_result_conversion_preserves_host_size_and_rejects_unsupported_values() -> None:
     host = RecordingHost(result={"value": "x" * 100_000})
     bridge = HostToolBridge(host, [_openai()])
     result = _run(bridge.handle_tool_call("request", "pwd", {"path": "."}))
     text = result.to_sdk_result()["content"][0]["text"]
-    assert len(text.encode("utf-8")) <= 65536
-    assert "truncated" in text
+    assert text == '{"value":"' + "x" * 100_000 + '"}'
 
     host = RecordingHost(result=object())
     bridge = HostToolBridge(host, [_openai()])
     result = _run(bridge.handle_tool_call("request", "pwd", {"path": "."}))
     assert result.is_error is True
     assert result.to_sdk_result()["content"][0]["text"] == "Host returned unsupported result"
+
+
+def test_model_text_preserves_multiline_unicode_and_host_secret_protection() -> None:
+    text = "def f():\n    x = '日本語 👩‍💻'\n\treturn x\n" + "tail\n" * 20_000
+    host = RecordingHost(result=text)
+    bridge = HostToolBridge(host, [_openai()])
+    assert _run(bridge.handle_tool_call("one", "pwd", {"path": "."})).text == text
+    host.result = "before\napi_key=sk-syntheticfixture123\nafter\n"
+    result = _run(bridge.handle_tool_call("two", "pwd", {"path": "."}))
+    assert "sk-syntheticfixture123" not in result.text
+    assert result.text.startswith("before\n")
+    assert result.text.endswith("\nafter\n")
+
+
+def test_descriptions_and_standard_schema_constraints_are_preserved() -> None:
+    description = "first line\n    second\n" * 500
+    schema = {
+        "type": "object",
+        "$defs": {"code": {"type": "string", "pattern": "^[A-Z]{2}$"}},
+        "properties": {
+            "code": {"$ref": "#/$defs/code"},
+            "items": {"type": "array", "items": {"type": ["integer", "null"]}},
+        },
+        "required": ["code"],
+        "additionalProperties": False,
+    }
+    spec = _openai("code", schema)
+    spec["function"]["description"] = description
+    host = RecordingHost()
+    bridge = HostToolBridge(host, [spec])
+    definition = bridge.tool_definitions[0]
+    assert definition.description == description
+    assert definition.input_schema == schema
+    _run(bridge.handle_tool_call("one", "code", {"code": "AB", "items": [1, None]}))
+    with pytest.raises(ToolBridgeRequestError):
+        _run(bridge.handle_tool_call("two", "code", {"code": "lower"}))
+    assert len(host.calls) == 1
+
+
+@pytest.mark.parametrize("constraint", [
+    {"$ref": "https://example.invalid/schema"},
+    {"vendorConstraint": True},
+    {"$schema": "https://example.invalid/dialect"},
+])
+def test_unsupported_constraints_fail_explicitly_without_execution(constraint) -> None:
+    host = RecordingHost()
+    with pytest.raises(ToolBridgeConfigurationError, match="unsupported"):
+        HostToolBridge(host, [_openai("bad", {"type": "object", **constraint})])
+    assert host.calls == []
 
 
 @pytest.mark.parametrize(

@@ -21,19 +21,26 @@ MIT rights.
 
 ## 2. Dependency license metadata
 
-Package metadata admits the bounded first-RC range:
+The ownership-recovery candidate declares these exact direct dependencies:
 
 ```text
 claude-agent-sdk==0.2.151
+jsonschema==4.26.0
 ```
 
 Revision 4 targets exact SDK `0.2.151`, bundled Claude Code-derived CLI
 `2.1.258`, and direct model `claude-fable-5-1`. The exact wheel and bundled
 subprocess require separate license/provenance inspection.
 
-The standalone plugin wheel and sdist declare this dependency but do not vendor
-or redistribute the SDK package or bundled CLI. An installer obtains that
-separate distribution from the operator's configured package source. Any
+The published v0.1.0 artifact declared only the SDK directly. The recovery
+candidate promotes `jsonschema==4.26.0` to a direct dependency for standard
+JSON Schema validation; its distribution metadata declares `MIT` through
+`License-Expression`. This is a candidate change, not a modification of the
+published artifact or evidence of a newly qualified release.
+
+The standalone plugin wheel and sdist declare dependencies but do not vendor
+or redistribute jsonschema, the SDK package or bundled CLI. An installer obtains
+these separate distributions from the operator's configured package source. Any
 future bundled or vendored artifact would be a different release boundary and
 must stop for a fresh redistribution and notice review.
 

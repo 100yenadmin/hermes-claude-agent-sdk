@@ -38,6 +38,12 @@ metadata, not a complete inventory of the dependency's transitive packages,
 bundled assets, or their notices; those must be inspected before a release
 candidate is distributed.
 
+The ownership-recovery candidate also directly pins `jsonschema==4.26.0` for
+JSON Schema validation. Its distribution metadata declares `License-Expression:
+MIT`. It is separately resolved by the installer, not vendored in this package.
+This candidate declaration does not change the immutable v0.1.0 dependency
+record; the exact resolved transitive packages still require release-time audit.
+
 Using the Claude Agent SDK, Claude CLI, or Anthropic services is also subject to
 the applicable Anthropic terms and account or product terms. The MIT source
 license does not grant service entitlements, and Anthropic service terms are
