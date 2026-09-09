@@ -93,6 +93,46 @@ def test_direct_call_delegates_once_and_preserves_correlation_and_name() -> None
     }
 
 
+def test_contains_modifiers_preserved_and_enforced() -> None:
+    host = RecordingHost()
+    schema = {
+        "type": "object",
+        "properties": {"values": {
+            "type": "array", "contains": {"type": "integer"},
+            "minContains": 1, "maxContains": 2,
+        }},
+        "required": ["values"],
+    }
+    bridge = HostToolBridge(host, [_openai("probe", schema)])
+    assert bridge.tool_definitions[0].input_schema == schema
+    _run(bridge.handle_tool_call("ok", "probe", {"values": [1, "text", 2]}))
+    for values in (["text"], [1, 2, 3]):
+        with pytest.raises(ToolBridgeRequestError):
+            _run(bridge.handle_tool_call("denied", "probe", {"values": values}))
+    assert len(host.calls) == 1
+
+
+@pytest.mark.parametrize("reference", ["#/$defs/missing", "#missing"])
+def test_dangling_local_reference_is_configuration_error(reference: str) -> None:
+    with pytest.raises(ToolBridgeConfigurationError):
+        HostToolBridge(RecordingHost(), [_openai("probe", {
+            "type": "object", "properties": {"value": {"$ref": reference}},
+        })])
+
+
+def test_local_anchor_reference_preserves_valid_schema() -> None:
+    schema = {
+        "type": "object",
+        "$defs": {"value": {"$anchor": "value", "type": "integer"}},
+        "properties": {"value": {"$ref": "#value"}},
+    }
+    bridge = HostToolBridge(RecordingHost(), [_openai("probe", schema)])
+    assert bridge.tool_definitions[0].input_schema == schema
+    _run(bridge.handle_tool_call("ok", "probe", {"value": 1}))
+    with pytest.raises(ToolBridgeRequestError):
+        _run(bridge.handle_tool_call("denied", "probe", {"value": "not integer"}))
+
+
 def test_begin_turn_refreshes_tool_correlation_without_rebuilding_bridge() -> None:
     host = RecordingHost()
     bridge = HostToolBridge(host, [_openai("pwd")], correlation_id="turn-one")

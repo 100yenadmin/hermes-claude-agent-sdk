@@ -220,7 +220,8 @@ def _schema_validator(schema: dict[str, Any]):
     of silently weakening host constraints.
     """
     from jsonschema import Draft202012Validator
-    from referencing import Registry
+    from referencing import Registry, Resource
+    from referencing.jsonschema import DRAFT202012
     from referencing.exceptions import NoSuchResource
 
     def no_remote(uri: str):
@@ -231,6 +232,9 @@ def _schema_validator(schema: dict[str, Any]):
         "$defs", "definitions", "$comment", "title", "description", "default",
         "examples", "deprecated", "readOnly", "writeOnly",
     }
+    # These assertion modifiers are evaluated by ``contains`` rather than
+    # having independent entries in jsonschema's validator dispatch map.
+    assertion_modifiers = {"minContains", "maxContains"}
     schema_maps = {"properties", "patternProperties", "$defs", "definitions", "dependentSchemas"}
     schema_lists = {"allOf", "anyOf", "oneOf", "prefixItems"}
     schema_values = {
@@ -238,12 +242,16 @@ def _schema_validator(schema: dict[str, Any]):
         "items", "contains", "unevaluatedItems", "not", "if", "then", "else",
     }
 
-    def check(node):
+    registry = Registry(retrieve=no_remote)
+    root_resource = Resource.from_contents(schema, default_specification=DRAFT202012)
+    resolver = registry.resolver_with_root(root_resource)
+
+    def check(node, resolver):
         if type(node) is bool:
             return
         if type(node) is not dict:
             raise ValueError("invalid schema")
-        if set(node) - (set(Draft202012Validator.VALIDATORS) | annotations):
+        if set(node) - (set(Draft202012Validator.VALIDATORS) | annotations | assertion_modifiers):
             raise ValueError("unsupported schema keyword")
         if "$schema" in node and node["$schema"] not in {
             "https://json-schema.org/draft/2020-12/schema",
@@ -253,18 +261,25 @@ def _schema_validator(schema: dict[str, Any]):
         for key in ("$ref", "$dynamicRef"):
             if key in node and (not isinstance(node[key], str) or not node[key].startswith("#")):
                 raise ValueError("external schema references are unsupported")
+            if key in node:
+                # Resolve at configuration time, without fetching or following
+                # recursively. A dangling local reference must not be exposed.
+                resolver.lookup(node[key])
+        def check_child(child):
+            resource = Resource.from_contents(child, default_specification=DRAFT202012)
+            check(child, resolver.in_subresource(resource))
         for key in schema_maps & node.keys():
             for child in node[key].values():
-                check(child)
+                check_child(child)
         for key in schema_lists & node.keys():
             for child in node[key]:
-                check(child)
+                check_child(child)
         for key in schema_values & node.keys():
-            check(node[key])
+            check_child(node[key])
 
     Draft202012Validator.check_schema(schema)
-    check(schema)
-    return Draft202012Validator(schema, registry=Registry(retrieve=no_remote))
+    check(schema, resolver)
+    return Draft202012Validator(schema, registry=registry)
 
 
 def normalize_tool_schema(spec: Any) -> HostToolDefinition:
