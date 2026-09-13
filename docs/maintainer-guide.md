@@ -1,5 +1,11 @@
 # Maintainer guide: Claude subscription transport for Hermes
 
+> **Current unreleased phase:** [Plugin UX recovery](plugin-ux-recovery.md)
+> improves the standalone path without claiming ordinary-model-loop ownership.
+> Its first installed tool/approval/persistence/restart check passes; remaining
+> acceptance and CI are pending. The release history below does not qualify
+> this successor, and the successor does not repair existing downloads.
+
 > **Correction — 2026-09-09:** the intent below is not achieved by v0.1.0.
 > The whole-turn path bypasses normal model hooks/budgets; native history and
 > compaction remain authoritative. Intermediate commentary is not fully saved,
@@ -8,8 +14,8 @@
 > See the [frozen investigation](ownership-recovery/investigation.md) and
 > [recovery tracker](https://github.com/100yenadmin/hermes-claude-agent-sdk/issues/1).
 > Qualification and diagrams below are historical, not proof of complete ownership.
-> The successor must use Hermes' ordinary model-provider loop after a supported
-> native before-request admission mechanism is proven.
+> Any future full-ownership claim still requires the unresolved generation
+> admission and ordinary-loop work in issues #21 and #22.
 
 **The intent:** use a Claude subscription in normal Hermes without replacing
 Hermes with Claude Code's agent. This is an opt-in standalone plugin plus a

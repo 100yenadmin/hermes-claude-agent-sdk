@@ -46,6 +46,9 @@ REQUIRED_HOST_CAPABILITIES = frozenset(
         "compaction_events_v1",
         "host_approval_v1",
         "host_content_stream_v1",
+        "host_assistant_updates_v1",
+        "runtime_history_checkpoint_v1",
+        "runtime_generation_settings_v1",
         "host_status_v1",
         "host_tool_execution_v1",
         "host_tool_request_id_v1",
@@ -53,6 +56,7 @@ REQUIRED_HOST_CAPABILITIES = frozenset(
         "runtime_model_provenance_v1",
         "runtime_state_v1",
         "usage_receipts_v1",
+        "usage_receipts_v2",
     }
 )
 

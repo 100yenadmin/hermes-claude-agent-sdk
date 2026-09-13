@@ -11,7 +11,18 @@ from hermes_claude_agent_sdk.parity.v4_live_packets import V4LivePacketViolation
 from hermes_claude_agent_sdk.parity.v4_local_path_executor import (
     V4LocalPathExecutorViolation,
     execute_v4_local_path,
+    _host_root,
 )
+
+
+@pytest.fixture
+def historical_host():
+    try:
+        _host_root()
+    except V4LocalPathExecutorViolation as exc:
+        if str(exc) == "HERMES_AGENT_HOST_ROOT is not the expected host":
+            pytest.skip("historical v4 source-bound host differs; not current UX proof")
+        raise
 
 
 def _run(tmp_path: Path, row: str, path: str = "positive") -> dict:
@@ -37,7 +48,7 @@ def _assert_local(packet: dict, row: str, path: str, trace: tuple[str, ...]) -> 
     }
 
 
-def test_tool_path_observes_real_host_request_and_result(tmp_path: Path) -> None:
+def test_tool_path_observes_real_host_request_and_result(tmp_path: Path, historical_host) -> None:
     packet = _run(tmp_path, "v2_non_soak/TOOL-02")
     _assert_local(packet, "v2_non_soak/TOOL-02", "positive", _expected_trace("v2_non_soak/TOOL-02"))
     assert packet["observation"]["tool"] == {"request_count": 1, "result_count": 1}
@@ -45,7 +56,7 @@ def test_tool_path_observes_real_host_request_and_result(tmp_path: Path) -> None
     assert "v4-local-record-1" not in repr(packet)
 
 
-def test_approval_denial_is_negative_and_does_not_write(tmp_path: Path) -> None:
+def test_approval_denial_is_negative_and_does_not_write(tmp_path: Path, historical_host) -> None:
     packet = _run(tmp_path, "clawprobench_native/constraints_23_external_approval_boundary_live", "denial")
     _assert_local(packet, "clawprobench_native/constraints_23_external_approval_boundary_live", "denial", _expected_trace("clawprobench_native/constraints_23_external_approval_boundary_live"))
     assert packet["terminal_status"] == "denied"
@@ -54,7 +65,7 @@ def test_approval_denial_is_negative_and_does_not_write(tmp_path: Path) -> None:
     assert not (tmp_path / ".v4_local_runtime_fixture_state.json").exists()
 
 
-def test_approval_recovery_retains_denial_then_writes_once(tmp_path: Path) -> None:
+def test_approval_recovery_retains_denial_then_writes_once(tmp_path: Path, historical_host) -> None:
     packet = _run(tmp_path, "clawprobench_native/constraints_23_external_approval_boundary_live", "recovery")
     _assert_local(packet, "clawprobench_native/constraints_23_external_approval_boundary_live", "recovery", _expected_trace("clawprobench_native/constraints_23_external_approval_boundary_live"))
     assert packet["observation"]["prior_denial"] == {"observed": True, "no_write": True}
@@ -67,7 +78,7 @@ def test_approval_recovery_retains_denial_then_writes_once(tmp_path: Path) -> No
     ("field", "value"),
     (("row_key", "v2_non_soak/TOOL-02"), ("path", "positive"), ("trial_index", 2)),
 )
-def test_local_packet_cannot_be_relabelled(tmp_path: Path, field: str, value: object) -> None:
+def test_local_packet_cannot_be_relabelled(tmp_path: Path, field: str, value: object, historical_host) -> None:
     row = "clawprobench_native/constraints_23_external_approval_boundary_live"
     packet = copy.deepcopy(_run(tmp_path, row, "denial"))
     packet["observation"]["identity"][field] = value

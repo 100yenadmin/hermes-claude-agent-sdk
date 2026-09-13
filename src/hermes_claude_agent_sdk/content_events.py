@@ -202,7 +202,7 @@ def _safe_attr(obj: Any, name: str, default: Any = None) -> Any:
         return default
 
 
-def _safe_text(value: Any, *, limit: int = _MAX_TEXT_CHARS) -> str:
+def _safe_text(value: Any, *, limit: int | None = _MAX_TEXT_CHARS) -> str:
     """Accept text values without stringifying arbitrary SDK objects."""
     if not isinstance(value, str):
         return ""
@@ -403,6 +403,8 @@ class ProjectionResult:
     effective_model: str | None = None
     canonical_model: str | None = None
     model_resolution: str = "unknown"
+    assistant_message_id: str | None = None
+    tool_bindings: tuple[tuple[str, str, Mapping[str, Any]], ...] = ()
 
     @property
     def tool_result_metadata(self) -> tuple[ToolResultMetadata, ...]:
@@ -449,6 +451,8 @@ class ClaudeSdkEventProjector:
         self._correlation_id = _safe_identifier(
             correlation_id, default=""
         ) or None
+        self._assistant_serial = 0
+        self._last_assistant_id = None
 
     def begin_turn(self, *, correlation_id: str | None = None) -> None:
         """Start a fresh turn while retaining validated session evidence.
@@ -459,6 +463,8 @@ class ClaudeSdkEventProjector:
         contaminating a later turn.
         """
         self._reported_models.clear()
+        self._assistant_serial = 0
+        self._last_assistant_id = None
         self._usage_models.clear()
         self._usage_canonical_models.clear()
         self._usage_malformed = False
@@ -673,10 +679,11 @@ class ClaudeSdkEventProjector:
         self._observe_model_evidence(message)
         text_parts: list[str] = []
         tool_events: list[RuntimeToolRequestEvent] = []
+        tool_bindings = []
         for block in _safe_attr(message, "content") or ():
             block_name = _sdk_type_name(block)
             if block_name == "TextBlock":
-                text = _safe_text(_safe_attr(block, "text"))
+                text = _safe_text(_safe_attr(block, "text"), limit=None)
                 if text:
                     text_parts.append(text)
             elif block_name == "ToolUseBlock":
@@ -686,6 +693,10 @@ class ClaudeSdkEventProjector:
                 name = _safe_identifier(
                     _safe_attr(block, "name"), default="unknown"
                 )
+                from .tool_bridge import _copy_plain_json
+                arguments = _copy_plain_json(_safe_attr(block, "input"))
+                if isinstance(arguments, dict):
+                    tool_bindings.append((request_id, name, arguments))
                 tool_events.append(
                     RuntimeToolRequestEvent(
                         request_id=request_id,
@@ -696,15 +707,23 @@ class ClaudeSdkEventProjector:
             # ThinkingBlock and ServerToolUseBlock have no safe v1 event type.
             # Their private/provider-specific data is intentionally omitted.
 
-        text = "\n".join(text_parts)[:_MAX_TEXT_CHARS] if text_parts else None
+        text = "\n".join(text_parts) if text_parts else None
+        self._assistant_serial += 1
+        message_id = _safe_identifier(_safe_attr(message, "uuid"), default="") or (
+            f"assistant-{self._assistant_serial}"
+        )
+        self._last_assistant_id = None if tool_events else message_id
         events: list[RuntimeEvent] = []
         if text:
-            events.append(RuntimeContentEvent(text=text))
+            events.extend(RuntimeContentEvent(text=text[start:start + _MAX_TEXT_CHARS])
+                for start in range(0, len(text), _MAX_TEXT_CHARS))
         events.extend(tool_events)
         effective, canonical, resolution = self._model_provenance()
         return ProjectionResult(
             events=tuple(events),
             final_text=text,
+            assistant_message_id=message_id,
+            tool_bindings=tuple(tool_bindings),
             model=effective,
             selected_model=self._selected_model,
             effective_model=effective,
@@ -748,14 +767,15 @@ class ClaudeSdkEventProjector:
         # The SDK documents ``ResultMessage.result`` as human-readable result
         # prose.  On failed results that field can contain provider error text,
         # so only successful results may become public content or final text.
-        final = None if failed else _safe_text(_safe_attr(message, "result")) or None
+        final = None if failed else _safe_text(_safe_attr(message, "result"), limit=None) or None
         effective, canonical, resolution = self._model_provenance()
         model = effective
         receipt_model = canonical or effective or _UNKNOWN_MODEL
         events: list[RuntimeEvent] = []
         if final:
             # ResultMessage.result is authoritative over preceding text blocks.
-            events.append(RuntimeContentEvent(text=final))
+            events.extend(RuntimeContentEvent(text=final[start:start + _MAX_TEXT_CHARS])
+                for start in range(0, len(final), _MAX_TEXT_CHARS))
 
         usage = _safe_attr(message, "usage")
         if usage is not None:
@@ -817,6 +837,7 @@ class ClaudeSdkEventProjector:
         return ProjectionResult(
             events=tuple(events),
             final_text=final,
+            assistant_message_id=(self._last_assistant_id or "terminal-answer") if final else None,
             is_result=True,
             model=model,
             selected_model=self._selected_model,

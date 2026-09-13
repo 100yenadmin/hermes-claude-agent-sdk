@@ -92,6 +92,9 @@ class _Client:
         self.connected += 1
 
     async def query(self, prompt: str) -> None:
+        self._producer_task = asyncio.create_task(self._produce_query(prompt))
+
+    async def _produce_query(self, prompt: str) -> None:
         self.queries.append(prompt)
         if self.mode in {
             "compaction",
@@ -104,7 +107,6 @@ class _Client:
         if self.mode in {"tool_success", "tool_failure", "compaction_tool_success"}:
             server = self.options.fields["mcp_servers"]["hermes-tools"]
             handler = server["tools"][0]["handler"]
-            await handler({"path": "."})
             await self._messages.put(
                 AssistantMessage(
                     [
@@ -116,6 +118,7 @@ class _Client:
                     ]
                 )
             )
+            await handler({"path": "."})
         if self.mode == "native_agent_once" and len(self.queries) == 1:
             await self._messages.put(
                 AssistantMessage([ToolUseBlock("agent-1", "Agent", {})])
@@ -457,6 +460,9 @@ class _Host:
         self.observed_events: list[str] = []
         self.background_after_terminal: list[bool] = []
         self.compaction = []
+        self.assistant_updates = []
+        self.states = []
+        self.receipts = []
 
     async def execute_tool(self, name, arguments, *, request_id=None):
         self.calls.append((name, dict(arguments), request_id))
@@ -469,10 +475,17 @@ class _Host:
         return None
 
     async def persist_state(self, state):
-        return None
+        self.states.append(state)
 
     async def persist_usage(self, receipt):
-        return None
+        self.receipts.append(receipt)
+
+    async def persist_assistant(self, update):
+        self.assistant_updates.append(update)
+
+    async def history_checkpoint(self):
+        from hermes_claude_agent_sdk.continuity import digest
+        return {"count": 0, "sha256": digest([])}
 
     async def emit_compaction(self, event):
         self.compaction.append(event)
@@ -614,13 +627,14 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
     async def scenario():
         clients: list[_Client] = []
         runtime = _runtime("success", clients)
-        events = await _collect(runtime, _request(), _Host())
+        host = _Host()
+        events = await _collect(runtime, _request(), host)
         await runtime.close()
         await runtime.close()
 
         kinds = [event.kind.value for event in events]
-        assert kinds == ["content", "content", "usage", "session_state", "completed"]
-        receipt = events[2].receipt
+        assert kinds == ["content", "usage", "completed"]
+        receipt = events[1].receipt
         assert (
             receipt.runtime_id,
             receipt.provider,
@@ -640,26 +654,25 @@ def test_text_projection_usage_state_terminal_and_public_options() -> None:
         assert receipt.effective_model == "claude-fable-synthetic"
         assert receipt.canonical_model is None
         assert receipt.model_resolution == "mismatch"
-        assert dict(events[3].state.state) == {
-            "external_session_id": "synthetic-next-session"
-        }
-        terminal_result = events[4].result
+        assert host.states[-1].state["external_session_id"] == "synthetic-next-session"
+        assert host.states[-1].state["continuity_status"] == "complete"
+        terminal_result = events[-1].result
         assert terminal_result["text"] == "hello"
         assert terminal_result["final_response"] == "hello"
         assert terminal_result["completed"] is True
         assert terminal_result["partial"] is False
         assert terminal_result["error"] is None
-        assert terminal_result["api_calls"] == 1
+        assert terminal_result["api_calls"] is None
+        assert terminal_result["host_steps"] == 1
         assert terminal_result["provider"] == "anthropic"
         assert terminal_result["model"] == "claude-fable-synthetic"
         assert terminal_result["selected_model"] == "claude-fable-5-1"
         assert terminal_result["effective_model"] == "claude-fable-synthetic"
         assert terminal_result["canonical_model"] == "unknown"
         assert terminal_result["model_resolution"] == "mismatch"
-        assert terminal_result["messages"][-1] == {
-            "role": "assistant",
-            "content": "hello",
-        }
+        assert terminal_result["messages"] == []
+        assert host.assistant_updates[0].text == "hello"
+        assert host.assistant_updates[-1].mode == "final"
         fields = clients[0].options.fields
         assert fields["permission_mode"] == "bypassPermissions"
         assert fields["system_prompt"] == "stable system prompt"
@@ -681,10 +694,10 @@ def test_observed_fable_included_window_settles_usage_state_and_terminal() -> No
         events = await _collect(runtime, _request(), _Host())
         await runtime.close()
         assert [event.kind.value for event in events] == [
-            "content", "content", "usage", "session_state", "completed",
+            "content", "usage", "completed",
         ]
-        assert events[2].receipt.billing_mode == "subscription_included"
-        assert events[2].receipt.cost_status == "included"
+        assert events[1].receipt.billing_mode == "subscription_included"
+        assert events[1].receipt.cost_status == "included"
         assert events[-1].result["completed"] is True
         assert len(clients[0].queries) == 1
     asyncio.run(scenario())
@@ -699,11 +712,7 @@ def test_compatible_successive_turns_reuse_one_client_reader_and_resume_state() 
         first_events = await _collect(
             runtime, _request(correlation_id="turn-a"), host
         )
-        state = next(
-            event.state
-            for event in first_events
-            if event.kind.value == "session_state"
-        )
+        state = host.states[-1]
         second_events = await _collect(
             runtime,
             _request(state=state, correlation_id="turn-b"),
@@ -714,7 +723,8 @@ def test_compatible_successive_turns_reuse_one_client_reader_and_resume_state() 
 
     first_events, second_events, clients, state = asyncio.run(scenario())
 
-    assert dict(state.state) == {"external_session_id": "synthetic-next-session"}
+    assert state.state["external_session_id"] == "synthetic-next-session"
+    assert state.state["continuity_status"] == "complete"
     assert first_events[-1].kind.value == "completed"
     assert second_events[-1].kind.value == "completed"
     assert first_events[-1].result["text"] == "hello"
@@ -957,10 +967,7 @@ def test_native_compaction_is_a_typed_runtime_event_without_role_injection() -> 
         ]
         assert sum(event.kind.value == "completed" for event in events) == 1
         terminal = events[-1]
-        assert [message["role"] for message in terminal.result["messages"]] == [
-            "user",
-            "assistant",
-        ]
+        assert terminal.result["messages"] == []  # acknowledged host transcript owns persistence
 
     asyncio.run(scenario())
 
@@ -1092,7 +1099,7 @@ def test_state_v1_rejects_extra_fields_before_auth_or_sdk() -> None:
     assert clients == []
 
 
-def test_host_tool_bridge_and_resume_use_only_public_fields() -> None:
+def test_host_tool_bridge_and_untrusted_resume_use_explicit_handoff() -> None:
     async def scenario():
         clients: list[_Client] = []
         runtime = _runtime("tool_success", clients)
@@ -1106,10 +1113,11 @@ def test_host_tool_bridge_and_resume_use_only_public_fields() -> None:
         await runtime.close()
 
         assert host.calls == [
-            ("pwd", {"path": "."}, "synthetic-correlation:sdk-call-0001")
+            ("pwd", {"path": "."}, "tool-1")
         ]
         fields = clients[0].options.fields
-        assert fields["resume"] == "synthetic-resume"
+        assert fields.get("resume") is None
+        assert "CONTEXT HANDOFF" in clients[0].queries[0]
         assert fields["allowed_tools"] == ["mcp__hermes-tools__pwd"]
         assert fields["strict_mcp_config"] is True
         assert len(fields["mcp_servers"]["hermes-tools"]["tools"]) == 1
@@ -1157,16 +1165,18 @@ def test_unknown_billing_blocks_success_and_tool_side_effect_is_conservative() -
     unknown, _ = asyncio.run(scenario("unknown"))
     after_tool, host = asyncio.run(scenario("tool_failure", (_tool_schema(),)))
 
-    assert [event.kind.value for event in unknown] == ["failed"]
-    assert unknown[0].failure.code == "claude_subscription_billing_blocked"
-    assert unknown[0].failure.message == "Claude subscription billing blocked: unknown_evidence"
-    assert unknown[0].failure.replay_safe is False
+    assert [event.kind.value for event in unknown] == ["usage", "failed"]
+    assert unknown[-1].failure.code == "claude_subscription_billing_blocked"
+    assert unknown[-1].failure.message == "Claude subscription billing blocked: unknown_evidence"
+    assert unknown[-1].failure.replay_safe is False
+    assert unknown[0].receipt.usage_observed is False
     assert [event.kind.value for event in after_tool][-1] == "failed"
     assert after_tool[-1].failure.phase.value == "after_side_effects"
     assert host.calls == [
-        ("pwd", {"path": "."}, "synthetic-correlation:sdk-call-0001")
+        ("pwd", {"path": "."}, "tool-1")
     ]
-    assert not any(event.kind.value in {"usage", "completed"} for event in after_tool)
+    assert not any(event.kind.value == "completed" for event in after_tool)
+    assert next(e.receipt for e in after_tool if e.kind.value == "usage").usage_observed is False
 
 
 def test_billing_retirement_does_not_restart_runtime_session() -> None:
@@ -1197,7 +1207,7 @@ def test_cancellation_interrupts_and_closes_once_with_one_terminal() -> None:
         events = await _collect(runtime, _request(), _Host(cancel_after=3))
         await runtime.close()
         client = clients[0]
-        assert [event.kind.value for event in events] == ["cancelled"]
+        assert [event.kind.value for event in events] == ["usage", "cancelled"]
         assert client.interrupted == 1
         assert client.disconnected == 1
 
@@ -1262,7 +1272,7 @@ def test_mid_stream_interrupt_breaks_and_discards_tail() -> None:
     first_events, second_events, clients = asyncio.run(scenario())
 
     terminal_kinds = {"completed", "cancelled", "failed"}
-    assert [event.kind.value for event in first_events] == ["content", "cancelled"]
+    assert [event.kind.value for event in first_events] == ["content", "usage", "cancelled"]
     assert first_events[0].text == "partial interrupted turn"
     assert sum(event.kind.value in terminal_kinds for event in first_events) == 1
     assert first_events[-1].kind.value == "cancelled"
@@ -1281,7 +1291,7 @@ def test_mid_stream_interrupt_breaks_and_discards_tail() -> None:
     assert clients[1].disconnected == 1
 
 
-def test_successful_turn_then_cancelled_turn_reuses_current_resume_on_replacement() -> None:
+def test_successful_turn_then_cancelled_turn_hands_off_on_replacement() -> None:
     async def scenario():
         clients: list[_SuccessThenInterruptThenSuccessClient] = []
         runtime = ClaudeAgentSDKRuntime(
@@ -1296,12 +1306,8 @@ def test_successful_turn_then_cancelled_turn_reuses_current_resume_on_replacemen
         first_events = await _collect(
             runtime, _request(correlation_id="turn-a"), host
         )
-        state = next(
-            event.state
-            for event in first_events
-            if event.kind.value == "session_state"
-        )
-        assert dict(state.state) == {"external_session_id": "synthetic-turn-a"}
+        state = host.states[-1]
+        assert state.state["external_session_id"] == "synthetic-turn-a"
         host.arm()
         second_events = []
         async for event in runtime.run_turn(
@@ -1312,7 +1318,7 @@ def test_successful_turn_then_cancelled_turn_reuses_current_resume_on_replacemen
                 host.content_observed = True
         host.disarm()
         third_events = await _collect(
-            runtime, _request(state=state, correlation_id="turn-c"), host
+            runtime, _request(state=host.states[-1], correlation_id="turn-c"), host
         )
         await runtime.close()
         return first_events, second_events, third_events, clients
@@ -1329,6 +1335,7 @@ def test_successful_turn_then_cancelled_turn_reuses_current_resume_on_replacemen
     assert first_receipt.model_resolution == "mismatch"
     assert [event.kind.value for event in second_events] == [
         "content",
+        "usage",
         "cancelled",
     ]
     assert third_events[-1].kind.value == "completed"
@@ -1338,7 +1345,8 @@ def test_successful_turn_then_cancelled_turn_reuses_current_resume_on_replacemen
     )
     assert third_receipt.effective_model is None
     assert third_receipt.model_resolution == "unknown"
-    assert clients[1].options.fields["resume"] == "synthetic-turn-a"
+    assert clients[1].options.fields.get("resume") is None
+    assert "CONTEXT HANDOFF" in clients[1].queries[0]
     assert clients[0].interrupted == 1
     assert clients[1].interrupted == 0
     assert all(
@@ -1399,7 +1407,7 @@ def test_in_loop_cancellation_probe_failure_drains_projection_then_fails_closed(
 
     events, host, client = asyncio.run(scenario())
 
-    assert [event.kind.value for event in events] == ["content", "failed"]
+    assert [event.kind.value for event in events] == ["content", "usage", "failed"]
     assert events[0].text == "queued before probe failure"
     assert events[-1].failure.code == "claude_runtime_cancellation_unavailable"
     assert events[-1].failure.phase.value == "after_visible_output"
@@ -1440,7 +1448,7 @@ def test_runtime_rejects_post_terminal_sdk_output_without_background_delivery() 
     asyncio.run(scenario())
 
 
-def test_runtime_rejects_prompt_or_tool_contract_change_before_second_query() -> None:
+def test_runtime_hands_off_prompt_or_tool_contract_change_to_new_session() -> None:
     async def scenario():
         clients: list[_Client] = []
         runtime = _runtime("success", clients)
@@ -1454,9 +1462,10 @@ def test_runtime_rejects_prompt_or_tool_contract_change_before_second_query() ->
         )
         await runtime.close()
 
-        assert [event.kind.value for event in events] == ["failed"]
-        assert events[0].failure.code == "claude_runtime_session_contract_changed"
+        assert [event.kind.value for event in events] == ["status", "content", "usage", "completed"]
+        assert "CONTEXT HANDOFF" in events[0].message
         assert clients[0].queries == ["hello runtime"]
+        assert len(clients) == 2 and clients[1].options.fields.get("resume") is None
 
     asyncio.run(scenario())
 
@@ -1521,7 +1530,7 @@ def test_compaction_retry_keeps_mutation_exactly_once() -> None:
         ]
         assert result.terminal.kind.value == "completed"
         assert host.calls == [
-            ("pwd", {"path": "."}, "synthetic-correlation:sdk-call-0001")
+            ("pwd", {"path": "."}, "tool-1")
         ]
         assert not any(
             isinstance(event, RuntimeToolRequestEvent) for event in result.events

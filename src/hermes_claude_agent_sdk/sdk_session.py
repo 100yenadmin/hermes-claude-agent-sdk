@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import inspect
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable
@@ -221,6 +222,17 @@ class SDKSession:
 
         return self._closed and self._cancel_requested
 
+    @property
+    def admission_error_code(self) -> str | None:
+        """Do not erase a retired/protocol-failed client by changing context."""
+        if self._post_terminal_native_violation:
+            return "sdk_native_tool_unsupported"
+        if self._post_terminal_output:
+            return "sdk_post_terminal_output"
+        if self._closed and not self._cancel_requested:
+            return "session_closed"
+        return None
+
     def _sdk_module(self) -> Any:
         if self._sdk is None:
             self._sdk = importlib.import_module("claude_agent_sdk")
@@ -357,7 +369,8 @@ class SDKSession:
             )
             evidence: SDKBillingEvidence | None = None
             final_text: str | None = None
-            state = SessionStateUpdate()
+            state = SessionStateUpdate(
+                external_session_id=self._configuration.resume_external_session_id)
             turn_completed = False
             try:
                 loop = asyncio.get_running_loop()
@@ -371,6 +384,8 @@ class SDKSession:
                     await self._interrupt_then_close()
                     return SessionTurnResult(
                         SessionOutcome.TIMED_OUT,
+                        final_text=final_text,
+                        state_update=state,
                         error_code="sdk_turn_timeout",
                     )
                 while True:
@@ -397,10 +412,13 @@ class SDKSession:
                         await self._interrupt_then_close()
                         return SessionTurnResult(
                             SessionOutcome.TIMED_OUT,
+                            final_text=final_text,
+                            state_update=state,
                             error_code="sdk_turn_timeout",
                         )
                     if message is _CANCELLED or self._cancel_requested:
-                        return SessionTurnResult(SessionOutcome.CANCELLED)
+                        return SessionTurnResult(SessionOutcome.CANCELLED,
+                            final_text=final_text, state_update=state)
                     if isinstance(message, _NativeToolViolation):
                         await self._interrupt_then_close()
                         return SessionTurnResult(
@@ -421,6 +439,8 @@ class SDKSession:
                         await self._interrupt_then_close()
                         return SessionTurnResult(
                             SessionOutcome.FAILED,
+                            final_text=final_text,
+                            state_update=state,
                             error_code="sdk_compaction_watchdog",
                         )
                     if isinstance(message, _StreamEnded):
@@ -458,6 +478,12 @@ class SDKSession:
                             )
 
                     if type(message).__name__ != "ResultMessage":
+                        if type(message).__name__ == "SystemMessage" and getattr(message, "subtype", None) == "init":
+                            data = getattr(message, "data", None)
+                            native_id = data.get("session_id") if isinstance(data, Mapping) else None
+                            if (isinstance(native_id, str) and 0 < len(native_id) <= 512
+                                and not any(ord(c) < 32 or ord(c) == 127 for c in native_id)):
+                                state = SessionStateUpdate(external_session_id=native_id)
                         projection = turn_projector.project(message)
                         await _call(turn_projection_callback, projection)
                         if projection.final_text is not None:

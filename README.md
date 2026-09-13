@@ -1,5 +1,14 @@
 # Hermes Claude Agent SDK — v0.1.0 (pinned-host edition)
 
+> **Unreleased plugin UX recovery — 2026-09-13:** this branch adds acknowledged
+> commentary persistence, honest unknown request counts, context handoff and
+> Fable effort forwarding. The first installed Hermes tool/approval/restart
+> check passes; full bounded UX acceptance is still in progress. See the
+> [current candidate and installation notes](docs/plugin-ux-recovery.md).
+> It requires the new host correction, not the historical host below.
+> Existing v0.1.0 downloads have not changed. Strict generation admission and
+> ordinary-model-loop equivalence remain unresolved.
+
 > **Ownership correction — 2026-09-09:** v0.1.0 is not full Hermes parity.
 > It uses Hermes' actual executor and approvals, but bypasses the ordinary
 > model-step loop, relies on native history, loses intermediate saved commentary,

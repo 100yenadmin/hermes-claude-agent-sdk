@@ -13,6 +13,8 @@ from agent.runtime_api import (
     RuntimeFailedEvent,
     RuntimeSelection,
     RuntimeStatusEvent,
+    RuntimeUsageEvent,
+    RuntimeUsageReceipt,
 )
 
 PLUGIN_ID = "v4_delegation_runtime_fixture"
@@ -114,6 +116,13 @@ class DelegationFixtureRuntime:
             yield RuntimeCancelledEvent(reason="fixture cancelled")
             return
         yield RuntimeStatusEvent(message="v4 delegation fixture running")
+        # This fixture makes no provider requests. Report that observation in
+        # the usage contract, not a legacy final-response counter.
+        yield RuntimeUsageEvent(receipt=RuntimeUsageReceipt(
+            runtime_id=RUNTIME_ID, provider=PROVIDER_ID, model=MODEL_ID,
+            billing_mode="free", cost_status="included", request_count=0,
+            correlation_id=request.correlation_id,
+        ))
 
         if _is_child(request):
             yield RuntimeCompletedEvent(

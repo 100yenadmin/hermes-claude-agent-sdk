@@ -7,6 +7,7 @@ import pytest
 
 from hermes_claude_agent_sdk.turn_input import (
     MAX_IMAGE_BYTES,
+    MAX_TURN_TEXT,
     SDKTurnInput,
     TurnInputValidationError,
     build_sdk_turn_input,
@@ -21,7 +22,12 @@ def _request(content):
 
 
 def test_text_input_stays_a_string() -> None:
-    assert build_sdk_turn_input(_request("  hello  ")) == "hello"
+    assert build_sdk_turn_input(_request("  hello  ")) == "  hello  "
+    text = "\n    print('λ')\n"
+    assert build_sdk_turn_input(_request(text)) == text
+    assert build_sdk_turn_input(_request([{"type": "text", "text": text}])) == text
+    with pytest.raises(TurnInputValidationError, match="claude_runtime_text_too_large"):
+        build_sdk_turn_input(_request("x" * (MAX_TURN_TEXT + 1)))
 
 
 def test_image_url_data_uri_becomes_one_sdk_user_message() -> None:
