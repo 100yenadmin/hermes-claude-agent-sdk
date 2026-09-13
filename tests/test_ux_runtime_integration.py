@@ -2,6 +2,7 @@
 
 import asyncio
 from types import SimpleNamespace
+import pytest
 
 from agent.runtime_dispatch import HermesRuntimeHostServices, _collect_runtime_turn
 from agent.turn_context import build_effective_prompt_messages
@@ -86,6 +87,70 @@ def test_joined_tool_ack_saved_history_usage_and_unchanged_prefix(tmp_path):
         assert [m["content"] for m in db.get_messages("synthetic-parent") if not m.get("tool_calls")] == [
             "inspect", commentary, "harmless result", "done", "continue", "done"]
         await runtime.close()
+    try:
+        asyncio.run(run())
+    finally:
+        db.close()
+
+
+@pytest.mark.parametrize("end", ["cancel", "error"])
+def test_graceful_partial_stop_preserves_commentary_state_and_one_receipt(tmp_path, end):
+    from test_runtime_sdk_integration import _END
+    db = SessionDB(db_path=tmp_path / "state.db")
+    db.create_session(session_id="synthetic-stop", source="cli")
+    messages = [{"role": "user", "content": "inspect"}]
+    clients = []
+    sdk = _sdk("success", clients)
+    partial = "Observed partial commentary\n    λ\n" * 180
+
+    def flush(rows):
+        for row in rows:
+            if not row.get("_db_persisted"):
+                db.append_message("synthetic-stop", role=row["role"], content=row.get("content"))
+                row["_db_persisted"] = True
+        return True
+
+    agent = SimpleNamespace(session_id="synthetic-stop", _session_db=db,
+        tools=[], valid_tool_names=set(), _interrupt_requested=False,
+        _flush_messages_to_session_db=flush)
+    host = HermesRuntimeHostServices(agent, task_id="synthetic-stop-task", runtime_id=RUNTIME_ID,
+        turn_messages=messages, correlation_id="synthetic-stop-turn")
+    original_ack = host.persist_assistant
+    async def acknowledge(update):
+        await original_ack(update)
+        if end == "cancel":
+            agent._interrupt_requested = True
+    host.persist_assistant = acknowledge
+
+    class Client(_Client):
+        async def query(self, prompt):
+            self.queries.append(prompt)
+            await self._messages.put(SystemMessage("init", {
+                "apiKeySource": "none", "session_id": "synthetic-native-partial"}))
+            await self._messages.put(AssistantMessage([TextBlock(partial)]))
+            if end == "error":
+                await self._messages.put(_END)
+    def factory(*, options):
+        client = Client(options=options, mode=end)
+        clients.append(client)
+        return client
+    sdk.ClaudeSDKClient = factory
+    runtime = ClaudeAgentSDKRuntime(sdk_module=sdk,
+        auth_probe=lambda: SimpleNamespace(allowed=True, category="subscription_oauth"), parent_env={})
+    async def run():
+        result = await asyncio.wait_for(_collect_runtime_turn(runtime,
+            _request(messages=messages, correlation_id="synthetic-stop-turn"), host,
+            descriptor=build_runtime_descriptor()), timeout=3)
+        assert not result.completed
+        assert [m["content"] for m in db.get_messages("synthetic-stop")] == ["inspect", partial]
+        state = db.get_runtime_state("synthetic-stop", RUNTIME_ID)
+        assert state.state["external_session_id"] == "synthetic-native-partial"
+        assert state.state["continuity_status"] == "interrupted"
+        receipts = db.list_runtime_usage_receipts("synthetic-stop")
+        assert len(receipts) == 1
+        assert receipts[0].request_count is None and receipts[0].usage_observed is False
+        await runtime.close()
+        assert clients[0].disconnected == 1
     try:
         asyncio.run(run())
     finally:

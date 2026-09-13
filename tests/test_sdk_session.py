@@ -162,7 +162,10 @@ def test_bounded_turn_timeout_interrupts_and_retires_client() -> None:
         clients: list[_FakeClient] = []
         session = SDKSession(
             _configuration(turn_timeout_seconds=0.01),
-            sdk_module=_sdk(clients, [[]]),
+            sdk_module=_sdk(clients, [[
+                SystemMessage("init", {"apiKeySource": "none", "session_id": "synthetic-timeout"}),
+                AssistantMessage([TextBlock("saved partial")]),
+            ]]),
         )
 
         result = await session.run_turn("bounded wait")
@@ -170,6 +173,8 @@ def test_bounded_turn_timeout_interrupts_and_retires_client() -> None:
 
         assert result.outcome is SessionOutcome.TIMED_OUT
         assert result.error_code == "sdk_turn_timeout"
+        assert result.state_update.external_session_id == "synthetic-timeout"
+        assert result.final_text == "saved partial"
         assert clients[0].interrupted == 1
         assert clients[0].disconnected == 1
 
@@ -562,7 +567,10 @@ def test_missing_compact_boundary_trips_bounded_watchdog_and_retires_client() ->
         events = []
         session = SDKSession(
             _configuration(turn_timeout_seconds=1),
-            sdk_module=_sdk(clients, [[]]),
+            sdk_module=_sdk(clients, [[
+                SystemMessage("init", {"apiKeySource": "none", "session_id": "synthetic-watchdog"}),
+                AssistantMessage([TextBlock("saved before compaction")]),
+            ]]),
             compaction_watchdog_seconds=0.01,
         )
 
@@ -584,6 +592,8 @@ def test_missing_compact_boundary_trips_bounded_watchdog_and_retires_client() ->
 
         assert result.outcome is SessionOutcome.FAILED
         assert result.error_code == "sdk_compaction_watchdog"
+        assert result.state_update.external_session_id == "synthetic-watchdog"
+        assert result.final_text == "saved before compaction"
         assert [event.phase for event in events] == [
             SessionCompactionPhase.STARTED,
             SessionCompactionPhase.WATCHDOG,

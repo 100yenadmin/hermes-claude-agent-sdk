@@ -12,6 +12,11 @@ def test_appended_input_reuses_prefix_but_whitespace_edit_does_not():
     state = {"history_checkpoint": {"count": 2, "sha256": digest(messages)},
         "session_contract_hash": digest(contract), "continuity_status": "complete"}
     assert compatible_prefix(messages + [{"role": "user", "content": "next"}], state, contract)
+    assert not compatible_prefix(messages, state, contract)
+    assert not compatible_prefix(messages + [{"role": "assistant", "content": "inserted"}], state, contract)
+    assert not compatible_prefix(messages + [{"role": "user", "content": "imported"},
+        {"role": "assistant", "content": "never received by native session"},
+        {"role": "user", "content": "next"}], state, contract)
     assert not compatible_prefix([{"role": "user", "content": "hello"}, messages[1]], state, contract)
     assert not compatible_prefix(messages, state, ["different prompt"])
     assert not compatible_prefix(messages, {**state, "continuity_status": "interrupted"}, contract)

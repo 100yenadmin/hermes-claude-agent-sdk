@@ -93,8 +93,9 @@ class SDKTurnInput:
 
 def _bounded_text(content: Any) -> str | None:
     if isinstance(content, str):
-        text = content.strip()
-        return text[:MAX_TURN_TEXT] if text else None
+        if len(content) > MAX_TURN_TEXT:
+            raise TurnInputValidationError("claude_runtime_text_too_large")
+        return content if content.strip() else None
     if not isinstance(content, Sequence) or isinstance(
         content, (str, bytes, bytearray)
     ):
@@ -107,17 +108,14 @@ def _bounded_text(content: Any) -> str | None:
         value = block.get("text")
         if not isinstance(value, str):
             continue
-        value = value.strip()
         if not value:
             continue
-        remaining = MAX_TURN_TEXT - used
-        if remaining <= 0:
-            break
-        part = value[:remaining]
-        parts.append(part)
-        used += len(part)
-    text = "\n".join(parts).strip()
-    return text if text else None
+        used += len(value) + bool(parts)
+        if used > MAX_TURN_TEXT:
+            raise TurnInputValidationError("claude_runtime_text_too_large")
+        parts.append(value)
+    text = "\n".join(parts)
+    return text if text.strip() else None
 
 
 def _base64_source(media_type: Any, value: Any) -> SDKImageSource:

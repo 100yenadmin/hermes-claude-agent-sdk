@@ -30,7 +30,10 @@ def compatible_prefix(messages, state, contract):
     count = checkpoint.get("count") if isinstance(checkpoint, Mapping) else None
     return (state.get("session_contract_hash") == digest(contract)
         and state.get("continuity_status") == "complete"
-        and type(count) is int and 0 <= count <= len(messages)
+        # The native adapter transmits one new user message, not an arbitrary
+        # imported suffix. Additional exchanges or no new input need handoff.
+        and type(count) is int and 0 <= count == len(messages) - 1
+        and isinstance(messages[count], Mapping) and messages[count].get("role") == "user"
         and checkpoint.get("sha256") == digest(messages[:count]))
 
 

@@ -188,6 +188,13 @@ class ClaudeAgentSDKRuntime:
         try:
             from .configuration import sdk_generation_options
             sdk_generation_options(selection.model, getattr(request, "generation_settings", {}))
+        except ValueError:
+            return _failure(
+                "claude_runtime_generation_settings_unsupported",
+                "Selected effort/thinking settings are unsupported by the pinned model and SDK",
+                RuntimeFailurePhase.PREFLIGHT, replay_safe=True,
+            )
+        try:
             model_compatibility = check_model_compatibility(selection.model)
             model_compatible = (
                 isinstance(model_compatibility, Mapping)
@@ -324,6 +331,13 @@ class ClaudeAgentSDKRuntime:
         bridge: HostToolBridge | None = None
         bridge_execution_start = 0
         try:
+            if self._session is not None and self._session.admission_error_code:
+                code = self._session.admission_error_code
+                await self._session.close()
+                yield RuntimeFailedEvent(failure=_failure(
+                    code, "Claude runtime session is retired or has invalid trailing output",
+                    RuntimeFailurePhase.BEFORE_VISIBLE_OUTPUT, replay_safe=False))
+                return
             # The host has already composed and snapshotted the prompt.  The
             # SDK receives that exact value as its public system prompt; it
             # must not add a preset or plugin-owned context of its own.

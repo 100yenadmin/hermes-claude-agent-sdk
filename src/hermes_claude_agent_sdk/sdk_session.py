@@ -222,6 +222,17 @@ class SDKSession:
 
         return self._closed and self._cancel_requested
 
+    @property
+    def admission_error_code(self) -> str | None:
+        """Do not erase a retired/protocol-failed client by changing context."""
+        if self._post_terminal_native_violation:
+            return "sdk_native_tool_unsupported"
+        if self._post_terminal_output:
+            return "sdk_post_terminal_output"
+        if self._closed and not self._cancel_requested:
+            return "session_closed"
+        return None
+
     def _sdk_module(self) -> Any:
         if self._sdk is None:
             self._sdk = importlib.import_module("claude_agent_sdk")
@@ -373,6 +384,8 @@ class SDKSession:
                     await self._interrupt_then_close()
                     return SessionTurnResult(
                         SessionOutcome.TIMED_OUT,
+                        final_text=final_text,
+                        state_update=state,
                         error_code="sdk_turn_timeout",
                     )
                 while True:
@@ -399,6 +412,8 @@ class SDKSession:
                         await self._interrupt_then_close()
                         return SessionTurnResult(
                             SessionOutcome.TIMED_OUT,
+                            final_text=final_text,
+                            state_update=state,
                             error_code="sdk_turn_timeout",
                         )
                     if message is _CANCELLED or self._cancel_requested:
@@ -424,6 +439,8 @@ class SDKSession:
                         await self._interrupt_then_close()
                         return SessionTurnResult(
                             SessionOutcome.FAILED,
+                            final_text=final_text,
+                            state_update=state,
                             error_code="sdk_compaction_watchdog",
                         )
                     if isinstance(message, _StreamEnded):
