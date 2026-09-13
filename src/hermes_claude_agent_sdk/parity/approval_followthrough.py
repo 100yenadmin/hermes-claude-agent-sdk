@@ -92,6 +92,7 @@ class _Client:
         self.query_count = 0
         self._closed = False
         self._messages: asyncio.Queue[object] = asyncio.Queue()
+        self._producer_task: asyncio.Task[None] | None = None
 
     async def connect(self) -> None:
         self.connected += 1
@@ -99,6 +100,10 @@ class _Client:
     async def query(self, prompt: str) -> None:
         # ``prompt`` is intentionally not retained: it is provider-bound data.
         self.query_count += 1
+        self._producer_task = asyncio.create_task(self._produce())
+
+    async def _produce(self) -> None:
+        await self._messages.put(SystemMessage("init", {"apiKeySource": "none"}))
         server = self.options.fields["mcp_servers"]["hermes-tools"]
         handler = next(
             tool["handler"]
@@ -106,7 +111,6 @@ class _Client:
             if tool["name"] == "terminal"
         )
         for index in range(1, 4):
-            await handler({"command": "pwd"})
             await self._messages.put(
                 AssistantMessage(
                     [
@@ -118,7 +122,7 @@ class _Client:
                     ]
                 )
             )
-        await self._messages.put(SystemMessage("init", {"apiKeySource": "none"}))
+            await handler({"command": "pwd"})
         await self._messages.put(
             ResultMessage(
                 usage={
@@ -149,6 +153,10 @@ class _Client:
         self.disconnected += 1
         self._closed = True
         await self._messages.put(_END)
+        if self._producer_task is not None and not self._producer_task.done():
+            self._producer_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._producer_task
 
 
 def synthetic_sdk() -> ModuleType:
@@ -483,6 +491,8 @@ def run_approval_followthrough(*, host_root: str, plugin_module: Any | None = No
                 agent,
                 task_id=SYNTHETIC_TASK_ID,
                 runtime_id=plugin_module.RUNTIME_ID,
+                turn_messages=[dict(message) for message in request.messages],
+                correlation_id=request.correlation_id,
             )
             result = run_runtime_sync(
                 runtime,

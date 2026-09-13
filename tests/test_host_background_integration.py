@@ -28,6 +28,7 @@ from agent.runtime_dispatch import HermesRuntimeHostServices
 from tools.process_registry import process_registry
 
 from test_runtime_sdk_integration import _request, _runtime
+from hermes_claude_agent_sdk.compatibility import RUNTIME_ID
 
 
 class _SyntheticAgent:
@@ -39,7 +40,21 @@ class _SyntheticAgent:
 
 def test_native_background_output_fails_closed_without_host_queue(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
+    from hermes_state import SessionDB
+    db = SessionDB(db_path=tmp_path / "state.db")
+    agent = _SyntheticAgent()
+    db.create_session(session_id=agent.session_id, source="cli")
+    agent._session_db = db
+    messages = []
+    def flush(rows):
+        for row in rows:
+            if not row.get("_db_persisted"):
+                db.append_message(agent.session_id, role=row["role"], content=row.get("content"))
+                row["_db_persisted"] = True
+        return True
+    agent._flush_messages_to_session_db = flush
     queue: SimpleQueue[dict[str, object]] = SimpleQueue()
     monkeypatch.setattr(process_registry, "completion_queue", queue)
 
@@ -47,9 +62,10 @@ def test_native_background_output_fails_closed_without_host_queue(
         clients: list[object] = []
         runtime = _runtime("success_with_background", clients)
         host = HermesRuntimeHostServices(
-            _SyntheticAgent(),
+            agent,
             task_id="synthetic-task",
-            runtime_id="claude-agent-sdk",
+            runtime_id=RUNTIME_ID,
+            turn_messages=messages,
         )
         events: list[object] = []
         async for event in runtime.run_turn(_request(), host):
@@ -57,7 +73,10 @@ def test_native_background_output_fails_closed_without_host_queue(
         await runtime.close()
         return events
 
-    events = asyncio.run(scenario())
+    try:
+        events = asyncio.run(scenario())
+    finally:
+        db.close()
 
     assert events[-1].kind.value == "failed"
     assert events[-1].failure.code == "sdk_post_terminal_output"
