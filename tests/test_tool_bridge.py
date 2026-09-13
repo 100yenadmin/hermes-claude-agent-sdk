@@ -120,6 +120,15 @@ def test_dangling_local_reference_is_configuration_error(reference: str) -> None
         })])
 
 
+@pytest.mark.parametrize("target", [5, "text", [], None])
+def test_local_reference_to_annotation_value_is_configuration_error(target) -> None:
+    with pytest.raises(ToolBridgeConfigurationError):
+        HostToolBridge(RecordingHost(), [_openai("probe", {
+            "type": "object", "examples": [target],
+            "properties": {"value": {"$ref": "#/examples/0"}},
+        })])
+
+
 def test_local_anchor_reference_preserves_valid_schema() -> None:
     schema = {
         "type": "object",

@@ -264,7 +264,10 @@ def _schema_validator(schema: dict[str, Any]):
             if key in node:
                 # Resolve at configuration time, without fetching or following
                 # recursively. A dangling local reference must not be exposed.
-                resolver.lookup(node[key])
+                target = resolver.lookup(node[key]).contents
+                if type(target) not in (dict, bool):
+                    raise ValueError("local reference target is not a schema")
+                Draft202012Validator.check_schema(target)
         def check_child(child):
             resource = Resource.from_contents(child, default_specification=DRAFT202012)
             check(child, resolver.in_subresource(resource))
@@ -473,6 +476,10 @@ class HostToolBridge:
                 raise ToolBridgeConfigurationError("host correlation is malformed")
         self._correlation_id = correlation_id
 
+    def bind_transcript_admission(self, admission) -> None:
+        """Bind the current turn's awaited host-persistence acknowledgment."""
+        self._transcript_admission = admission
+
     async def handle_tool_call(
         self,
         request_id: str,
@@ -593,6 +600,12 @@ class HostToolBridge:
         async def handler(arguments: Any) -> dict[str, Any]:
             request_id = self._next_sdk_request_id(name)
             try:
+                admission = getattr(self, "_transcript_admission", None)
+                if admission is not None:
+                    try:
+                        request_id = await admission(name, arguments)
+                    except Exception:
+                        raise ToolBridgeRequestError("cancelled") from None
                 result = await self.handle_tool_call(request_id, name, arguments)
             except ToolBridgeRequestError as exc:
                 return ToolCallResult(

@@ -55,6 +55,7 @@ class SDKSessionConfiguration:
     turn_timeout_seconds: float
     connect_timeout_seconds: float
     close_timeout_seconds: float
+    generation_settings: Mapping[str, object] = field(default_factory=dict)
 
     @classmethod
     def create(
@@ -73,6 +74,7 @@ class SDKSessionConfiguration:
         turn_timeout_seconds: float = 600.0,
         connect_timeout_seconds: float = 60.0,
         close_timeout_seconds: float = 15.0,
+        generation_settings: Mapping[str, object] | None = None,
     ) -> "SDKSessionConfiguration":
         safe_cwd = _optional_text(cwd, field="cwd")
         assert safe_cwd is not None
@@ -134,6 +136,7 @@ class SDKSessionConfiguration:
             raise ValueError("timeouts must be in (0, 86400]")
 
         planned = plan_sdk_env_overrides(parent_env or {}, configured_env)
+        generation = sdk_generation_options(safe_model, generation_settings or {})
         return cls(
             cwd=safe_cwd,
             model=safe_model,
@@ -147,6 +150,7 @@ class SDKSessionConfiguration:
             turn_timeout_seconds=timeouts[0],
             connect_timeout_seconds=timeouts[1],
             close_timeout_seconds=timeouts[2],
+            generation_settings=MappingProxyType(generation),
         )
 
     def option_fields(self) -> dict[str, object]:
@@ -168,7 +172,38 @@ class SDKSessionConfiguration:
         }
         if self.resume_external_session_id is not None:
             fields["resume"] = self.resume_external_session_id
+        fields.update(self.generation_settings)
         return fields
+
+
+def sdk_generation_options(model, settings):
+    """Translate only explicit host reasoning controls, never guess a downgrade."""
+    if not isinstance(settings, Mapping) or set(settings) - {"reasoning"}:
+        raise ValueError("unsupported generation settings")
+    reasoning = settings.get("reasoning", {})
+    if not isinstance(reasoning, Mapping) or set(reasoning) - {"enabled", "effort", "budget_tokens"}:
+        raise ValueError("unsupported reasoning settings")
+    if not reasoning:
+        return {}
+    if model != "claude-fable-5-1":
+        raise ValueError("reasoning settings have no qualified model mapping")
+    result = {}
+    if "effort" in reasoning:
+        # xhigh is documented by this SDK as model-dependent with a silent
+        # fallback. Do not expose that fallback as successful Fable selection.
+        if reasoning["effort"] not in {"low", "medium", "high", "max"}:
+            raise ValueError("unsupported Fable effort; no silent downgrade")
+        result["effort"] = reasoning["effort"]
+    if "enabled" in reasoning:
+        if type(reasoning["enabled"]) is not bool:
+            raise ValueError("thinking enabled must be boolean")
+        result["thinking"] = {"type": "adaptive" if reasoning["enabled"] else "disabled"}
+    if "budget_tokens" in reasoning:
+        budget = reasoning["budget_tokens"]
+        if type(budget) is not int or budget < 1024 or reasoning.get("enabled") is False:
+            raise ValueError("unsupported thinking budget")
+        result["thinking"] = {"type": "enabled", "budget_tokens": budget}
+    return result
 
 
 __all__ = ["SDKSessionConfiguration"]

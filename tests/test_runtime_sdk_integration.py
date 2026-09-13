@@ -92,6 +92,9 @@ class _Client:
         self.connected += 1
 
     async def query(self, prompt: str) -> None:
+        self._producer_task = asyncio.create_task(self._produce_query(prompt))
+
+    async def _produce_query(self, prompt: str) -> None:
         self.queries.append(prompt)
         if self.mode in {
             "compaction",
@@ -104,7 +107,6 @@ class _Client:
         if self.mode in {"tool_success", "tool_failure", "compaction_tool_success"}:
             server = self.options.fields["mcp_servers"]["hermes-tools"]
             handler = server["tools"][0]["handler"]
-            await handler({"path": "."})
             await self._messages.put(
                 AssistantMessage(
                     [
@@ -116,6 +118,7 @@ class _Client:
                     ]
                 )
             )
+            await handler({"path": "."})
         if self.mode == "native_agent_once" and len(self.queries) == 1:
             await self._messages.put(
                 AssistantMessage([ToolUseBlock("agent-1", "Agent", {})])
@@ -457,6 +460,9 @@ class _Host:
         self.observed_events: list[str] = []
         self.background_after_terminal: list[bool] = []
         self.compaction = []
+        self.assistant_updates = []
+        self.states = []
+        self.receipts = []
 
     async def execute_tool(self, name, arguments, *, request_id=None):
         self.calls.append((name, dict(arguments), request_id))
@@ -469,10 +475,17 @@ class _Host:
         return None
 
     async def persist_state(self, state):
-        return None
+        self.states.append(state)
 
     async def persist_usage(self, receipt):
-        return None
+        self.receipts.append(receipt)
+
+    async def persist_assistant(self, update):
+        self.assistant_updates.append(update)
+
+    async def history_checkpoint(self):
+        from hermes_claude_agent_sdk.continuity import digest
+        return {"count": 0, "sha256": digest([])}
 
     async def emit_compaction(self, event):
         self.compaction.append(event)

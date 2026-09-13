@@ -11,6 +11,7 @@ import asyncio
 import importlib
 import os
 import re
+import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from typing import Any
@@ -77,7 +78,10 @@ def _resume_id(request: Any) -> tuple[str | None, bool]:
     ):
         return None, False
     state = getattr(envelope, "state", None)
-    if not isinstance(state, Mapping) or set(state) - {"external_session_id"}:
+    if not isinstance(state, Mapping) or set(state) - {
+        "external_session_id", "history_checkpoint", "session_contract_hash",
+        "continuity_status", "previous_external_session_id",
+    }:
         return None, False
     value = state.get("external_session_id")
     if value is None:
@@ -114,10 +118,11 @@ class ClaudeAgentSDKRuntime:
         self._session: Any | None = None
         self._bridge: HostToolBridge | None = None
         self._host: Any | None = None
-        self._session_contract: tuple[str, str, str, str, str | None] | None = None
+        self._session_contract: tuple[Any, ...] | None = None
         self._session_configuration: SDKSessionConfiguration | None = None
         self._projector: Any | None = None
         self._last_turn_tool_observations: tuple[str, ...] = ()
+        self._continuity_state: Mapping[str, Any] = {}
         # One successful preflight may be consumed only by the exact request
         # object that was checked.  This avoids probing auth twice on the
         # supported host path without caching authorization across turns.
@@ -181,6 +186,8 @@ class ClaudeAgentSDKRuntime:
                 replay_safe=False,
             )
         try:
+            from .configuration import sdk_generation_options
+            sdk_generation_options(selection.model, getattr(request, "generation_settings", {}))
             model_compatibility = check_model_compatibility(selection.model)
             model_compatible = (
                 isinstance(model_compatibility, Mapping)
@@ -220,12 +227,15 @@ class ClaudeAgentSDKRuntime:
             RuntimeCompactionEvent,
             RuntimeCompactionPhase,
             RuntimeCompletedEvent,
+            RuntimeContentEvent,
             RuntimeFailedEvent,
             RuntimeFailurePhase,
             RuntimeStateEnvelope,
             RuntimeStateEvent,
+            RuntimeStatusEvent,
             RuntimeToolRequestEvent,
             RuntimeUsageEvent,
+            RuntimeUsageReceipt,
         )
         from .content_events import ClaudeSdkEventProjector, ProjectionResult
         from .compaction import SessionCompactionPhase
@@ -324,7 +334,33 @@ class ClaudeAgentSDKRuntime:
                 request.selection.api_mode,
                 request.tool_schema_hash,
                 prompt_snapshot,
+                dict(getattr(request, "generation_settings", {})),
             )
+            from .continuity import compatible_prefix, context_handoff, digest
+            context_contract = session_contract[:5]
+            envelope = getattr(request, "session_state", None)
+            prior_state = dict(getattr(envelope, "state", {}) or self._continuity_state)
+            resume_id = prior_state.get("external_session_id", resume_id)
+            compatible = bool(resume_id) and compatible_prefix(
+                request.messages, prior_state, context_contract)
+            has_history = sum(m.get("role") == "user" for m in request.messages) > 1 or any(
+                m.get("role") in {"assistant", "tool"} for m in request.messages)
+            handoff = not compatible and (bool(resume_id) or has_history)
+            if not compatible and self._session is not None:
+                await self._session.close()
+                self._session = None
+            elif self._session is not None and session_contract != self._session_contract:
+                # Effort changes require fresh SDK options, not a history edit.
+                await self._session.close()
+                self._session = None
+            if handoff:
+                prompt = context_handoff(request.messages, prompt)
+                yield RuntimeStatusEvent(message=(
+                    "CONTEXT HANDOFF: new Fable session using a reduced-fidelity historical "
+                    "excerpt; original history preserved. Native compacted state is not replayed."
+                ))
+            if not compatible:
+                resume_id = None
 
             def new_projector() -> Any:
                 return ClaudeSdkEventProjector(
@@ -365,6 +401,7 @@ class ClaudeAgentSDKRuntime:
                     ),
                     mcp_servers={_MCP_SERVER_NAME: server},
                     allowed_tools=allowed_tools,
+                    generation_settings=getattr(request, "generation_settings", {}),
                 )
                 self._bridge = bridge
                 self._session_contract = session_contract
@@ -397,6 +434,9 @@ class ClaudeAgentSDKRuntime:
             bridge = self._bridge
             assert bridge is not None
             bridge.begin_turn(request.correlation_id)
+            from .visible_turn import VisibleTurn
+            visible_turn = VisibleTurn(host)
+            bridge.bind_transcript_admission(visible_turn.admit_tool)
             session = self._session
             projector = self._projector
             assert projector is not None
@@ -410,7 +450,14 @@ class ClaudeAgentSDKRuntime:
             )
 
             async def on_projection(projection: ProjectionResult) -> None:
-                await queue.put(projection)
+                # This acknowledgment is on the SDK reader's projection path,
+                # not the independent display queue. MCP must consume its permit
+                # before the host can append or execute the related tool request.
+                streamed = await visible_turn.observe(projection)
+                events = tuple(e for e in projection.events if not isinstance(e, RuntimeContentEvent))
+                contents = tuple(RuntimeContentEvent(text=streamed[i:i + 4000])
+                    for i in range(0, len(streamed), 4000))
+                await queue.put(replace(projection, events=contents + events))
 
             async def on_compaction_event(event: Any) -> None:
                 phases = {
@@ -436,6 +483,17 @@ class ClaudeAgentSDKRuntime:
                     )
                 )
 
+            # A crash/uncertain stop must not leave a stale complete checkpoint
+            # that silently resumes past unobserved effects on the next turn.
+            pending_state = {
+                "external_session_id": resume_id,
+                "previous_external_session_id": prior_state.get("external_session_id"),
+                "session_contract_hash": digest(context_contract),
+                "continuity_status": "interrupted",
+            }
+            await host.persist_state(RuntimeStateEnvelope(
+                runtime_id=RUNTIME_ID, schema_version=1, state=pending_state))
+            self._continuity_state = pending_state
             task = asyncio.create_task(
                 session.run_turn(
                     prompt,
@@ -454,8 +512,14 @@ class ClaudeAgentSDKRuntime:
                 "canonical_model": "unknown",
                 "model_resolution": "unknown",
             }
+            attempt_id = uuid.uuid4().hex
+            observed_usage = None
+            native_turn_count = None
             while not task.done() or not queue.empty():
                 now = loop.time()
+                if visible_turn.failure and not cancel_sent:
+                    cancel_sent = True
+                    await session.cancel()
                 if not cancel_sent and now >= next_cancellation_poll:
                     next_cancellation_poll = now + cancellation_poll_interval
                     try:
@@ -525,6 +589,9 @@ class ClaudeAgentSDKRuntime:
 
                 for event in projection.events:
                     if isinstance(event, RuntimeCompletedEvent):
+                        value = (event.result or {}).get("num_turns")
+                        if type(value) is int and value >= 0:
+                            native_turn_count = value
                         continue
                     if isinstance(event, RuntimeToolRequestEvent):
                         observed_name = _safe_tool_observation_name(
@@ -551,8 +618,7 @@ class ClaudeAgentSDKRuntime:
                         continue
                     if isinstance(event, RuntimeUsageEvent):
                         receipt = event.receipt
-                        event = RuntimeUsageEvent(
-                            receipt=replace(
+                        observed_usage = replace(
                                 receipt,
                                 runtime_id=RUNTIME_ID,
                                 provider=_UPSTREAM_PROVIDER,
@@ -560,14 +626,42 @@ class ClaudeAgentSDKRuntime:
                                 cost_status="included",
                                 replay_safe=False,
                                 correlation_id=request.correlation_id,
-                            )
+                                attempt_id=attempt_id,
+                                request_count=None,
                         )
+                        continue
                     else:
                         kind = getattr(event, "kind", None)
                         visible = visible or getattr(kind, "value", None) == "content"
                     yield event
 
             result = await task
+            await visible_turn.finish()
+            receipt = observed_usage or RuntimeUsageReceipt(
+                runtime_id=RUNTIME_ID, provider=_UPSTREAM_PROVIDER, model="unknown",
+                billing_mode="subscription_included", cost_status="unknown",
+                correlation_id=request.correlation_id, attempt_id=attempt_id,
+                request_count=None, usage_observed=False,
+            )
+            yield RuntimeUsageEvent(receipt=replace(receipt, runtime_turn_count=native_turn_count))
+            observed_session_id = result.state_update.external_session_id or resume_id
+            continuity_state = {
+                **pending_state,
+                "external_session_id": observed_session_id,
+                "history_checkpoint": dict(await host.history_checkpoint()),
+                "continuity_status": "complete" if result.outcome is SessionOutcome.COMPLETE else "interrupted",
+            }
+            await host.persist_state(RuntimeStateEnvelope(
+                runtime_id=RUNTIME_ID, schema_version=1, state=continuity_state))
+            self._continuity_state = continuity_state
+            if visible_turn.failure:
+                terminal = True
+                yield RuntimeFailedEvent(failure=_failure(
+                    "claude_runtime_transcript_ack_missing",
+                    "Hermes commentary acknowledgment was not available before a tool call",
+                    RuntimeFailurePhase.AFTER_VISIBLE_OUTPUT, replay_safe=False,
+                ))
+                return
             if cancellation_unavailable:
                 phase = (
                     RuntimeFailurePhase.AFTER_SIDE_EFFECTS
@@ -588,32 +682,24 @@ class ClaudeAgentSDKRuntime:
                 return
             if result.outcome is SessionOutcome.COMPLETE:
                 final_text = result.final_text or ""
-                if result.state_update.external_session_id is not None:
-                    yield RuntimeStateEvent(
-                        state=RuntimeStateEnvelope(
-                            runtime_id=RUNTIME_ID,
-                            schema_version=1,
-                            state={
-                                "external_session_id": result.state_update.external_session_id
-                            },
-                        )
-                    )
                 terminal = True
                 # ``text`` is the provider-neutral completion payload.  The
                 # remaining fields are the current Hermes v1 conversation
                 # adapter shape; retain them until the host normalizes generic
                 # completion/content events itself.
-                response_messages = [dict(message) for message in request.messages]
-                response_messages.append({"role": "assistant", "content": final_text})
                 yield RuntimeCompletedEvent(
                     result={
                         "text": final_text,
                         "final_response": final_text,
-                        "messages": response_messages,
+                        # Host acknowledged message identities already own the
+                        # transcript. Do not return a competing final snapshot.
+                        "messages": [],
                         "completed": True,
                         "partial": False,
                         "error": None,
-                        "api_calls": 1,
+                        "api_calls": None,
+                        "host_steps": 1,
+                        "runtime_turn_count": native_turn_count,
                         "provider": _UPSTREAM_PROVIDER,
                         # Keep the legacy model key as the safe effective /
                         # canonical identity, never as selected request data.
