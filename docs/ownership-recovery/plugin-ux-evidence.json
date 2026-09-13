@@ -4,7 +4,15 @@
   "qualification": "PENDING_FINAL_CI",
   "runtime_plugin_source": "bde73e1b75c3061e48cc7196b4ff4031c74bec3b",
   "inspected_plugin_source": "d02a5c31265a4f7e56d217823053890a2873fda2",
-  "host_source": "b30242781379ea23107591ca8974e6210a9a34ac",
+  "host_source": "44193314d18ecb601c25e2b4983468cee0c24b8f",
+  "host_crash_recovery_delta": {
+    "baseline": "1ea0a2bafcf29a4839a8dc9573207f457606c45c",
+    "source": "44193314d18ecb601c25e2b4983468cee0c24b8f",
+    "counterexample": "Existing Gateway crash recovery automatically resubmitted agent_runtime prompts despite uncertain tool effects. Immediate and deferred agent-build regressions both failed before the guard.",
+    "correction": "After agent construction, preserve the crash marker and saved history, emit explicit-continuation status, and return before prompt admission/execution for agent_runtime. Ordinary API-model auto recovery is unchanged.",
+    "focused_result": "tests/tui_gateway/test_auto_continue.py: 22 passed, 0 failed, one worker, 1.8 seconds",
+    "proof_boundary": "Provider-free execution of existing Gateway scheduling, not a live abrupt-crash or side-effect replay experiment. Final independent delta review and remote CI tracked in PR22."
+  },
   "installed_wheel_sha256": "a6c9cf19c59c52c24dd349bff3540e88936c5816ed6b248c41917de32c882fa3",
   "d02_wheel_sha256": "a8fd81c962d012c1a76bf7047aff9018d8c53b24dc05aa5d9fb25083b6786b61",
   "wheel_member_comparison": {

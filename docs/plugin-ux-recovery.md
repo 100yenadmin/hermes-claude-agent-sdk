@@ -29,8 +29,12 @@ for current status.
   isolation, and in-flight cancellation followed by a normal next turn.
   [Sanitized evidence and corrective dispositions](ownership-recovery/plugin-ux-evidence.json)
   preserve the original failed assertions and distinguish their reusable proof.
-- Current compatible host: `b30242781379ea23107591ca8974e6210a9a34ac`.
-  It differs from the reviewed `f250a26` runtime only in CI configuration.
+- Current compatible host: `44193314d18ecb601c25e2b4983468cee0c24b8f`.
+  Beyond the installed `b302427` candidate, this adds an external-runtime crash
+  recovery guard: uncertain turns require an explicit user continuation rather
+  than automatic prompt replay. Both immediate and deferred agent construction
+  passed the existing Gateway regression file (22 tests). Completed-turn live
+  proof is retained; it does not claim a live abrupt-crash exercise.
   The `d02a5c3` wheel differs from the installed wheel only in METADATA and RECORD;
   all other members are byte-identical. This is not whole-wheel equality.
 - Scoped independent runtime review passed, including cold resume and the visible
@@ -72,7 +76,7 @@ Use a separate checkout/virtual environment and a consenting isolated profile.
 Before installation, snapshot that profile's package/config/state; preserve
 authentication and conversations during rollback.
 
-1. Check out host `b30242781379ea23107591ca8974e6210a9a34ac` from the linked fork.
+1. Check out host `44193314d18ecb601c25e2b4983468cee0c24b8f` from the linked fork.
    Install its existing dependencies in a separate Python 3.11 environment.
 2. Download the wheel from an exact-head successful artifact build linked in
    PR #30. Verify its digest against the corresponding candidate receipt.
@@ -104,6 +108,12 @@ remain open. Context handoff has reduced fidelity. Abrupt crashes or uncertain
 tool completion must not trigger automatic side-effect replay. Technical billing
 evidence is not service-terms certification. No merge, publication, stock-Hermes
 compatibility or customer-readiness claim is made.
+
+After an interrupted runtime crash, inspect the saved history and explicitly
+send the next instruction. The host preserves the recovery marker and shows an
+uncertainty notice; it does not automatically resubmit the unfinished prompt.
+An explicit continuation still cannot prove whether an unacknowledged external
+effect happened, so check that effect before asking to repeat it.
 
 Text is delivered in completed SDK assistant-message blocks; token-by-token
 partial streaming is not established. Cancelled attempts may have unknown usage
