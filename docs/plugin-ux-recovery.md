@@ -23,10 +23,20 @@ for current status.
 - That normal, non-hidden Hermes Gateway session proved tools, approval denial
   and recovery, saved commentary before tools, restart with the same native
   identity, subscription-included billing and zero processes left after teardown.
-- Focused independent implementation review passed, including the cold-resume
-  correction. The broader current CI and remaining UX checklist are not yet
-  complete. Six sealed historical-v4 tests require their original host and are
-  not counted as current-candidate passes.
+- The subsequent installed checks proved effort selection, a verified reasoning
+  task, images, Hermes handoff/fanout/background delivery, an explicit visible
+  context handoff preserving its original conversation, skill/memory use and
+  isolation, and in-flight cancellation followed by a normal next turn.
+  [Sanitized evidence and corrective dispositions](ownership-recovery/plugin-ux-evidence.json)
+  preserve the original failed assertions and distinguish their reusable proof.
+- Current compatible host: `b30242781379ea23107591ca8974e6210a9a34ac`.
+  It differs from the reviewed `f250a26` runtime only in CI configuration.
+  The `d02a5c3` wheel differs from the installed wheel only in METADATA and RECORD;
+  all other members are byte-identical. This is not whole-wheel equality.
+- Scoped independent runtime review passed, including cold resume and the visible
+  handoff notice. Final exact-head CI remains the active gate. Six sealed
+  historical-v4 tests require their original host and are not counted as
+  current-candidate passes.
 
 The native dependency remains SDK `0.2.151`, bundled CLI `2.1.258`, model
 `claude-fable-5-1`. No lower-usage or universal-model claim is made.
@@ -62,7 +72,7 @@ Use a separate checkout/virtual environment and a consenting isolated profile.
 Before installation, snapshot that profile's package/config/state; preserve
 authentication and conversations during rollback.
 
-1. Check out host `3302d330ff10cd26a80991b1db44c22ea270711f` from the linked fork.
+1. Check out host `b30242781379ea23107591ca8974e6210a9a34ac` from the linked fork.
    Install its existing dependencies in a separate Python 3.11 environment.
 2. Download the wheel from an exact-head successful artifact build linked in
    PR #30. Verify its digest against the corresponding candidate receipt.
@@ -94,3 +104,9 @@ remain open. Context handoff has reduced fidelity. Abrupt crashes or uncertain
 tool completion must not trigger automatic side-effect replay. Technical billing
 evidence is not service-terms certification. No merge, publication, stock-Hermes
 compatibility or customer-readiness claim is made.
+
+Text is delivered in completed SDK assistant-message blocks; token-by-token
+partial streaming is not established. Cancelled attempts may have unknown usage
+when the SDK never returned a usage result. The UI must not label that zero or
+invent a request count. Native-compaction handling retains focused deterministic
+coverage; this phase does not claim a new forced-compaction live campaign.
